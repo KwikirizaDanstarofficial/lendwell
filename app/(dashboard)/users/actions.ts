@@ -1,11 +1,8 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { db } from "@/db"
-import { saccoUsers } from "@/db/schema"
-import { eq, and } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
-import bcrypt from "bcryptjs"
 import { z } from "zod"
 
 export type UserFormState = {
@@ -58,37 +55,29 @@ export async function createUserAction(
     }
   }
 
-  // Check duplicate
-  const existing = await db
-    .select({ id: saccoUsers.id })
-    .from(saccoUsers)
-    .where(
-      and(
-        eq(saccoUsers.sacco_id, actor.saccoId),
-        eq(saccoUsers.email, parsed.data.email)
-      )
-    )
-    .limit(1)
-
-  if (existing.length > 0)
-    return { error: "A user with this email already exists." }
-
-  const password_hash = await bcrypt.hash(parsed.data.password, 12)
-
-  await db.insert(saccoUsers).values({
-    sacco_id: actor.saccoId,
-    full_name: parsed.data.full_name,
+  const { error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: parsed.data.email,
-    phone: parsed.data.phone ?? null,
-    password_hash,
-    role: parsed.data.role as "admin" | "cashier" | "field_agent",
-    notes: parsed.data.notes ?? null,
-    is_active: true,
-    must_change_password: true,
-    created_by: actor.userId as any,
+    password: parsed.data.password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: parsed.data.full_name,
+      role: parsed.data.role,
+      sacco_id: actor.saccoId,
+      phone: parsed.data.phone ?? null,
+      notes: parsed.data.notes ?? null,
+      must_change_password: true,
+      created_by: actor.userId,
+    },
   })
 
-  revalidatePath("/dashboard/users")
+  if (authError) {
+    if (authError.message.toLowerCase().includes("already been registered")) {
+      return { error: "A user with this email already exists." }
+    }
+    return { error: authError.message }
+  }
+
+  revalidatePath("/users")
   return { success: true }
 }
 
@@ -103,20 +92,20 @@ export async function updateUserAction(
   if (actor.role !== "admin") return { error: "Only admins can edit users." }
 
   const id = formData.get("id") as string
-  const role = formData.get("role") as "admin" | "cashier" | "field_agent"
 
-  await db
-    .update(saccoUsers)
-    .set({
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    user_metadata: {
       full_name: formData.get("full_name") as string,
+      role: formData.get("role") as string,
       phone: (formData.get("phone") as string) || null,
-      role,
       notes: (formData.get("notes") as string) || null,
-      updated_at: new Date(),
-    })
-    .where(and(eq(saccoUsers.id, id), eq(saccoUsers.sacco_id, actor.saccoId)))
+      sacco_id: actor.saccoId,
+    },
+  })
 
-  revalidatePath("/dashboard/users")
+  if (error) return { error: error.message }
+
+  revalidatePath("/users")
   return { success: true }
 }
 
@@ -131,12 +120,13 @@ export async function toggleUserActiveAction(
   if (actor.role !== "admin") return { error: "Only admins can do this." }
   if (id === actor.userId) return { error: "You cannot deactivate yourself." }
 
-  await db
-    .update(saccoUsers)
-    .set({ is_active: isActive, updated_at: new Date() })
-    .where(and(eq(saccoUsers.id, id), eq(saccoUsers.sacco_id, actor.saccoId)))
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    ban_duration: isActive ? "none" : "876600h",
+  })
 
-  revalidatePath("/dashboard/users")
+  if (error) return { error: error.message }
+
+  revalidatePath("/users")
   return { success: true }
 }
 
@@ -148,19 +138,17 @@ export async function resetPasswordAction(
 ): Promise<UserFormState> {
   const actor = await getCurrentUser()
   if (!actor) return { error: "Not authenticated." }
-  if (actor.role !== "admin")
-    return { error: "Only admins can reset passwords." }
-  if (newPassword.length < 8)
-    return { error: "Password must be at least 8 characters." }
+  if (actor.role !== "admin") return { error: "Only admins can reset passwords." }
+  if (newPassword.length < 8) return { error: "Password must be at least 8 characters." }
 
-  const password_hash = await bcrypt.hash(newPassword, 12)
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    password: newPassword,
+    user_metadata: { must_change_password: true },
+  })
 
-  await db
-    .update(saccoUsers)
-    .set({ password_hash, must_change_password: true, updated_at: new Date() })
-    .where(and(eq(saccoUsers.id, id), eq(saccoUsers.sacco_id, actor.saccoId)))
+  if (error) return { error: error.message }
 
-  revalidatePath("/dashboard/users")
+  revalidatePath("/users")
   return { success: true }
 }
 
@@ -170,13 +158,11 @@ export async function deleteUserAction(id: string): Promise<UserFormState> {
   const actor = await getCurrentUser()
   if (!actor) return { error: "Not authenticated." }
   if (actor.role !== "admin") return { error: "Only admins can delete users." }
-  if (id === actor.userId)
-    return { error: "You cannot delete your own account." }
+  if (id === actor.userId) return { error: "You cannot delete your own account." }
 
-  await db
-    .delete(saccoUsers)
-    .where(and(eq(saccoUsers.id, id), eq(saccoUsers.sacco_id, actor.saccoId)))
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
+  if (error) return { error: error.message }
 
-  revalidatePath("/dashboard/users")
+  revalidatePath("/users")
   return { success: true }
 }

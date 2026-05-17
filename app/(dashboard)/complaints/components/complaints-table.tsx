@@ -84,26 +84,26 @@ const priorityVariant: Record<
 
 export interface Complaint {
   id: string
-  sacco_id: string
-  member_id: string | null
-  complaint_ref: string | null
+  saccoId: string
+  memberId: string | null
+  complaintRef: string | null
   subject: string
   body: string
   category: string | null
   priority: string | null
   status: string | null
-  assigned_to: string | null
-  resolution_notes: string | null
-  resolved_at: Date | null
-  resolved_by: string | null
-  satisfaction_rating: number | null
+  assignedTo: string | null
+  resolutionNotes: string | null
+  resolvedAt: Date | null
+  resolvedBy: string | null
+  satisfactionRating: number | null
   feedback: string | null
   notes: string | null
-  created_at: Date | null
-  updated_at: Date | null
-  member_name: string | null
-  member_code: string | null
-  member_phone: string | null
+  createdAt: Date | null
+  updatedAt: Date | null
+  memberName: string | null
+  memberCode: string | null
+  memberPhone: string | null
 }
 
 interface ComplaintsTableProps {
@@ -132,7 +132,7 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
         </Button>
       ),
       cell: ({ row }) => (
-        <p className="font-mono text-sm">{row.original.complaint_ref || "—"}</p>
+        <p className="font-mono text-sm">{row.original.complaintRef || "—"}</p>
       ),
     },
     {
@@ -173,10 +173,10 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
           <User className="h-4 w-4 text-muted-foreground" />
           <div>
             <p className="font-medium">
-              {row.original.member_name || "Unknown"}
+              {row.original.memberName || "Unknown"}
             </p>
             <p className="text-sm text-muted-foreground">
-              {row.original.member_code || "N/A"}
+              {row.original.memberCode || "N/A"}
             </p>
           </div>
         </div>
@@ -248,9 +248,7 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
-          {row.original.created_at
-            ? formatDate(row.original.created_at)
-            : "N/A"}
+          {row.original.createdAt ? formatDate(row.original.createdAt) : "N/A"}
         </div>
       ),
     },
@@ -258,7 +256,7 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
       accessorKey: "resolved_at",
       header: "Resolved",
       cell: ({ row }) =>
-        row.original.resolved_at ? formatDate(row.original.resolved_at) : "—",
+        row.original.resolvedAt ? formatDate(row.original.resolvedAt) : "—",
     },
     {
       id: "actions",

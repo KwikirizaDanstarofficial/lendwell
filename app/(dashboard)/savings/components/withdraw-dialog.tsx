@@ -51,7 +51,7 @@ export function WithdrawDialog({
             Withdraw Savings
           </DialogTitle>
           <DialogDescription>
-            {account.account_number} · {account.member_name} · Available:{" "}
+            {account.accountNumber} · {account.member_name} · Available:{" "}
             <span className="font-semibold text-foreground">
               {formatUGX(account.balance)}
             </span>

@@ -4,8 +4,28 @@ import { useState } from "react"
 import { pdf } from "@react-pdf/renderer"
 import { Button } from "@/components/ui/button"
 import { FileText, CreditCard, Loader2 } from "lucide-react"
-import { Member } from "@/db/schema"
 import { MemberIdCardDocument } from "@/lib/pdf/member-id-card"
+
+interface Member {
+  id: string
+  saccoId: string
+  memberCode: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  nationalId: string | null
+  photoUrl: string | null
+  dateOfBirth: string | null
+  address: string | null
+  nextOfKin: string | null
+  nextOfKinPhone: string | null
+  nextOfKinRelationship: string | null
+  nextOfKinAddress: string | null
+  status: string
+  joinedAt: string | null
+  createdAt: Date
+  updatedAt: Date
+}
 import { ApplicationFormDocument } from "@/lib/pdf/application-form"
 import { toast } from "sonner"
 
@@ -35,7 +55,7 @@ export function PdfButtons({ member }: PdfButtonsProps) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${member.member_code}-ID-Card.pdf`
+      a.download = `${member.memberCode}-ID-Card.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("ID Card downloaded")
@@ -70,11 +90,11 @@ export function PdfButtons({ member }: PdfButtonsProps) {
           sacco={{
             name: sacco.name,
             address: sacco.address,
-            contact_phone: sacco.contact_phone,
-            contact_email: sacco.contact_email,
-            logo_url: sacco.logo_url,
+            contact_phone: sacco.contactPhone,
+            contact_email: sacco.contactEmail,
+            logo_url: sacco.logoUrl,
             tagline: sacco.tagline,
-            primary_color: sacco.primary_color,
+            primary_color: sacco.primaryColor,
           }}
         />
       )
@@ -82,7 +102,7 @@ export function PdfButtons({ member }: PdfButtonsProps) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${member.member_code}-Application-Form.pdf`
+      a.download = `${member.memberCode}-Application-Form.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("Application Form downloaded")

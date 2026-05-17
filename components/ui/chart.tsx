@@ -82,20 +82,23 @@ function ChartContainer({
 }
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme ?? config.color
-  )
+  try {
+    // Ensure config is a valid object
+    const safeConfig = config && typeof config === "object" ? config : {}
+    const colorConfig = Object.entries(safeConfig).filter(
+      ([, cfg]) => cfg && typeof cfg === "object" && (cfg.theme ?? cfg.color)
+    )
 
-  if (!colorConfig.length) {
-    return null
-  }
+    if (!colorConfig.length) {
+      return null
+    }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+    return (
+      <style
+        dangerouslySetInnerHTML={{
+          __html: Object.entries(THEMES)
+            .map(
+              ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
@@ -104,14 +107,19 @@ ${colorConfig
       itemConfig.color
     return color ? `  --color-${key}: ${color};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `
-          )
-          .join("\n"),
-      }}
-    />
-  )
+            )
+            .join("\n"),
+        }}
+      />
+    )
+  } catch (error) {
+    console.error("Chart style generation failed:", error)
+    return null
+  }
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip

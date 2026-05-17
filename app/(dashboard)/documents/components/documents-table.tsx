@@ -54,15 +54,15 @@ import { typeLabels, typeColors } from "./documents-client"
 
 export interface Document {
   id: string
-  sacco_id: string
-  created_at: Date | null
-  member_id: string
-  loan_id: string | null
+  saccoId: string
+  createdAt: string | null
+  memberId: string
+  loanId: string | null
   type: string
-  file_name: string
-  blob_url: string
-  member_name: string | null
-  member_code: string | null
+  fileName: string
+  blobUrl: string
+  memberName: string | null
+  memberCode: string | null
 }
 
 export function DocumentsTable({ documents }: { documents: Document[] }) {
@@ -78,7 +78,7 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
   const handleDelete = async () => {
     if (!deleteDoc) return
     setDeleting(true)
-    const res = await deleteDocumentAction(deleteDoc.id, deleteDoc.blob_url)
+    const res = await deleteDocumentAction(deleteDoc.id, deleteDoc.blobUrl)
     setDeleting(false)
     if (res.success) {
       toast.success("Document deleted")
@@ -118,9 +118,7 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
           <TableBody>
             {table.getRowModel().rows.map((row) => {
               const doc = row.original
-              const isImage = /\.(jpg|jpeg|png|webp)$/i.test(
-                doc.file_name ?? ""
-              )
+              const isImage = /\.(jpg|jpeg|png|webp)$/i.test(doc.fileName ?? "")
               return (
                 <TableRow
                   key={doc.id}
@@ -132,8 +130,8 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
                         {isImage ? (
                           <img
-                            src={doc.blob_url}
-                            alt={doc.file_name}
+                            src={doc.blobUrl}
+                            alt={doc.fileName}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -142,10 +140,10 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
                       </div>
                       <div>
                         <p className="max-w-[200px] truncate text-sm font-medium">
-                          {doc.file_name}
+                          {doc.fileName}
                         </p>
                         <p className="text-xs text-muted-foreground uppercase">
-                          {doc.file_name?.split(".").pop()}
+                          {doc.fileName?.split(".").pop()}
                         </p>
                       </div>
                     </div>
@@ -165,14 +163,14 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="text-sm font-medium">{doc.member_name}</p>
+                      <p className="text-sm font-medium">{doc.memberName}</p>
                       <p className="font-mono text-xs text-muted-foreground">
-                        {doc.member_code}
+                        {doc.memberCode}
                       </p>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(doc.created_at)}
+                    {formatDate(doc.createdAt)}
                   </TableCell>
                   <TableCell
                     className="text-right"
@@ -190,13 +188,13 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
                           Preview
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => window.open(doc.blob_url, "_blank")}
+                          onClick={() => window.open(doc.blobUrl, "_blank")}
                         >
                           <Download className="mr-2 h-4 w-4" />
                           Download
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => window.open(doc.blob_url, "_blank")}
+                          onClick={() => window.open(doc.blobUrl, "_blank")}
                         >
                           <ExternalLink className="mr-2 h-4 w-4" />
                           Open in New Tab
@@ -235,7 +233,7 @@ export function DocumentsTable({ documents }: { documents: Document[] }) {
             <AlertDialogTitle>Delete Document?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete{" "}
-              <strong>{deleteDoc?.file_name}</strong> from storage. This cannot
+              <strong>{deleteDoc?.fileName}</strong> from storage. This cannot
               be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

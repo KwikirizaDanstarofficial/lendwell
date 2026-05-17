@@ -1,26 +1,13 @@
 "use server"
 
-import { put } from "@vercel/blob"
-import { smartDb } from "@/lib/db/database-adapter"
-import {
-  members,
-  loans,
-  savingsAccounts,
-  fines,
-  transactions,
-  notifications,
-  type Loan,
-  type SavingsAccount,
-  type Fine,
-  type Transaction,
-} from "@/db/schema"
+import { supabaseAdmin } from "@/lib/supabase/server"
+import { SupabaseStorage, STORAGE_BUCKETS } from "@/lib/supabase/storage"
 import { revalidatePath } from "next/cache"
-import { generateMemberCode } from "@/lib/member-code"
+import { generateMemberCode, generateMemberCodes } from "@/lib/member-code"
 import { sendSms, smsTemplates } from "@/lib/sms"
 import { getCurrentUser } from "@/lib/auth"
-import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { z } from "zod"
-import { eq, and, desc } from "drizzle-orm"
+import { calculateLoan } from "@/lib/pdf/loan-calculator"
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -88,10 +75,12 @@ async function uploadMemberPhoto(
     }
 
     const ext = photoFile.name.split(".").pop() || "jpg"
-    const filename = `members/${saccoId}/${memberCode}/photo-${Date.now()}.${ext}`
+    const filename = `${saccoId}/${memberCode}/photo-${Date.now()}.${ext}`
 
-    const blob = await put(filename, photoFile, { access: "public" })
-    return blob.url
+    await SupabaseStorage.uploadFile(STORAGE_BUCKETS.AVATARS, photoFile, filename)
+    const publicUrl = await SupabaseStorage.getPublicUrl(STORAGE_BUCKETS.AVATARS, filename)
+
+    return publicUrl
   } catch (error) {
     console.error("Photo upload failed:", error)
     return null
@@ -148,22 +137,29 @@ export async function addMemberAction(
       }
     }
 
-    await smartDb.insert(members).values({
-      member_code,
-      sacco_id: user.saccoId,
-      full_name: parsed.data.full_name,
-      email: parsed.data.email || null,
-      phone: parsed.data.phone,
-      national_id: parsed.data.national_id,
-      date_of_birth: parsed.data.date_of_birth || null,
-      address: parsed.data.address || null,
-      next_of_kin: parsed.data.next_of_kin || null,
-      next_of_kin_relationship: parsed.data.next_of_kin_relationship || null,
-      next_of_kin_phone: parsed.data.next_of_kin_phone || null,
-      next_of_kin_address: parsed.data.next_of_kin_address || null,
-      status: parsed.data.status,
-      photo_url: parsed.data.photo_url || null,
-    })
+    const { error: insertError } = await supabaseAdmin
+      .from('members')
+      .insert({
+        member_code,
+        sacco_id: user.saccoId,
+        full_name: parsed.data.full_name,
+        email: parsed.data.email || null,
+        phone: parsed.data.phone,
+        national_id: parsed.data.national_id,
+        date_of_birth: parsed.data.date_of_birth || null,
+        address: parsed.data.address || null,
+        next_of_kin: parsed.data.next_of_kin || null,
+        next_of_kin_relationship: parsed.data.next_of_kin_relationship || null,
+        next_of_kin_phone: parsed.data.next_of_kin_phone || null,
+        next_of_kin_address: parsed.data.next_of_kin_address || null,
+        status: parsed.data.status,
+        photo_url: parsed.data.photo_url || null,
+      })
+
+    if (insertError) {
+      console.error('Supabase insert error:', insertError)
+      return { error: "Failed to add member. Please try again." }
+    }
 
     if (parsed.data.phone) {
       await sendSms({
@@ -203,12 +199,16 @@ export async function editMemberAction(
       return { error: "You don't have permission to edit members" }
     }
 
-    // Get existing member to check current photo
-    const [existingMember] = await smartDb
-      .select(members)
-      .where(eq(members.id, id))
+    
 
-    if (!existingMember) {
+    // Get existing member to check current photo
+    const { data: existingMember, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (memberError || !existingMember) {
       return { error: "Member not found" }
     }
 
@@ -248,13 +248,9 @@ export async function editMemberAction(
       }
     }
 
-    const [existing] = await smartDb.select(members).where(eq(members.id, id))
-
-    if (!existing) return { error: "Member not found." }
-
-    await smartDb
-      .update(members)
-      .set({
+    const { error: updateError } = await supabaseAdmin
+      .from('members')
+      .update({
         full_name: parsed.data.full_name,
         email: parsed.data.email || null,
         phone: parsed.data.phone,
@@ -267,15 +263,25 @@ export async function editMemberAction(
         next_of_kin_address: parsed.data.next_of_kin_address || null,
         status: parsed.data.status,
         photo_url: parsed.data.photo_url || null,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(members.id, id))
+      .eq('id', id)
 
-    if (parsed.data.phone && parsed.data.phone !== existing.phone) {
-      await sendSms({
-        to: parsed.data.phone,
-        message: `Dear ${parsed.data.full_name}, your SACCO profile has been updated. Member code: ${existing.member_code}. - SACCO`,
-      })
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to update member. Please try again." }
+    }
+
+    if (parsed.data.phone && parsed.data.phone !== existingMember.phone) {
+      try {
+        await sendSms({
+          to: parsed.data.phone,
+          message: `Dear ${parsed.data.full_name}, your SACCO profile has been updated. Member code: ${existingMember.member_code}. - SACCO`,
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the update if SMS fails
+      }
     }
 
     revalidatePath("/members")
@@ -301,25 +307,48 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       return { error: "You don't have permission to delete members" }
     }
 
-    const [existing] = await smartDb.select(members).where(eq(members.id, id))
+    
 
-    if (!existing) return { error: "Member not found." }
+    // Check if member exists
+    const { data: existing, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('id')
+      .eq('id', id)
+      .single()
 
-    const memberLoans = await smartDb
-      .select(loans)
-      .where(eq(loans.member_id, id))
-    const memberSavings = await smartDb
-      .select(savingsAccounts)
-      .where(eq(savingsAccounts.member_id, id))
-    const memberFines = await smartDb
-      .select(fines)
-      .where(eq(fines.member_id, id))
+    if (memberError || !existing) {
+      return { error: "Member not found." }
+    }
 
-    const hasActiveLoans = memberLoans.some((l: any) =>
+    // Check loans, savings, and fines in parallel
+    const [
+      { data: memberLoans, error: loansError },
+      { data: memberSavings, error: savingsError },
+      { data: memberFines, error: finesError },
+    ] = await Promise.all([
+      supabaseAdmin.from('loans').select('status').eq('member_id', id),
+      supabaseAdmin.from('savings_accounts').select('balance').eq('member_id', id),
+      supabaseAdmin.from('fines').select('status').eq('member_id', id),
+    ])
+
+    if (loansError) {
+      console.error('Error checking member loans:', loansError)
+      return { error: "Failed to check member loans." }
+    }
+    if (savingsError) {
+      console.error('Error checking member savings:', savingsError)
+      return { error: "Failed to check member savings." }
+    }
+    if (finesError) {
+      console.error('Error checking member fines:', finesError)
+      return { error: "Failed to check member fines." }
+    }
+
+    const hasActiveLoans = memberLoans?.some((l) =>
       ["active", "disbursed", "pending"].includes(l.status)
     )
-    const hasSavings = memberSavings.some((s: any) => s.balance > 0)
-    const hasPendingFines = memberFines.some((f: any) => f.status === "pending")
+    const hasSavings = memberSavings?.some((s) => s.balance > 0)
+    const hasPendingFines = memberFines?.some((f) => f.status === "pending")
 
     if (hasActiveLoans) {
       return {
@@ -339,7 +368,16 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       }
     }
 
-    await smartDb.delete(members).where(eq(members.id, id))
+    // Delete the member
+    const { error: deleteError } = await supabaseAdmin
+      .from('members')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('Error deleting member:', deleteError)
+      return { error: "Failed to delete member." }
+    }
 
     revalidatePath("/members")
     return { success: true }
@@ -366,14 +404,32 @@ export async function updateMemberStatusAction(
       return { error: "You don't have permission to update member status" }
     }
 
-    const [existing] = await smartDb.select(members).where(eq(members.id, id))
+    
 
-    if (!existing) return { error: "Member not found." }
+    // Get the member
+    const { data: existing, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', id)
+      .single()
 
-    await smartDb
-      .update(members)
-      .set({ status, updated_at: new Date() })
-      .where(eq(members.id, id))
+    if (memberError || !existing) {
+      return { error: "Member not found." }
+    }
+
+    // Update member status
+    const { error: updateError } = await supabaseAdmin
+      .from('members')
+      .update({
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Error updating member status:', updateError)
+      return { error: "Failed to update member status." }
+    }
 
     if (existing.phone) {
       const messages = {
@@ -381,10 +437,15 @@ export async function updateMemberStatusAction(
         suspended: `Dear ${existing.full_name}, your SACCO membership has been suspended. Contact us for more info. - SACCO`,
         exited: `Dear ${existing.full_name}, your SACCO membership has been closed. Thank you for being with us. - SACCO`,
       }
-      await sendSms({
-        to: existing.phone,
-        message: messages[status],
-      })
+      try {
+        await sendSms({
+          to: existing.phone,
+          message: messages[status],
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the status update if SMS fails
+      }
     }
 
     revalidatePath("/members")
@@ -413,24 +474,47 @@ export async function sendMemberSmsAction(
       return { error: "You don't have permission to send SMS to members" }
     }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(and(eq(members.id, id), eq(members.sacco_id, user.saccoId)))
+    
 
-    if (!member) return { error: "Member not found." }
-    if (!member.phone) return { error: "Member has no phone number." }
+    // Get the member
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('phone')
+      .eq('id', id)
+      .eq('sacco_id', user.saccoId)
+      .single()
 
-    await sendSms({ to: member.phone, message })
+    if (memberError || !member) {
+      return { error: "Member not found." }
+    }
+    if (!member.phone) {
+      return { error: "Member has no phone number." }
+    }
 
-    await smartDb.insert(notifications).values({
-      sacco_id: user.saccoId,
-      member_id: id,
-      title: "SMS Sent",
-      body: message,
-      type: "sms",
-      status: "sent",
-      sent_at: new Date(),
-    })
+    try {
+      await sendSms({ to: member.phone, message })
+    } catch (smsError) {
+      console.error('SMS sending failed:', smsError)
+      return { error: "Failed to send SMS." }
+    }
+
+    // Create notification record
+    const { error: notificationError } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: id,
+        title: "SMS Sent",
+        body: message,
+        type: "sms",
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      })
+
+    if (notificationError) {
+      console.error('Error creating notification:', notificationError)
+      // Continue anyway as SMS was sent
+    }
 
     return { success: true }
   } catch (err) {
@@ -448,69 +532,159 @@ export async function getMemberStatsAction(id: string) {
       return { error: "Unauthorized" }
     }
 
-    const memberLoans = await smartDb
-      .select(loans)
-      .where(and(eq(loans.member_id, id), eq(loans.sacco_id, user.saccoId)))
-      .orderBy(desc(loans.created_at))
+    
 
-    const memberSavings = await smartDb
-      .select(savingsAccounts)
-      .where(
-        and(
-          eq(savingsAccounts.member_id, id),
-          eq(savingsAccounts.sacco_id, user.saccoId)
-        )
-      )
+    const [
+      { data: memberLoans, error: loansError },
+      { data: memberSavings, error: savingsError },
+      { data: memberFines, error: finesError },
+      { data: memberTransactions, error: transactionsError },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('loans')
+        .select('id, sacco_id, member_id, category_id, loan_ref, amount, balance, interest_rate, status, due_date, disbursed_at, settled_at, decline_reason, notes, created_at, updated_at, interest_rate_id, expected_received, interest_type, duration_months, late_penalty_fee, daily_payment, monthly_payment')
+        .eq('member_id', id)
+        .eq('sacco_id', user.saccoId)
+        .order('created_at', { ascending: false }),
+      supabaseAdmin
+        .from('savings_accounts')
+        .select('id, sacco_id, member_id, category_id, account_number, balance, account_type, is_locked, lock_until, lock_reason, created_at, updated_at')
+        .eq('member_id', id)
+        .eq('sacco_id', user.saccoId),
+      supabaseAdmin
+        .from('fines')
+        .select('id, fine_ref, amount, reason, description, status, priority, due_date, paid_at, payment_method, payment_reference, waiver_reason, notes, created_at, updated_at, member_id, category_id')
+        .eq('member_id', id)
+        .eq('sacco_id', user.saccoId)
+        .order('created_at', { ascending: false }),
+      supabaseAdmin
+        .from('transactions')
+        .select('id, sacco_id, member_id, type, amount, balance_after, reference_id, payment_method, narration, created_at')
+        .eq('member_id', id)
+        .eq('sacco_id', user.saccoId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ])
 
-    const memberFines = await smartDb
-      .select(fines)
-      .where(and(eq(fines.member_id, id), eq(fines.sacco_id, user.saccoId)))
-      .orderBy(desc(fines.created_at))
+    if (loansError) {
+      console.error('Error fetching member loans:', loansError)
+      return null
+    }
+    if (savingsError) {
+      console.error('Error fetching member savings:', savingsError)
+      return null
+    }
+    if (finesError) {
+      console.error('Error fetching member fines:', finesError)
+      return null
+    }
+    if (transactionsError) {
+      console.error('Error fetching member transactions:', transactionsError)
+      return null
+    }
 
-    const memberTransactions = await smartDb
-      .select(transactions)
-      .where(
-        and(
-          eq(transactions.member_id, id),
-          eq(transactions.sacco_id, user.saccoId)
-        )
-      )
-      .orderBy(desc(transactions.created_at))
-      .limit(20)
-
-    const totalSavings = memberSavings.reduce(
-      (sum: number, s: SavingsAccount) => sum + s.balance,
+    const totalSavings = memberSavings?.reduce(
+      (sum: number, s) => sum + s.balance,
       0
-    )
-    const activeLoans = memberLoans.filter((l: Loan) => l.status === "active")
-    const totalBorrowed = memberLoans.reduce(
-      (sum: number, l: Loan) => sum + l.amount,
-      0
-    )
-    const totalRepaid = memberLoans.reduce(
-      (sum: number, l: Loan) => sum + (l.amount - l.balance),
-      0
-    )
+    ) || 0
+
+    const activeLoans = memberLoans?.filter((l) => l.status === "active") || []
     const outstandingBalance = activeLoans.reduce(
-      (sum: number, l: Loan) => sum + l.balance,
+      (sum: number, l) => sum + l.balance,
       0
     )
-    const pendingFines = memberFines.filter((f: Fine) => f.status === "pending")
+
+    const pendingFines = memberFines?.filter((f) => f.status === "pending") || []
     const totalFines = pendingFines.reduce(
-      (sum: number, f: Fine) => sum + f.amount,
+      (sum: number, f) => sum + f.amount,
       0
     )
+
+    // Format the data to match the expected interface
+    const formattedLoans = memberLoans?.map(loan => ({
+      id: loan.id,
+      saccoId: loan.sacco_id,
+      memberId: loan.member_id,
+      categoryId: loan.category_id,
+      loanRef: loan.loan_ref,
+      amount: loan.amount,
+      balance: loan.balance,
+      interestRate: loan.interest_rate,
+      status: loan.status,
+      dueDate: loan.due_date ? new Date(loan.due_date) : null,
+      disbursedAt: loan.disbursed_at ? new Date(loan.disbursed_at) : null,
+      settledAt: loan.settled_at ? new Date(loan.settled_at) : null,
+      declineReason: loan.decline_reason,
+      notes: loan.notes,
+      createdAt: new Date(loan.created_at),
+      updatedAt: new Date(loan.updated_at),
+      interestRateId: loan.interest_rate_id,
+      expectedReceived: loan.expected_received,
+      interestType: loan.interest_type,
+      durationMonths: loan.duration_months,
+      latePenaltyFee: loan.late_penalty_fee,
+      dailyPayment: loan.daily_payment,
+      monthlyPayment: loan.monthly_payment,
+    })) || []
+
+    const formattedSavings = memberSavings?.map(saving => ({
+      id: saving.id,
+      saccoId: saving.sacco_id,
+      memberId: saving.member_id,
+      categoryId: saving.category_id,
+      accountNumber: saving.account_number,
+      balance: saving.balance,
+      accountType: saving.account_type,
+      isLocked: saving.is_locked,
+      lockUntil: saving.lock_until ? new Date(saving.lock_until) : null,
+      lockReason: saving.lock_reason,
+      createdAt: new Date(saving.created_at),
+      updatedAt: new Date(saving.updated_at),
+    })) || []
+
+    const formattedFines = memberFines?.map(fine => ({
+      id: fine.id,
+      fine_ref: fine.fine_ref,
+      amount: fine.amount,
+      reason: fine.reason,
+      description: fine.description,
+      status: fine.status,
+      priority: fine.priority,
+      due_date: fine.due_date ? new Date(fine.due_date) : null,
+      paid_at: fine.paid_at ? new Date(fine.paid_at) : null,
+      payment_method: fine.payment_method,
+      payment_reference: fine.payment_reference,
+      waiver_reason: fine.waiver_reason,
+      notes: fine.notes,
+      created_at: new Date(fine.created_at),
+      updated_at: new Date(fine.updated_at),
+      member_id: fine.member_id,
+      category_id: fine.category_id,
+    })) || []
+
+    const formattedTransactions = memberTransactions?.map(tx => ({
+      id: tx.id,
+      saccoId: tx.sacco_id,
+      memberId: tx.member_id,
+      type: tx.type,
+      amount: tx.amount,
+      balanceAfter: tx.balance_after,
+      referenceId: tx.reference_id,
+      paymentMethod: tx.payment_method,
+      narration: tx.narration,
+      createdAt: new Date(tx.created_at),
+    })) || []
 
     return {
-      loans: memberLoans,
-      savings: memberSavings,
-      fines: memberFines,
-      transactions: memberTransactions,
+      loans: formattedLoans,
+      savings: formattedSavings,
+      fines: formattedFines,
+      transactions: formattedTransactions,
       stats: {
         totalSavings,
         totalLoans: outstandingBalance,
         totalFines: totalFines,
-        totalTransactions: memberTransactions.length,
+        totalTransactions: formattedTransactions.length,
       },
     }
   } catch (err) {
@@ -540,11 +714,19 @@ export async function assignLoanAction(
     if (!amount || amount <= 0) return { error: "Valid amount is required." }
     if (!due_date) return { error: "Due date is required." }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(and(eq(members.id, memberId), eq(members.sacco_id, user.saccoId)))
+    
 
-    if (!member) return { error: "Member not found." }
+    // Get the member
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', memberId)
+      .eq('sacco_id', user.saccoId)
+      .single()
+
+    if (memberError || !member) {
+      return { error: "Member not found." }
+    }
 
     const loan_ref = `LN-${Date.now()}`
 
@@ -556,24 +738,37 @@ export async function assignLoanAction(
       durationMonths: 12,
     })
 
-    await smartDb.insert(loans).values({
-      sacco_id: user.saccoId,
-      member_id: memberId,
-      loan_ref,
-      amount,
-      expected_received: calc.totalExpectedReceived,
-      balance: calc.totalExpectedReceived,
-      interest_rate: interest_rate || "0",
-      status: "pending",
-      due_date,
-      notes: purpose || null,
-    })
+    // Create loan
+    const { error: insertError } = await supabaseAdmin
+      .from('loans')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: memberId,
+        loan_ref,
+        amount,
+        expected_received: calc.totalExpectedReceived,
+        balance: calc.totalExpectedReceived,
+        interest_rate: interest_rate || "0",
+        status: "pending",
+        due_date,
+        notes: purpose || null,
+      })
+
+    if (insertError) {
+      console.error('Error creating loan:', insertError)
+      return { error: "Failed to assign loan." }
+    }
 
     if (member.phone) {
-      await sendSms({
-        to: member.phone,
-        message: `Dear ${member.full_name}, your loan application of UGX ${(amount / 100).toLocaleString()} has been submitted. Ref: ${loan_ref}. Await approval. - SACCO`,
-      })
+      try {
+        await sendSms({
+          to: member.phone,
+          message: `Dear ${member.full_name}, your loan application of UGX ${(amount / 100).toLocaleString()} has been submitted. Ref: ${loan_ref}. Await approval. - SACCO`,
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the loan creation if SMS fails
+      }
     }
 
     revalidatePath("/members")
@@ -602,59 +797,108 @@ export async function addSavingsAction(
 
     if (!amount || amount <= 0) return { error: "Valid amount is required." }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, memberId))
+    
 
-    if (!member) return { error: "Member not found." }
+    // Get the member
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name, member_code')
+      .eq('id', memberId)
+      .single()
 
-    const existingAccounts = await smartDb
-      .select(savingsAccounts)
-      .where(
-        and(
-          eq(savingsAccounts.member_id, memberId),
-          eq(savingsAccounts.sacco_id, user.saccoId)
-        )
-      )
-
-    if (existingAccounts.length === 0) {
-      const account_number = `SAV-${Date.now()}`
-      await smartDb.insert(savingsAccounts).values({
-        sacco_id: user.saccoId,
-        member_id: memberId,
-        account_number,
-        balance: amount,
-      })
-    } else {
-      const account = existingAccounts[0]
-      await smartDb
-        .update(savingsAccounts)
-        .set({
-          balance: account.balance + amount,
-          updated_at: new Date(),
-        })
-        .where(eq(savingsAccounts.id, account.id))
+    if (memberError || !member) {
+      return { error: "Member not found." }
     }
 
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: memberId,
-      type: "savings_deposit",
-      amount,
-      narration: narration || "Savings deposit",
-      payment_method: "cash",
-    })
+    // Check for existing savings accounts
+    const { data: existingAccounts, error: accountsError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('*')
+      .eq('member_id', memberId)
+      .eq('sacco_id', user.saccoId)
+
+    if (accountsError) {
+      console.error('Error checking existing accounts:', accountsError)
+      return { error: "Failed to check existing accounts." }
+    }
+
+    let accountId: string
+    let newBalance: number
+
+    if (!existingAccounts || existingAccounts.length === 0) {
+      // Create new savings account
+      const account_number = `SAV-${Date.now()}`
+      const { data: newAccount, error: insertError } = await supabaseAdmin
+        .from('savings_accounts')
+        .insert({
+          sacco_id: user.saccoId,
+          member_id: memberId,
+          account_number,
+          balance: amount,
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Error creating savings account:', insertError)
+        return { error: "Failed to create savings account." }
+      }
+
+      accountId = newAccount.id
+      newBalance = amount
+    } else {
+      // Update existing account balance
+      const account = existingAccounts[0]
+      newBalance = account.balance + amount
+
+      const { error: updateError } = await supabaseAdmin
+        .from('savings_accounts')
+        .update({
+          balance: newBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', account.id)
+
+      if (updateError) {
+        console.error('Error updating savings balance:', updateError)
+        return { error: "Failed to update savings balance." }
+      }
+
+      accountId = account.id
+    }
+
+    // Create transaction record
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: memberId,
+        type: "savings_deposit",
+        amount,
+        narration: narration || "Savings deposit",
+        payment_method: "cash",
+      })
+
+    if (transactionError) {
+      console.error('Error creating transaction:', transactionError)
+      return { error: "Failed to create transaction record." }
+    }
 
     if (member.phone) {
-      await sendSms({
-        to: member.phone,
-        message: smsTemplates.savingsDeposit(
-          member.full_name,
-          amount / 100,
-          (existingAccounts[0]?.balance ?? 0 + amount) / 100,
-          member.member_code
-        ),
-      })
+      try {
+        await sendSms({
+          to: member.phone,
+          message: smsTemplates.savingsDeposit(
+            member.full_name,
+            amount / 100,
+            newBalance / 100,
+            member.member_code
+          ),
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the savings deposit if SMS fails
+      }
     }
 
     revalidatePath("/members")
@@ -687,22 +931,28 @@ export async function importMembersAction(
       return { error: "You don't have permission to import members" }
     }
 
-    let imported = 0
+    
 
-    for (const row of rows) {
-      const member_code = await generateMemberCode(user.saccoId)
-      await smartDb.insert(members).values({
-        sacco_id: user.saccoId,
-        member_code,
-        full_name: row.full_name,
-        phone: row.phone || null,
-        email: row.email || null,
-        national_id: row.national_id || null,
-        address: row.address || null,
-        status: "active",
-      })
-      imported++
+    const memberCodes = await generateMemberCodes(user.saccoId, rows.length)
+    const members = rows.map((row, i) => ({
+      sacco_id: user.saccoId,
+      member_code: memberCodes[i],
+      full_name: row.full_name,
+      phone: row.phone || null,
+      email: row.email || null,
+      national_id: row.national_id || null,
+      address: row.address || null,
+      status: "active",
+    }))
+
+    const { error: insertError } = await supabaseAdmin.from('members').insert(members)
+
+    if (insertError) {
+      console.error('Error importing members:', insertError)
+      return { error: "Failed to import members." }
     }
+
+    const imported = members.length
 
     revalidatePath("/members")
     return { success: true, imported }

@@ -107,9 +107,9 @@ export function FinesClient({
     return fines.filter((f) => {
       const matchSearch =
         f.member_name?.toLowerCase().includes(search.toLowerCase()) ||
-        f.fine_ref?.toLowerCase().includes(search.toLowerCase()) ||
+        f.fineRef?.toLowerCase().includes(search.toLowerCase()) ||
         f.reason?.toLowerCase().includes(search.toLowerCase()) ||
-        f.member_code?.toLowerCase().includes(search.toLowerCase())
+        f.memberCode?.toLowerCase().includes(search.toLowerCase())
       const matchStatus = statusFilter === "all" || f.status === statusFilter
       const matchPriority =
         priorityFilter === "all" || f.priority === priorityFilter
@@ -127,8 +127,8 @@ export function FinesClient({
       months[d.toLocaleString("default", { month: "short" })] = 0
     }
     fines.forEach((f) => {
-      if (!f.created_at) return
-      const key = new Date(f.created_at).toLocaleString("default", {
+      if (!f.createdAt) return
+      const key = new Date(f.createdAt).toLocaleString("default", {
         month: "short",
       })
       if (months[key] !== undefined) months[key] += f.amount / 100
@@ -163,18 +163,18 @@ export function FinesClient({
     ]
 
     const data = filtered.map((f) => ({
-      fine_ref: f.fine_ref,
+      fine_ref: f.fineRef,
       member: f.member_name,
-      member_code: f.member_code,
+      member_code: f.memberCode,
       category: f.category_name ?? "",
       amount: f.amount / 100,
       reason: f.reason,
       priority: f.priority,
       status: f.status,
-      due_date: f.due_date ?? "",
-      paid_at: f.paid_at ? new Date(f.paid_at).toLocaleDateString() : "",
-      payment_method: f.payment_method ?? "",
-      date: f.created_at ? new Date(f.created_at).toLocaleDateString() : "",
+      due_date: f.dueDate ?? "",
+      paid_at: f.paidAt ? new Date(f.paidAt).toLocaleDateString() : "",
+      payment_method: f.paymentMethod ?? "",
+      date: f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "",
     }))
 
     worksheet.addRows(data)

@@ -1,9 +1,7 @@
 import { requireAuth } from "@/lib/auth"
 import { getAllComplaints } from "@/db/queries/complaints"
 import { getMembersForSelect } from "@/db/queries/members"
-import { db } from "@/db"
-import { complaints, members } from "@/db/schema"
-import { eq, count, and } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { ComplaintsClient } from "./components/complaints-client"
 
 type MemberSelect = {
@@ -13,6 +11,8 @@ type MemberSelect = {
   phone: string | null
 }
 
+export const revalidate = 60
+
 export default async function ComplaintsPage() {
   const user = await requireAuth()
   const [allComplaints, allMembers] = await Promise.all([
@@ -20,32 +20,16 @@ export default async function ComplaintsPage() {
     getMembersForSelect(user.saccoId),
   ])
 
-  const [openCount] = await db
-    .select({ count: count() })
-    .from(complaints)
-    .where(
-      and(eq(complaints.status, "open"), eq(complaints.sacco_id, user.saccoId))
-    )
+  const supabase = supabaseAdmin
 
-  const [inProgressCount] = await db
-    .select({ count: count() })
-    .from(complaints)
-    .where(
-      and(
-        eq(complaints.status, "in_progress"),
-        eq(complaints.sacco_id, user.saccoId)
-      )
-    )
+  const { data: stats } = await supabase
+    .from('complaints')
+    .select('status')
+    .eq('sacco_id', user.saccoId)
 
-  const [resolvedCount] = await db
-    .select({ count: count() })
-    .from(complaints)
-    .where(
-      and(
-        eq(complaints.status, "resolved"),
-        eq(complaints.sacco_id, user.saccoId)
-      )
-    )
+  const openCount = stats?.filter(c => c.status === 'open').length ?? 0
+  const inProgressCount = stats?.filter(c => c.status === 'in_progress').length ?? 0
+  const resolvedCount = stats?.filter(c => c.status === 'resolved').length ?? 0
 
   return (
     <ComplaintsClient
@@ -53,9 +37,9 @@ export default async function ComplaintsPage() {
       members={allMembers}
       stats={{
         total: allComplaints.length,
-        open: openCount?.count ?? 0,
-        inProgress: inProgressCount?.count ?? 0,
-        resolved: resolvedCount?.count ?? 0,
+        open: openCount,
+        inProgress: inProgressCount,
+        resolved: resolvedCount,
       }}
     />
   )

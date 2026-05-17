@@ -10,7 +10,26 @@ import {
   deleteMemberAction,
   MemberFormState,
 } from "../../actions"
-import { Member } from "@/db/schema"
+type Member = {
+  id: string
+  saccoId: string
+  memberCode: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  nationalId: string | null
+  photoUrl: string | null
+  dateOfBirth: Date | null
+  address: string | null
+  nextOfKin: string | null
+  nextOfKinPhone: string | null
+  nextOfKinRelationship: string | null
+  nextOfKinAddress: string | null
+  status: string
+  joinedAt: Date
+  createdAt: Date
+  updatedAt: Date
+}
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -113,8 +132,8 @@ const inputClass =
 
 export function EditMemberForm({ member }: EditMemberFormProps) {
   const router = useRouter()
-  const [photoPreview, setPhotoPreview] = useState(member.photo_url ?? "")
-  const [photoUrl, setPhotoUrl] = useState(member.photo_url ?? "")
+  const [photoPreview, setPhotoPreview] = useState(member.photoUrl ?? "")
+  const [photoUrl, setPhotoUrl] = useState(member.photoUrl ?? "")
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [imageError, setImageError] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -293,7 +312,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
             <Input
               id="full_name"
               name="full_name"
-              defaultValue={member.full_name}
+              defaultValue={member.fullName}
               placeholder="Enter full name"
               className={inputClass}
             />
@@ -334,7 +353,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
             <Input
               id="national_id"
               name="national_id"
-              defaultValue={member.national_id ?? ""}
+              defaultValue={member.nationalId ?? ""}
               placeholder="CM XXXXXXXXXX"
               className={inputClass}
             />
@@ -345,7 +364,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               id="date_of_birth"
               name="date_of_birth"
               type="date"
-              defaultValue={member.date_of_birth ?? ""}
+              defaultValue={member.dateOfBirth ? member.dateOfBirth.toISOString().split("T")[0] : ""}
               className={inputClass}
             />
           </Field>
@@ -403,7 +422,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
             <Input
               id="next_of_kin"
               name="next_of_kin"
-              defaultValue={member.next_of_kin ?? ""}
+              defaultValue={member.nextOfKin ?? ""}
               placeholder="Next of kin name"
               className={inputClass}
             />
@@ -412,7 +431,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
             <Input
               id="next_of_kin_relationship"
               name="next_of_kin_relationship"
-              defaultValue={member.next_of_kin_relationship ?? ""}
+              defaultValue={member.nextOfKinRelationship ?? ""}
               placeholder="e.g. Spouse, Parent, Sibling"
               className={inputClass}
             />
@@ -421,7 +440,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
             <Input
               id="next_of_kin_phone"
               name="next_of_kin_phone"
-              defaultValue={member.next_of_kin_phone ?? ""}
+              defaultValue={member.nextOfKinPhone ?? ""}
               placeholder="07XX XXX XXX"
               className={inputClass}
             />
@@ -430,7 +449,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
             <Input
               id="next_of_kin_address"
               name="next_of_kin_address"
-              defaultValue={member.next_of_kin_address ?? ""}
+              defaultValue={member.nextOfKinAddress ?? ""}
               placeholder="Next of kin address"
               className={inputClass}
             />
@@ -458,7 +477,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {member.full_name}?</AlertDialogTitle>
+              <AlertDialogTitle>Delete {member.fullName}?</AlertDialogTitle>
               <AlertDialogDescription>
                 This will permanently delete this member and all their
                 associated data including loans, savings, fines, and

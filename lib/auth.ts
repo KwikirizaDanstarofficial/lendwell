@@ -1,8 +1,4 @@
-import { getIronSession, type IronSession } from "iron-session"
-import { cookies } from "next/headers"
-import { db } from "@/db"
-import { saccoUsers, saccos } from "@/db/schema"
-import { eq, and } from "drizzle-orm"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export interface SessionData {
   userId: string
@@ -13,32 +9,32 @@ export interface SessionData {
   isLoggedIn: boolean
 }
 
-export const SESSION_OPTIONS = {
-  password: process.env.SESSION_SECRET as string,
-  cookieName: "sacco_session",
-  cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax" as const,
-    maxAge: 60 * 60 * 24 * 7,
-  },
-}
-
-export async function getSession(): Promise<IronSession<SessionData>> {
-  const cookieStore = await cookies()
-  return getIronSession<SessionData>(cookieStore, SESSION_OPTIONS)
-}
-
 export async function getCurrentUser(): Promise<SessionData | null> {
   try {
-    const session = await getSession()
-    if (!session.isLoggedIn || !session.userId) return null
+    const supabase = await createSupabaseServerClient()
+
+    const { data: { user }, error } = await supabase.auth.getUser()
+
+    if (error) {
+      if ((error as any).code === 'refresh_token_not_found' || error.message?.includes('Refresh Token')) {
+        const { error: signOutError } = await supabase.auth.signOut()
+        if (signOutError) console.error("[AUTH] signOut after stale token failed:", signOutError)
+      }
+      return null
+    }
+
+    if (!user) return null
+
+    const meta = user.user_metadata
+    const VALID_ROLES = ["admin", "cashier", "field_agent"] as const
+    if (!meta?.role || !VALID_ROLES.includes(meta.role)) return null
+
     return {
-      userId: session.userId,
-      saccoId: session.saccoId,
-      role: session.role,
-      fullName: session.fullName,
-      email: session.email,
+      userId: user.id,
+      saccoId: meta.sacco_id ?? "",
+      role: meta.role as "admin" | "cashier" | "field_agent",
+      fullName: meta.full_name ?? user.email ?? "",
+      email: user.email ?? "",
       isLoggedIn: true,
     }
   } catch {
@@ -47,12 +43,11 @@ export async function getCurrentUser(): Promise<SessionData | null> {
 }
 
 export async function requireAuth(): Promise<SessionData> {
+  const { redirect } = await import("next/navigation")
   const user = await getCurrentUser()
-  if (!user) {
-    const { redirect } = await import("next/navigation")
-    redirect("/auth/login")
-  }
-  return user!
+  if (!user) redirect("/auth/login")
+  if (!(user as SessionData).saccoId) redirect("/onboarding")
+  return user as SessionData
 }
 
 export async function requireRole(

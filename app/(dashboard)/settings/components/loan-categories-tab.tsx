@@ -126,13 +126,13 @@ export function LoanCategoriesTab({ categories }: { categories: any[] }) {
                 {categories.map((cat) => (
                   <TableRow key={cat.id}>
                     <TableCell className="font-medium">{cat.name}</TableCell>
-                    <TableCell>{formatUGX(cat.min_amount ?? 0)}</TableCell>
-                    <TableCell>{formatUGX(cat.max_amount)}</TableCell>
-                    <TableCell className="text-green-600 font-semibold">{cat.interest_rate}%</TableCell>
-                    <TableCell>{cat.max_duration_months}mo</TableCell>
+                    <TableCell>{formatUGX(cat.minAmount ?? 0)}</TableCell>
+                    <TableCell>{formatUGX(cat.maxAmount)}</TableCell>
+                    <TableCell className="text-green-600 font-semibold">{cat.interestRate}%</TableCell>
+                    <TableCell>{cat.maxDurationMonths}mo</TableCell>
                     <TableCell>
-                      <Badge variant={cat.requires_guarantor ? "default" : "outline"}>
-                        {cat.requires_guarantor ? "Required" : "No"}
+                      <Badge variant={cat.requiresGuarantor ? "default" : "outline"}>
+                        {cat.requiresGuarantor ? "Required" : "No"}
                       </Badge>
                     </TableCell>
                     <TableCell>

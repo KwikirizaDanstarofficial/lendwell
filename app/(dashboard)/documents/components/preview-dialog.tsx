@@ -20,8 +20,8 @@ interface PreviewDialogProps {
 }
 
 export function PreviewDialog({ doc, open, onClose }: PreviewDialogProps) {
-  const isPdf = doc.file_name?.toLowerCase().endsWith(".pdf")
-  const isImage = /\.(jpg|jpeg|png|webp)$/i.test(doc.file_name ?? "")
+  const isPdf = doc.fileName?.toLowerCase().endsWith(".pdf")
+  const isImage = /\.(jpg|jpeg|png|webp)$/i.test(doc.fileName ?? "")
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -29,7 +29,7 @@ export function PreviewDialog({ doc, open, onClose }: PreviewDialogProps) {
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <DialogTitle className="text-base">{doc.file_name}</DialogTitle>
+              <DialogTitle className="text-base">{doc.fileName}</DialogTitle>
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span
                   className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[doc.type] ?? ""}`}
@@ -38,11 +38,11 @@ export function PreviewDialog({ doc, open, onClose }: PreviewDialogProps) {
                 </span>
                 <div className="flex items-center gap-1">
                   <User className="h-3.5 w-3.5" />
-                  {doc.member_name} · {doc.member_code}
+                  {doc.memberName} · {doc.memberCode}
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
-                  {formatDate(doc.created_at)}
+                  {formatDate(doc.createdAt)}
                 </div>
               </div>
             </div>
@@ -50,14 +50,14 @@ export function PreviewDialog({ doc, open, onClose }: PreviewDialogProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(doc.blob_url, "_blank")}
+                onClick={() => window.open(doc.blobUrl, "_blank")}
               >
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Open
               </Button>
               <Button
                 size="sm"
-                onClick={() => window.open(doc.blob_url, "_blank")}
+                onClick={() => window.open(doc.blobUrl, "_blank")}
               >
                 <Download className="mr-2 h-4 w-4" />
                 Download
@@ -70,16 +70,16 @@ export function PreviewDialog({ doc, open, onClose }: PreviewDialogProps) {
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/20">
           {isImage && (
             <img
-              src={doc.blob_url}
-              alt={doc.file_name}
+              src={doc.blobUrl}
+              alt={doc.fileName}
               className="h-auto max-h-[65vh] w-full object-contain"
             />
           )}
           {isPdf && (
             <iframe
-              src={`${doc.blob_url}#toolbar=1`}
+              src={`${doc.blobUrl}#toolbar=1`}
               className="h-[65vh] w-full"
-              title={doc.file_name}
+              title={doc.fileName}
             />
           )}
           {!isImage && !isPdf && (
@@ -88,7 +88,7 @@ export function PreviewDialog({ doc, open, onClose }: PreviewDialogProps) {
               <p className="text-sm">
                 Preview not available for this file type
               </p>
-              <Button onClick={() => window.open(doc.blob_url, "_blank")}>
+              <Button onClick={() => window.open(doc.blobUrl, "_blank")}>
                 <Download className="mr-2 h-4 w-4" />
                 Download to View
               </Button>

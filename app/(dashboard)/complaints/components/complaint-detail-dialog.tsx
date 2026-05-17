@@ -44,7 +44,7 @@ export function ComplaintDetailDialog({
 }) {
   const [resolveOpen, setResolveOpen] = useState(false)
   const [hoveredRating, setHoveredRating] = useState(0)
-  const [rating, setRating] = useState(complaint.satisfaction_rating ?? 0)
+  const [rating, setRating] = useState(complaint.satisfactionRating ?? 0)
   const [feedback, setFeedback] = useState(complaint.feedback ?? "")
   const [submittingRating, setSubmittingRating] = useState(false)
 
@@ -78,7 +78,7 @@ export function ComplaintDetailDialog({
             {/* Header Info */}
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded bg-muted px-2 py-1 font-mono text-sm text-muted-foreground">
-                {complaint.complaint_ref ?? "No Ref"}
+                {complaint.complaintRef ?? "No Ref"}
               </span>
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[complaint.status || "open"]}`}
@@ -116,24 +116,24 @@ export function ComplaintDetailDialog({
                   <div>
                     <p className="text-xs text-muted-foreground">Name</p>
                     <p className="font-medium">
-                      {complaint.member_name ?? "Anonymous"}
+                      {complaint.memberName ?? "Anonymous"}
                     </p>
                   </div>
-                  {complaint.member_code && (
+                  {complaint.memberCode && (
                     <div>
                       <p className="text-xs text-muted-foreground">Code</p>
-                      <p className="font-mono">{complaint.member_code}</p>
+                      <p className="font-mono">{complaint.memberCode}</p>
                     </div>
                   )}
-                  {complaint.member_phone && (
+                  {complaint.memberPhone && (
                     <div>
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p>{complaint.member_phone}</p>
+                      <p>{complaint.memberPhone}</p>
                     </div>
                   )}
                   <div>
                     <p className="text-xs text-muted-foreground">Submitted</p>
-                    <p>{formatDate(complaint.created_at)}</p>
+                    <p>{formatDate(complaint.createdAt)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -163,7 +163,7 @@ export function ComplaintDetailDialog({
             </Card>
 
             {/* Resolution */}
-            {complaint.resolution_notes && (
+            {complaint.resolutionNotes && (
               <Card className="border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20">
                 <CardContent className="pt-4 pb-3">
                   <div className="mb-2 flex items-center gap-2">
@@ -171,14 +171,14 @@ export function ComplaintDetailDialog({
                     <p className="text-sm font-semibold text-green-700 dark:text-green-400">
                       Resolution
                     </p>
-                    {complaint.resolved_at && (
+                    {complaint.resolvedAt && (
                       <span className="ml-auto text-xs text-muted-foreground">
-                        {formatDate(complaint.resolved_at)}
+                        {formatDate(complaint.resolvedAt)}
                       </span>
                     )}
                   </div>
                   <p className="text-sm leading-relaxed">
-                    {complaint.resolution_notes}
+                    {complaint.resolutionNotes}
                   </p>
                 </CardContent>
               </Card>
@@ -197,7 +197,7 @@ export function ComplaintDetailDialog({
                     <div className="text-sm">
                       <span className="font-medium">Submitted</span>
                       <span className="ml-2 text-muted-foreground">
-                        {formatDate(complaint.created_at)}
+                        {formatDate(complaint.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -207,18 +207,18 @@ export function ComplaintDetailDialog({
                       <div className="text-sm">
                         <span className="font-medium">In Progress</span>
                         <span className="ml-2 text-muted-foreground">
-                          {formatDate(complaint.updated_at)}
+                          {formatDate(complaint.updatedAt)}
                         </span>
                       </div>
                     </div>
                   )}
-                  {complaint.resolved_at && (
+                  {complaint.resolvedAt && (
                     <div className="flex items-center gap-3">
                       <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
                       <div className="text-sm">
                         <span className="font-medium">Resolved</span>
                         <span className="ml-2 text-muted-foreground">
-                          {formatDate(complaint.resolved_at)}
+                          {formatDate(complaint.resolvedAt)}
                         </span>
                       </div>
                     </div>

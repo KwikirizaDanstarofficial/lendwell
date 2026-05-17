@@ -130,13 +130,13 @@ const styles = StyleSheet.create({
 
 interface MemberIdCardProps {
   member: {
-    full_name: string
-    member_code: string
+    fullName: string
+    memberCode: string
     phone?: string | null
-    national_id?: string | null
+    nationalId?: string | null
     address?: string | null
-    joined_at?: Date | null
-    photo_url?: string | null
+    joinedAt?: string | null
+    photoUrl?: string | null
     status: string
   }
   sacco: {
@@ -165,12 +165,12 @@ export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
           <View style={styles.body}>
             {/* Photo */}
             <View style={styles.photoContainer}>
-              {member.photo_url ? (
-                <Image src={member.photo_url} style={styles.photo} />
+              {member.photoUrl ? (
+                <Image src={member.photoUrl} style={styles.photo} />
               ) : (
                 <View style={styles.photoPlaceholder}>
                   <Text style={styles.photoInitials}>
-                    {member.full_name.slice(0, 2).toUpperCase()}
+                    {member.fullName.slice(0, 2).toUpperCase()}
                   </Text>
                 </View>
               )}
@@ -178,10 +178,10 @@ export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
 
             {/* Info */}
             <View style={styles.info}>
-              <Text style={styles.name}>{member.full_name}</Text>
+              <Text style={styles.name}>{member.fullName}</Text>
               <View style={styles.row}>
                 <Text style={styles.label}>Code:</Text>
-                <Text style={styles.value}>{member.member_code}</Text>
+                <Text style={styles.value}>{member.memberCode}</Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.label}>Phone:</Text>
@@ -189,7 +189,7 @@ export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
               </View>
               <View style={styles.row}>
                 <Text style={styles.label}>ID No:</Text>
-                <Text style={styles.value}>{member.national_id ?? "—"}</Text>
+                <Text style={styles.value}>{member.nationalId ?? "—"}</Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.label}>Address:</Text>
@@ -205,11 +205,11 @@ export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               Joined:{" "}
-              {member.joined_at
-                ? new Date(member.joined_at).toLocaleDateString()
+              {member.joinedAt
+                ? new Date(member.joinedAt).toLocaleDateString()
                 : "—"}
             </Text>
-            <Text style={styles.memberCode}>{member.member_code}</Text>
+            <Text style={styles.memberCode}>{member.memberCode}</Text>
             <Text style={styles.footerText}>Valid · {sacco.name}</Text>
           </View>
         </View>

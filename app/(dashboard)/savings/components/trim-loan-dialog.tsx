@@ -92,7 +92,7 @@ export function TrimLoanDialog({
               <SelectContent>
                 {loans.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
-                    {l.loan_ref} · {formatUGX(l.balance)} remaining
+                    {l.loanRef} · {formatUGX(l.balance)} remaining
                   </SelectItem>
                 ))}
               </SelectContent>

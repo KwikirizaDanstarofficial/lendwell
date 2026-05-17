@@ -44,7 +44,7 @@ export function LockDialog({
             Lock Savings Account
           </DialogTitle>
           <DialogDescription>
-            {account.account_number} · {account.member_name} · Balance:{" "}
+            {account.accountNumber} · {account.member_name} · Balance:{" "}
             <span className="font-semibold text-foreground">
               {formatUGX(account.balance)}
             </span>

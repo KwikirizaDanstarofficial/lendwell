@@ -54,7 +54,7 @@ export function RepayDialog({
         <DialogHeader>
           <DialogTitle>Record Repayment</DialogTitle>
           <DialogDescription>
-            Loan: {loan.loan_ref} · Balance:{" "}
+            Loan: {loan.loanRef} · Balance:{" "}
             <span className="font-semibold text-foreground">
               {formatUGX(loan.balance)}
             </span>
@@ -68,19 +68,19 @@ export function RepayDialog({
             <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
               <p className="text-xs text-muted-foreground">Daily</p>
               <p className="font-bold text-blue-600">
-                {formatUGX(loan.daily_payment ?? 0)}
+                {formatUGX(loan.dailyPayment ?? 0)}
               </p>
             </div>
             <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/30">
               <p className="text-xs text-muted-foreground">Monthly</p>
               <p className="font-bold text-green-600">
-                {formatUGX(loan.monthly_payment ?? 0)}
+                {formatUGX(loan.monthlyPayment ?? 0)}
               </p>
             </div>
             <div className="rounded-lg bg-orange-50 p-3 dark:bg-orange-950/30">
               <p className="text-xs text-muted-foreground">Min Payment</p>
               <p className="font-bold text-orange-600">
-                {formatUGX(loan.daily_payment ?? 0)}
+                {formatUGX(loan.dailyPayment ?? 0)}
               </p>
             </div>
           </div>

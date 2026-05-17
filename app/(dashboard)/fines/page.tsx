@@ -4,6 +4,8 @@ import { getMembersForSelect } from "@/db/queries/members"
 import { getFineCategories } from "@/db/queries/settings"
 import { FinesClient } from "./components/fines-client"
 
+export const revalidate = 60
+
 export default async function FinesPage() {
   const user = await requireAuth()
   const [allFines, stats, allMembers, categories] = await Promise.all([

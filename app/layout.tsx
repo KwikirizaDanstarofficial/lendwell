@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   icons: [
     { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
     { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
-    { url: "/sacco-os-icon.svg", type: "image/svg+xml" },
+    { url: "/lendwell-logo-primary.svg", type: "image/svg+xml" },
   ],
 }
 export const viewport: Viewport = {
@@ -56,7 +56,7 @@ export default async function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans">
+      <body className="font-sans" suppressHydrationWarning>
         <QueryProvider>
           <Suspense fallback={null}>
             <ThemeProvider

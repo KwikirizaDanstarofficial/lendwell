@@ -67,13 +67,100 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type {
-  Member,
-  Loan,
-  SavingsAccount,
-  Fine,
-  Transaction,
-} from "@/db/schema"
+// Type definitions for member profile data
+type Member = {
+  id: string
+  saccoId: string
+  memberCode: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  nationalId: string | null
+  photoUrl: string | null
+  dateOfBirth: string | null
+  address: string | null
+  nextOfKin: string | null
+  nextOfKinPhone: string | null
+  nextOfKinRelationship: string | null
+  nextOfKinAddress: string | null
+  status: string
+  joinedAt: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+type Loan = {
+  id: string
+  saccoId: string
+  memberId: string
+  categoryId: string | null
+  loanRef: string
+  amount: number
+  balance: number
+  interestRate: string
+  status: string
+  dueDate: Date | null
+  disbursedAt: Date | null
+  settledAt: Date | null
+  declineReason: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+  interestRateId: string | null
+  expectedReceived: number
+  interestType: string
+  durationMonths: number
+  latePenaltyFee: number
+  dailyPayment: number
+  monthlyPayment: number
+}
+
+type SavingsAccount = {
+  id: string
+  saccoId: string
+  memberId: string
+  categoryId: string | null
+  accountNumber: string
+  balance: number
+  accountType: string
+  isLocked: boolean
+  lockUntil: Date | null
+  lockReason: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+type Fine = {
+  id: string
+  fine_ref: string
+  amount: number
+  reason: string
+  description: string
+  status: string
+  priority: string
+  due_date: Date | null
+  paid_at: Date | null
+  payment_method: string | null
+  payment_reference: string | null
+  notes: string | null
+  createdAt: string
+  updated_at: string
+  member_id: string
+  category_id: string | null
+}
+
+type Transaction = {
+  id: string
+  saccoId: string
+  memberId: string
+  type: string
+  amount: number
+  balanceAfter: number
+  referenceId: string | null
+  paymentMethod: string
+  narration: string
+  createdAt: string
+}
 import { MemberIdCardDocument } from "@/lib/pdf/member-id-card"
 import { ApplicationFormDocument } from "@/lib/pdf/application-form"
 
@@ -140,7 +227,7 @@ export function MemberProfile({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${member.member_code}-ID-Card.pdf`
+      a.download = `${member.memberCode}-ID-Card.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("ID Card downloaded")
@@ -171,7 +258,7 @@ export function MemberProfile({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${member.member_code}-Application-Form.pdf`
+      a.download = `${member.memberCode}-Application-Form.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("Application Form downloaded")
@@ -393,10 +480,10 @@ export function MemberProfile({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-primary/10">
-            {member.photo_url && !imageError ? (
+            {member.photoUrl && !imageError ? (
               <Image
-                src={member.photo_url}
-                alt={`${member.full_name} photo`}
+                src={member.photoUrl}
+                alt={`${member.fullName} photo`}
                 width={64}
                 height={64}
                 className="h-full w-full object-cover"
@@ -408,8 +495,8 @@ export function MemberProfile({
             )}
           </div>
           <div>
-            <h1 className="text-2xl font-bold">{member.full_name}</h1>
-            <p className="text-muted-foreground">{member.member_code}</p>
+            <h1 className="text-2xl font-bold">{member.fullName}</h1>
+            <p className="text-muted-foreground">{member.memberCode}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -530,45 +617,45 @@ export function MemberProfile({
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span>Joined {formatDate(member.created_at)}</span>
+              <span>Joined {formatDate(member.createdAt)}</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Next of Kin */}
-      {(member.next_of_kin ||
-        member.next_of_kin_relationship ||
-        member.next_of_kin_phone ||
-        member.next_of_kin_address) && (
+      {(member.nextOfKin ||
+        member.nextOfKinRelationship ||
+        member.nextOfKinPhone ||
+        member.nextOfKinAddress) && (
         <Card>
           <CardHeader>
             <CardTitle>Next of Kin</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {member.next_of_kin && (
+              {member.nextOfKin && (
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.next_of_kin}</span>
+                  <span>{member.nextOfKin}</span>
                 </div>
               )}
-              {member.next_of_kin_relationship && (
+              {member.nextOfKinRelationship && (
                 <div className="flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.next_of_kin_relationship}</span>
+                  <span>{member.nextOfKinRelationship}</span>
                 </div>
               )}
-              {member.next_of_kin_phone && (
+              {member.nextOfKinPhone && (
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.next_of_kin_phone}</span>
+                  <span>{member.nextOfKinPhone}</span>
                 </div>
               )}
-              {member.next_of_kin_address && (
+              {member.nextOfKinAddress && (
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.next_of_kin_address}</span>
+                  <span>{member.nextOfKinAddress}</span>
                 </div>
               )}
             </div>
@@ -608,9 +695,9 @@ export function MemberProfile({
                       <div className="flex items-center gap-4">
                         {getLoanStatusIcon(loan.status)}
                         <div>
-                          <p className="font-medium">{loan.loan_ref}</p>
+                          <p className="font-medium">{loan.loanRef}</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(loan.created_at)}
+                            {formatDate(loan.createdAt)}
                           </p>
                         </div>
                       </div>
@@ -669,9 +756,9 @@ export function MemberProfile({
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">{account.account_number}</p>
+                        <p className="font-medium">{account.accountNumber}</p>
                         <p className="text-sm text-muted-foreground">
-                          {account.account_type}
+                          {account.accountType}
                         </p>
                       </div>
                       <div className="text-right">
@@ -679,7 +766,7 @@ export function MemberProfile({
                           {formatUGX(account.balance)}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {account.is_locked ? "Locked" : "Active"}
+                          {account.isLocked ? "Locked" : "Active"}
                         </p>
                       </div>
                     </div>
@@ -715,7 +802,7 @@ export function MemberProfile({
                         <div>
                           <p className="font-medium">{fine.reason}</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(fine.created_at)}
+                            {formatDate(fine.createdAt)}
                           </p>
                         </div>
                       </div>
@@ -763,7 +850,7 @@ export function MemberProfile({
                             {transaction.narration || transaction.type}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(transaction.created_at)}
+                            {formatDate(transaction.createdAt)}
                           </p>
                         </div>
                       </div>
@@ -785,8 +872,8 @@ export function MemberProfile({
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Balance:{" "}
-                          {transaction.balance_after != null
-                            ? formatUGX(transaction.balance_after)
+                          {transaction.balanceAfter != null
+                            ? formatUGX(transaction.balanceAfter)
                             : "N/A"}
                         </p>
                       </div>
@@ -803,7 +890,7 @@ export function MemberProfile({
       <Dialog open={showSmsDialog} onOpenChange={setShowSmsDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Send SMS to {member.full_name}</DialogTitle>
+            <DialogTitle>Send SMS to {member.fullName}</DialogTitle>
             <DialogDescription>
               Send a text message to this member's phone number.
             </DialogDescription>
@@ -838,7 +925,7 @@ export function MemberProfile({
       <Dialog open={showLoanDialog} onOpenChange={setShowLoanDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign Loan to {member.full_name}</DialogTitle>
+            <DialogTitle>Assign Loan to {member.fullName}</DialogTitle>
             <DialogDescription>
               Create a new loan for this member.
             </DialogDescription>
@@ -899,7 +986,7 @@ export function MemberProfile({
       <Dialog open={showSavingsDialog} onOpenChange={setShowSavingsDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Savings for {member.full_name}</DialogTitle>
+            <DialogTitle>Add Savings for {member.fullName}</DialogTitle>
             <DialogDescription>
               Add a savings deposit for this member.
             </DialogDescription>
@@ -943,7 +1030,7 @@ export function MemberProfile({
       <Dialog open={showFineDialog} onOpenChange={setShowFineDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Fine for {member.full_name}</DialogTitle>
+            <DialogTitle>Add Fine for {member.fullName}</DialogTitle>
             <DialogDescription>
               Create a new fine for this member.
             </DialogDescription>

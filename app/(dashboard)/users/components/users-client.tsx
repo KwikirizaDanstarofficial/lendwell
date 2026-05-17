@@ -127,7 +127,7 @@ function CreateUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md w-full">
+      <DialogContent className="w-full max-w-md">
         <DialogHeader>
           <DialogTitle>
             {isCashier ? "Add Field Agent" : "Add New User"}
@@ -252,14 +252,14 @@ function EditUserDialog({
         <DialogHeader>
           <DialogTitle>Edit User</DialogTitle>
           <DialogDescription>
-            Update {user.full_name}&apos;s details.
+            Update {user.fullName}&apos;s details.
           </DialogDescription>
         </DialogHeader>
         <form action={action} className="space-y-4">
           <input type="hidden" name="id" value={user.id} />
           <div className="space-y-1.5">
             <Label>Full Name</Label>
-            <Input name="full_name" defaultValue={user.full_name} />
+            <Input name="full_name" defaultValue={user.fullName} />
           </div>
           <div className="space-y-1.5">
             <Label>Email</Label>
@@ -339,7 +339,7 @@ function ResetPasswordDialog({
         <DialogHeader>
           <DialogTitle>Reset Password</DialogTitle>
           <DialogDescription>
-            Set a new temporary password for {user.full_name}.
+            Set a new temporary password for {user.fullName}.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
@@ -397,7 +397,7 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
       users.filter((u) => {
         const q = search.toLowerCase()
         return (
-          (u.full_name?.toLowerCase().includes(q) ||
+          (u.fullName?.toLowerCase().includes(q) ||
             u.email?.toLowerCase().includes(q) ||
             u.phone?.includes(q)) &&
           (roleFilter === "all" || u.role === roleFilter)
@@ -411,7 +411,7 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
     admin: users.filter((u) => u.role === "admin").length,
     cashier: users.filter((u) => u.role === "cashier").length,
     field_agent: users.filter((u) => u.role === "field_agent").length,
-    active: users.filter((u) => u.is_active).length,
+    active: users.filter((u) => u.isActive).length,
   }
 
   const handleDelete = async () => {
@@ -564,7 +564,7 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
             <TableBody>
               {filtered.map((u) => {
                 const meta = ROLE_META[u.role as keyof typeof ROLE_META]
-                const initials = u.full_name
+                const initials = u.fullName
                   ?.split(" ")
                   .map((n: string) => n[0])
                   .join("")
@@ -576,7 +576,7 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
                 return (
                   <TableRow
                     key={u.id}
-                    className={!u.is_active ? "opacity-60" : ""}
+                    className={!u.isActive ? "opacity-60" : ""}
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -588,14 +588,14 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <p className="truncate text-sm font-medium">
-                              {u.full_name}
+                              {u.fullName}
                             </p>
                             {isSelf && (
                               <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                                 You
                               </span>
                             )}
-                            {u.must_change_password && (
+                            {u.mustChangePassword && (
                               <span className="rounded-full bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
                                 Temp PW
                               </span>
@@ -619,10 +619,10 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={u.is_active ? "default" : "secondary"}
+                        variant={u.isActive ? "default" : "secondary"}
                         className="text-xs"
                       >
-                        {u.is_active ? "Active" : "Inactive"}
+                        {u.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
@@ -674,23 +674,23 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
                                 onClick={async () => {
                                   const r = await toggleUserActiveAction(
                                     u.id,
-                                    !u.is_active
+                                    !u.isActive
                                   )
                                   if (r.success)
                                     toast.success(
-                                      u.is_active
+                                      u.isActive
                                         ? "User deactivated"
                                         : "User activated"
                                     )
                                   else toast.error(r.error)
                                 }}
                                 className={
-                                  u.is_active
+                                  u.isActive
                                     ? "text-orange-600 focus:text-orange-600"
                                     : "text-green-600 focus:text-green-600"
                                 }
                               >
-                                {u.is_active ? (
+                                {u.isActive ? (
                                   <>
                                     <UserX className="mr-2 h-4 w-4" />{" "}
                                     Deactivate
@@ -753,8 +753,8 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete User?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes <strong>{deleteUser?.full_name}</strong>{" "}
-              ({deleteUser?.role}) from the system. This cannot be undone.
+              This permanently removes <strong>{deleteUser?.fullName}</strong> (
+              {deleteUser?.role}) from the system. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

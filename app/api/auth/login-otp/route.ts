@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { getIronSession } from "iron-session"
-import { db } from "@/db"
-import { saccoUsers } from "@/db/schema"
-import { eq } from "drizzle-orm"
-import { SESSION_OPTIONS, type SessionData } from "@/lib/auth"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function POST(req: Request) {
   try {
@@ -16,45 +12,47 @@ export async function POST(req: Request) {
       )
     }
 
-    // Find user by phone
-    const [user] = await db
-      .select()
-      .from(saccoUsers)
-      .where(eq(saccoUsers.phone, phone))
-      .limit(1)
+    // Verify the OTP via Supabase phone auth — this also sets the session cookies
+    const supabase = await createSupabaseServerClient()
+    const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+      phone,
+      token: otp,
+      type: "sms",
+    })
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    if (otpError || !otpData.user) {
+      console.error("[LOGIN-OTP] OTP verification failed:", otpError?.message)
+      return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 400 })
     }
 
-    if (!user.sacco_id) {
-      return NextResponse.json(
-        { error: "Invalid user configuration" },
-        { status: 500 }
-      )
+    // Look up the staff profile using the admin client to bypass RLS
+    const { data: userProfile, error: userError } = await supabaseAdmin
+      .from("sacco_users")
+      .select("id, full_name, role, is_active")
+      .eq("phone", phone)
+      .single()
+
+    if (userError || !userProfile) {
+      return NextResponse.json({ error: "Staff profile not found" }, { status: 404 })
     }
 
-    // For simplicity, since OTP verification is complex, just check if OTP is "123456" for testing
-    // In production, integrate with the mobile verify API
-    if (otp !== "123456") {
-      return NextResponse.json({ error: "Invalid OTP" }, { status: 400 })
+    if (!userProfile.is_active) {
+      return NextResponse.json({ error: "Account is deactivated" }, { status: 403 })
     }
 
-    // Set session
-    const cookieStore = await cookies()
-    const session = await getIronSession<SessionData>(
-      cookieStore,
-      SESSION_OPTIONS
-    )
-    session.userId = user.id
-    session.saccoId = user.sacco_id!
-    session.role = user.role
-    session.fullName = user.full_name
-    session.email = user.email
-    session.isLoggedIn = true
-    await session.save()
+    await supabaseAdmin
+      .from("sacco_users")
+      .update({
+        last_login_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userProfile.id)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      role: userProfile.role,
+      fullName: userProfile.full_name,
+    })
   } catch (err) {
     console.error("[LOGIN-OTP]", err)
     return NextResponse.json({ error: "Login failed" }, { status: 500 })

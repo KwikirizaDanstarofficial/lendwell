@@ -1,19 +1,30 @@
 /** @type {import('next').NextConfig} */
 import withOffline from "next-pwa"
 
-const nextConfig = {
-  // Turbopack configuration
-  turbopack: {},
+export default withOffline({
+  pwa: {
+    dest: "public",
+    register: true,
+    skipWaiting: true,
+    disable: process.env.NODE_ENV === "development",
+    runtimeCaching: [
+      {
+        urlPattern: /^https?.*/,
+        handler: "NetworkFirst",
+        options: {
+          cacheName: "offlineCache",
+          expiration: { maxEntries: 200 },
+        },
+      },
+    ],
+  },
 
-  // Enable experimental features for better performance
   experimental: {
-    // Enable server actions
     serverActions: {
       bodySizeLimit: "2mb",
     },
   },
 
-  // Image optimization
   images: {
     formats: ["image/webp", "image/avif"],
     minimumCacheTTL: 60,
@@ -26,13 +37,10 @@ const nextConfig = {
     ],
   },
 
-  // Compiler optimizations
   compiler: {
-    // Remove console logs in production
     removeConsole: process.env.NODE_ENV === "production",
   },
 
-  // Headers for caching and performance
   async headers() {
     return [
       {
@@ -53,19 +61,9 @@ const nextConfig = {
           },
         ],
       },
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
     ]
   },
 
-  // Redirects
   async redirects() {
     return [
       {
@@ -75,27 +73,4 @@ const nextConfig = {
       },
     ]
   },
-
-  // Webpack optimizations
-  webpack: (config, { isServer }) => {
-    // Optimize bundle size
-    if (!isServer) {
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          chunks: "all",
-          cacheGroups: {
-            vendor: {
-              test: /[\\/]node_modules[\\/]/,
-              name: "vendors",
-              chunks: "all",
-            },
-          },
-        },
-      }
-    }
-    return config
-  },
-}
-
-export default withOffline(nextConfig)
+})

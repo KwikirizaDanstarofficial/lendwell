@@ -39,12 +39,35 @@ import {
   Banknote,
   PiggyBank,
 } from "lucide-react"
-import { Member } from "@/db/schema"
 import { formatDate } from "@/lib/utils/format"
+
+type Member = {
+  id: string
+  saccoId: string
+  memberCode: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  nationalId: string | null
+  photoUrl: string | null
+  dateOfBirth: Date | null
+  address: string | null
+  nextOfKin: string | null
+  nextOfKinPhone: string | null
+  nextOfKinRelationship: string | null
+  nextOfKinAddress: string | null
+  status: "active" | "suspended" | "exited"
+  joinedAt: Date | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
 import { deleteMemberAction } from "../actions"
 import { toast } from "sonner"
 
-const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const statusVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   active: "default",
   suspended: "secondary",
   exited: "destructive",
@@ -64,10 +87,8 @@ export function MembersTable({ members }: MembersTableProps) {
       header: ({ column }) => (
         <Button
           variant="ghost"
-          onClick={() =>
-            column.toggleSorting(column.getIsSorted() === "asc")
-          }
-          className="p-0 h-auto font-semibold hover:bg-transparent"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="h-auto p-0 font-semibold hover:bg-transparent"
         >
           Member
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -76,15 +97,15 @@ export function MembersTable({ members }: MembersTableProps) {
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={row.original.photo_url ?? ""} />
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-              {row.original.full_name.slice(0, 2).toUpperCase()}
+            <AvatarImage src={row.original.photoUrl ?? ""} />
+            <AvatarFallback className="bg-primary/10 font-semibold text-primary">
+              {row.original.fullName.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{row.original.full_name}</p>
-            <p className="text-xs text-muted-foreground font-mono">
-              {row.original.member_code}
+            <p className="font-medium">{row.original.fullName}</p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {row.original.memberCode}
             </p>
           </div>
         </div>
@@ -98,7 +119,7 @@ export function MembersTable({ members }: MembersTableProps) {
     {
       accessorKey: "national_id",
       header: "National ID",
-      cell: ({ row }) => row.original.national_id ?? "—",
+      cell: ({ row }) => row.original.nationalId ?? "—",
     },
     {
       accessorKey: "status",
@@ -112,7 +133,7 @@ export function MembersTable({ members }: MembersTableProps) {
     {
       accessorKey: "joined_at",
       header: "Joined",
-      cell: ({ row }) => formatDate(row.original.joined_at),
+      cell: ({ row }) => formatDate(row.original.joinedAt),
     },
     {
       id: "actions",
@@ -120,7 +141,7 @@ export function MembersTable({ members }: MembersTableProps) {
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="rounded-md hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground p-1"
+            className="rounded-md p-1 hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -198,16 +219,16 @@ export function MembersTable({ members }: MembersTableProps) {
 
   if (members.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground border rounded-lg">
+      <div className="flex flex-col items-center justify-center rounded-lg border py-20 text-muted-foreground">
         <p className="text-lg font-medium">No members found</p>
-        <p className="text-sm mt-1">Add your first member to get started</p>
+        <p className="mt-1 text-sm">Add your first member to get started</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border overflow-hidden">
+      <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
@@ -232,10 +253,7 @@ export function MembersTable({ members }: MembersTableProps) {
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    {flexRender(
-                      cell.column.columnDef.cell,
-                      cell.getContext()
-                    )}
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
               </TableRow>

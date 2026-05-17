@@ -45,7 +45,7 @@ export function ResolveDialog({
             Resolve Complaint
           </DialogTitle>
           <DialogDescription>
-            {complaint.complaint_ref} · {complaint.subject}
+            {complaint.complaintRef} · {complaint.subject}
           </DialogDescription>
         </DialogHeader>
 

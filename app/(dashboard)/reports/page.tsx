@@ -1,413 +1,282 @@
 import { requireAuth } from "@/lib/auth"
-import { db } from "@/db"
-import {
-  loans,
-  members,
-  savingsAccounts,
-  fines,
-  transactions,
-  complaints,
-  notifications,
-  interestRates,
-  loanCategories,
-  savingsCategories,
-  fineCategories,
-} from "@/db/schema"
-import { eq, sum, count, desc, and, gte, lte, sql } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { getSaccoSettings } from "@/db/queries/settings"
 import { ReportsClient } from "./components/reports-client"
 
+export const revalidate = 60
+
 export default async function ReportsPage() {
   const user = await requireAuth()
+  const supabase = supabaseAdmin
+
+  const [
+    { data: loanStatData },
+    { data: savingsStatData },
+    { data: memberStatData },
+    { data: fineStatData },
+    { data: transactionStatData },
+    { data: complaintStatData },
+    { data: notificationStatData },
+    { data: allLoans },
+    { data: allSavingsData },
+    { data: allMembers },
+    { data: allFinesData },
+    { data: allTransactionsData },
+    { data: allComplaintsData },
+    { data: allNotificationsData },
+    { data: interestRatesList },
+    { data: loanCategoriesList },
+    { data: savingsCategoriesList },
+    { data: fineCategoriesList },
+    sacco,
+  ] = await Promise.all([
+    supabase.from('loans').select('amount, balance, expected_received, status').eq('sacco_id', user.saccoId),
+    supabase.from('savings_accounts').select('balance, account_type, is_locked').eq('sacco_id', user.saccoId),
+    supabase.from('members').select('status').eq('sacco_id', user.saccoId),
+    supabase.from('fines').select('amount, status').eq('sacco_id', user.saccoId),
+    supabase.from('transactions').select('amount, type').eq('sacco_id', user.saccoId),
+    supabase.from('complaints').select('status').eq('sacco_id', user.saccoId),
+    supabase.from('notifications').select('status').eq('sacco_id', user.saccoId),
+    supabase.from('loans').select(`
+      id, loan_ref, amount, expected_received, balance, interest_rate, interest_type,
+      duration_months, daily_payment, monthly_payment, late_penalty_fee, status,
+      due_date, created_at, disbursed_at, settled_at, notes, member_id,
+      members:member_id ( full_name, member_code, phone ),
+      loan_categories:category_id ( name )
+    `).eq('sacco_id', user.saccoId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('savings_accounts').select(`
+      id, account_number, balance, account_type, is_locked, lock_until, created_at, member_id,
+      members:member_id ( full_name, member_code, phone ),
+      savings_categories:category_id ( name )
+    `).eq('sacco_id', user.saccoId).order('balance', { ascending: false }).limit(200),
+    supabase.from('members').select('*').eq('sacco_id', user.saccoId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('fines').select(`
+      id, fine_ref, amount, reason, description, status, priority, due_date, paid_at,
+      payment_method, payment_reference, notes, created_at, member_id,
+      members:member_id ( full_name, member_code ),
+      fine_categories:category_id ( name )
+    `).eq('sacco_id', user.saccoId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('transactions').select(`
+      id, type, amount, balance_after, payment_method, narration, created_at, member_id,
+      members:member_id ( full_name, member_code )
+    `).eq('sacco_id', user.saccoId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('complaints').select(`
+      id, complaint_ref, subject, body, category, priority, status, resolution_notes,
+      satisfaction_rating, feedback, created_at, resolved_at, member_id,
+      members:member_id ( full_name, member_code, phone )
+    `).eq('sacco_id', user.saccoId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('notifications').select(`
+      id, title, body, type, status, priority, channel, scheduled_at, sent_at,
+      delivered_at, read_at, created_at, member_id,
+      members:member_id ( full_name, member_code )
+    `).eq('sacco_id', user.saccoId).order('created_at', { ascending: false }).limit(200),
+    supabase.from('interest_rates').select('*').eq('sacco_id', user.saccoId).order('min_amount', { ascending: true }),
+    supabase.from('loan_categories').select('*').eq('sacco_id', user.saccoId),
+    supabase.from('savings_categories').select('*').eq('sacco_id', user.saccoId),
+    supabase.from('fine_categories').select('*').eq('sacco_id', user.saccoId),
+    getSaccoSettings(user.saccoId),
+  ])
+
   // ─── Loan Stats ───────────────────────────────────────────────────────────
-  const [loanStats] = await db
-    .select({
-      total: sum(loans.amount),
-      count: count(),
-      totalExpected: sum(loans.expected_received),
-    })
-    .from(loans)
-    .where(eq(loans.sacco_id, user.saccoId))
-
-  const [activeLoans] = await db
-    .select({ total: sum(loans.balance), count: count() })
-    .from(loans)
-    .where(and(eq(loans.sacco_id, user.saccoId), eq(loans.status, "active")))
-
-  const [disbursedLoans] = await db
-    .select({ total: sum(loans.amount), count: count() })
-    .from(loans)
-    .where(and(eq(loans.sacco_id, user.saccoId), eq(loans.status, "disbursed")))
-
-  const [approvedLoans] = await db
-    .select({ count: count() })
-    .from(loans)
-    .where(and(eq(loans.sacco_id, user.saccoId), eq(loans.status, "approved")))
-
-  const [pendingLoans] = await db
-    .select({ count: count() })
-    .from(loans)
-    .where(and(eq(loans.sacco_id, user.saccoId), eq(loans.status, "pending")))
-
-  const [settledLoans] = await db
-    .select({ count: count() })
-    .from(loans)
-    .where(and(eq(loans.sacco_id, user.saccoId), eq(loans.status, "settled")))
-
-  const [defaultedLoans] = await db
-    .select({ count: count() })
-    .from(loans)
-    .where(and(eq(loans.sacco_id, user.saccoId), eq(loans.status, "defaulted")))
+  const loanStats = {
+    total: loanStatData?.reduce((sum, loan) => sum + loan.amount, 0) || 0,
+    count: loanStatData?.length || 0,
+    totalExpected: loanStatData?.reduce((sum, loan) => sum + loan.expected_received, 0) || 0,
+  }
+  const activeLoans = {
+    total: loanStatData?.filter(l => l.status === 'active').reduce((sum, loan) => sum + loan.balance, 0) || 0,
+    count: loanStatData?.filter(l => l.status === 'active').length || 0,
+  }
+  const disbursedLoans = {
+    total: loanStatData?.filter(l => l.status === 'disbursed').reduce((sum, loan) => sum + loan.amount, 0) || 0,
+    count: loanStatData?.filter(l => l.status === 'disbursed').length || 0,
+  }
+  const approvedLoans = { count: loanStatData?.filter(l => l.status === 'approved').length || 0 }
+  const pendingLoans = { count: loanStatData?.filter(l => l.status === 'pending').length || 0 }
+  const settledLoans = { count: loanStatData?.filter(l => l.status === 'settled').length || 0 }
+  const defaultedLoans = { count: loanStatData?.filter(l => l.status === 'defaulted').length || 0 }
 
   // ─── Savings Stats ────────────────────────────────────────────────────────
-  const [savingsStats] = await db
-    .select({ total: sum(savingsAccounts.balance), count: count() })
-    .from(savingsAccounts)
-    .where(eq(savingsAccounts.sacco_id, user.saccoId))
-
-  const [fixedSavings] = await db
-    .select({ total: sum(savingsAccounts.balance), count: count() })
-    .from(savingsAccounts)
-    .where(
-      and(
-        eq(savingsAccounts.sacco_id, user.saccoId),
-        eq(savingsAccounts.account_type, "fixed")
-      )
-    )
-
-  const [lockedSavings] = await db
-    .select({ count: count() })
-    .from(savingsAccounts)
-    .where(
-      and(
-        eq(savingsAccounts.sacco_id, user.saccoId),
-        eq(savingsAccounts.is_locked, true)
-      )
-    )
+  const savingsStats = {
+    total: savingsStatData?.reduce((sum, account) => sum + account.balance, 0) || 0,
+    count: savingsStatData?.length || 0,
+  }
+  const fixedSavings = {
+    total: savingsStatData?.filter(s => s.account_type === 'fixed').reduce((sum, account) => sum + account.balance, 0) || 0,
+    count: savingsStatData?.filter(s => s.account_type === 'fixed').length || 0,
+  }
+  const lockedSavings = { count: savingsStatData?.filter(s => s.is_locked).length || 0 }
 
   // ─── Member Stats ─────────────────────────────────────────────────────────
-  const [memberStats] = await db
-    .select({ count: count() })
-    .from(members)
-    .where(eq(members.sacco_id, user.saccoId))
-
-  const [activeMembers] = await db
-    .select({ count: count() })
-    .from(members)
-    .where(
-      and(eq(members.sacco_id, user.saccoId), eq(members.status, "active"))
-    )
-
-  const [suspendedMembers] = await db
-    .select({ count: count() })
-    .from(members)
-    .where(
-      and(eq(members.sacco_id, user.saccoId), eq(members.status, "suspended"))
-    )
-
-  const [exitedMembers] = await db
-    .select({ count: count() })
-    .from(members)
-    .where(
-      and(eq(members.sacco_id, user.saccoId), eq(members.status, "exited"))
-    )
+  const memberStats = { count: memberStatData?.length || 0 }
+  const activeMembers = { count: memberStatData?.filter(m => m.status === 'active').length || 0 }
+  const suspendedMembers = { count: memberStatData?.filter(m => m.status === 'suspended').length || 0 }
+  const exitedMembers = { count: memberStatData?.filter(m => m.status === 'exited').length || 0 }
 
   // ─── Fine Stats ───────────────────────────────────────────────────────────
-  const [fineStats] = await db
-    .select({ total: sum(fines.amount), count: count() })
-    .from(fines)
-    .where(eq(fines.sacco_id, user.saccoId))
-
-  const [pendingFines] = await db
-    .select({ total: sum(fines.amount), count: count() })
-    .from(fines)
-    .where(and(eq(fines.sacco_id, user.saccoId), eq(fines.status, "pending")))
-
-  const [paidFines] = await db
-    .select({ total: sum(fines.amount), count: count() })
-    .from(fines)
-    .where(and(eq(fines.sacco_id, user.saccoId), eq(fines.status, "paid")))
-
-  const [waivedFines] = await db
-    .select({ total: sum(fines.amount), count: count() })
-    .from(fines)
-    .where(and(eq(fines.sacco_id, user.saccoId), eq(fines.status, "waived")))
+  const fineStats = {
+    total: fineStatData?.reduce((sum, fine) => sum + fine.amount, 0) || 0,
+    count: fineStatData?.length || 0,
+  }
+  const pendingFines = {
+    total: fineStatData?.filter(f => f.status === 'pending').reduce((sum, fine) => sum + fine.amount, 0) || 0,
+    count: fineStatData?.filter(f => f.status === 'pending').length || 0,
+  }
+  const paidFines = {
+    total: fineStatData?.filter(f => f.status === 'paid').reduce((sum, fine) => sum + fine.amount, 0) || 0,
+    count: fineStatData?.filter(f => f.status === 'paid').length || 0,
+  }
+  const waivedFines = {
+    total: fineStatData?.filter(f => f.status === 'waived').reduce((sum, fine) => sum + fine.amount, 0) || 0,
+    count: fineStatData?.filter(f => f.status === 'waived').length || 0,
+  }
 
   // ─── Transaction Stats ────────────────────────────────────────────────────
-  const [totalDeposits] = await db
-    .select({ total: sum(transactions.amount) })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.sacco_id, user.saccoId),
-        eq(transactions.type, "savings_deposit")
-      )
-    )
-
-  const [totalWithdrawals] = await db
-    .select({ total: sum(transactions.amount) })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.sacco_id, user.saccoId),
-        eq(transactions.type, "savings_withdrawal")
-      )
-    )
-
-  const [totalRepayments] = await db
-    .select({ total: sum(transactions.amount) })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.sacco_id, user.saccoId),
-        eq(transactions.type, "loan_repayment")
-      )
-    )
+  const totalDeposits = { total: transactionStatData?.filter(t => t.type === 'savings_deposit').reduce((sum, t) => sum + t.amount, 0) || 0 }
+  const totalWithdrawals = { total: transactionStatData?.filter(t => t.type === 'savings_withdrawal').reduce((sum, t) => sum + t.amount, 0) || 0 }
+  const totalRepayments = { total: transactionStatData?.filter(t => t.type === 'loan_repayment').reduce((sum, t) => sum + t.amount, 0) || 0 }
 
   // ─── Complaint Stats ──────────────────────────────────────────────────────
-  const [complaintStats] = await db
-    .select({ count: count() })
-    .from(complaints)
-    .where(eq(complaints.sacco_id, user.saccoId))
-
-  const [openComplaints] = await db
-    .select({ count: count() })
-    .from(complaints)
-    .where(
-      and(eq(complaints.sacco_id, user.saccoId), eq(complaints.status, "open"))
-    )
-
-  const [resolvedComplaints] = await db
-    .select({ count: count() })
-    .from(complaints)
-    .where(
-      and(
-        eq(complaints.sacco_id, user.saccoId),
-        eq(complaints.status, "resolved")
-      )
-    )
+  const complaintStats = { count: complaintStatData?.length || 0 }
+  const openComplaints = { count: complaintStatData?.filter(c => c.status === 'open').length || 0 }
+  const resolvedComplaints = { count: complaintStatData?.filter(c => c.status === 'resolved').length || 0 }
 
   // ─── Notification Stats ───────────────────────────────────────────────────
-  const [notificationStats] = await db
-    .select({ count: count() })
-    .from(notifications)
-    .where(eq(notifications.sacco_id, user.saccoId))
+  const notificationStats = { count: notificationStatData?.length || 0 }
+  const sentNotifications = { count: notificationStatData?.filter(n => n.status === 'sent').length || 0 }
+  const failedNotifications = { count: notificationStatData?.filter(n => n.status === 'failed').length || 0 }
 
-  const [sentNotifications] = await db
-    .select({ count: count() })
-    .from(notifications)
-    .where(
-      and(
-        eq(notifications.sacco_id, user.saccoId),
-        eq(notifications.status, "sent")
-      )
-    )
+  // ─── Format Detail Data ───────────────────────────────────────────────────
+  const formattedAllLoans = (allLoans as any[])?.map(loan => ({
+    id: loan.id,
+    loan_ref: loan.loan_ref,
+    amount: loan.amount,
+    expectedReceived: loan.expected_received,
+    balance: loan.balance,
+    interest_rate: loan.interest_rate,
+    interest_type: loan.interest_type,
+    duration_months: loan.duration_months,
+    daily_payment: loan.daily_payment,
+    monthly_payment: loan.monthly_payment,
+    late_penalty_fee: loan.late_penalty_fee,
+    status: loan.status,
+    due_date: loan.due_date,
+    createdAt: loan.created_at,
+    disbursed_at: loan.disbursed_at,
+    settled_at: loan.settled_at,
+    notes: loan.notes,
+    memberId: loan.member_id,
+    member_name: loan.members?.full_name,
+    member_code: loan.members?.member_code,
+    member_phone: loan.members?.phone,
+    category_name: loan.loan_categories?.name,
+  })) || []
 
-  const [failedNotifications] = await db
-    .select({ count: count() })
-    .from(notifications)
-    .where(
-      and(
-        eq(notifications.sacco_id, user.saccoId),
-        eq(notifications.status, "failed")
-      )
-    )
+  const allSavings = (allSavingsData as any[])?.map(saving => ({
+    id: saving.id,
+    account_number: saving.account_number,
+    balance: saving.balance,
+    account_type: saving.account_type,
+    is_locked: saving.is_locked,
+    lock_until: saving.lock_until,
+    createdAt: saving.created_at,
+    memberId: saving.member_id,
+    member_name: saving.members?.full_name,
+    member_code: saving.members?.member_code,
+    member_phone: saving.members?.phone,
+    category_name: saving.savings_categories?.name,
+  })) || []
 
-  // ─── Detailed Data for Tables ─────────────────────────────────────────────
+  const formattedAllMembers = (allMembers as any[])?.map(member => ({
+    id: member.id,
+    saccoId: member.sacco_id,
+    memberCode: member.member_code,
+    fullName: member.full_name,
+    email: member.email,
+    phone: member.phone,
+    nationalId: member.national_id,
+    photoUrl: member.photo_url,
+    dateOfBirth: member.date_of_birth,
+    address: member.address,
+    nextOfKin: member.next_of_kin,
+    nextOfKinPhone: member.next_of_kin_phone,
+    nextOfKinRelationship: member.next_of_kin_relationship,
+    nextOfKinAddress: member.next_of_kin_address,
+    status: member.status,
+    joinedAt: new Date(member.joined_at),
+    createdAt: new Date(member.created_at),
+    updatedAt: new Date(member.updated_at),
+  })) || []
 
-  // All loans with member and category details
-  const allLoans = await db
-    .select({
-      id: loans.id,
-      loan_ref: loans.loan_ref,
-      amount: loans.amount,
-      expected_received: loans.expected_received,
-      balance: loans.balance,
-      interest_rate: loans.interest_rate,
-      interest_type: loans.interest_type,
-      duration_months: loans.duration_months,
-      daily_payment: loans.daily_payment,
-      monthly_payment: loans.monthly_payment,
-      late_penalty_fee: loans.late_penalty_fee,
-      status: loans.status,
-      due_date: loans.due_date,
-      created_at: loans.created_at,
-      disbursed_at: loans.disbursed_at,
-      settled_at: loans.settled_at,
-      notes: loans.notes,
-      member_id: loans.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-      member_phone: members.phone,
-      category_name: loanCategories.name,
-    })
-    .from(loans)
-    .leftJoin(members, eq(loans.member_id, members.id))
-    .leftJoin(loanCategories, eq(loans.category_id, loanCategories.id))
-    .where(eq(loans.sacco_id, user.saccoId))
-    .orderBy(desc(loans.created_at))
-    .limit(200)
+  const allFines = (allFinesData as any[])?.map(fine => ({
+    id: fine.id,
+    fine_ref: fine.fine_ref,
+    amount: fine.amount,
+    reason: fine.reason,
+    description: fine.description,
+    status: fine.status,
+    priority: fine.priority,
+    due_date: fine.due_date,
+    paid_at: fine.paid_at,
+    payment_method: fine.payment_method,
+    payment_reference: fine.payment_reference,
+    notes: fine.notes,
+    createdAt: fine.created_at,
+    memberId: fine.member_id,
+    member_name: fine.members?.full_name,
+    member_code: fine.members?.member_code,
+    category_name: fine.fine_categories?.name,
+  })) || []
 
-  // All savings accounts with member details
-  const allSavings = await db
-    .select({
-      id: savingsAccounts.id,
-      account_number: savingsAccounts.account_number,
-      balance: savingsAccounts.balance,
-      account_type: savingsAccounts.account_type,
-      is_locked: savingsAccounts.is_locked,
-      lock_until: savingsAccounts.lock_until,
-      created_at: savingsAccounts.created_at,
-      member_id: savingsAccounts.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-      member_phone: members.phone,
-      category_name: savingsCategories.name,
-    })
-    .from(savingsAccounts)
-    .leftJoin(members, eq(savingsAccounts.member_id, members.id))
-    .leftJoin(
-      savingsCategories,
-      eq(savingsAccounts.category_id, savingsCategories.id)
-    )
-    .where(eq(savingsAccounts.sacco_id, user.saccoId))
-    .orderBy(desc(savingsAccounts.balance))
-    .limit(200)
+  const allTransactions = (allTransactionsData as any[])?.map(tx => ({
+    id: tx.id,
+    type: tx.type,
+    amount: tx.amount,
+    balance_after: tx.balance_after,
+    payment_method: tx.payment_method,
+    narration: tx.narration,
+    createdAt: tx.created_at,
+    memberId: tx.member_id,
+    member_name: tx.members?.full_name,
+    member_code: tx.members?.member_code,
+  })) || []
 
-  // All members
-  const allMembers = await db
-    .select()
-    .from(members)
-    .where(eq(members.sacco_id, user.saccoId))
-    .orderBy(desc(members.created_at))
-    .limit(200)
+  const allComplaints = (allComplaintsData as any[])?.map(complaint => ({
+    id: complaint.id,
+    complaint_ref: complaint.complaint_ref,
+    subject: complaint.subject,
+    body: complaint.body,
+    category: complaint.category,
+    priority: complaint.priority,
+    status: complaint.status,
+    resolution_notes: complaint.resolution_notes,
+    satisfaction_rating: complaint.satisfaction_rating,
+    feedback: complaint.feedback,
+    createdAt: complaint.created_at,
+    resolved_at: complaint.resolved_at,
+    memberId: complaint.member_id,
+    member_name: complaint.members?.full_name,
+    member_code: complaint.members?.member_code,
+    member_phone: complaint.members?.phone,
+  })) || []
 
-  // All fines with member and category details
-  const allFines = await db
-    .select({
-      id: fines.id,
-      fine_ref: fines.fine_ref,
-      amount: fines.amount,
-      reason: fines.reason,
-      description: fines.description,
-      status: fines.status,
-      priority: fines.priority,
-      due_date: fines.due_date,
-      paid_at: fines.paid_at,
-      payment_method: fines.payment_method,
-      payment_reference: fines.payment_reference,
-      notes: fines.notes,
-      created_at: fines.created_at,
-      member_id: fines.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-      category_name: fineCategories.name,
-    })
-    .from(fines)
-    .leftJoin(members, eq(fines.member_id, members.id))
-    .leftJoin(fineCategories, eq(fines.category_id, fineCategories.id))
-    .where(eq(fines.sacco_id, user.saccoId))
-    .orderBy(desc(fines.created_at))
-    .limit(200)
-
-  // All transactions
-  const allTransactions = await db
-    .select({
-      id: transactions.id,
-      type: transactions.type,
-      amount: transactions.amount,
-      balance_after: transactions.balance_after,
-      payment_method: transactions.payment_method,
-      narration: transactions.narration,
-      created_at: transactions.created_at,
-      member_id: transactions.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-    })
-    .from(transactions)
-    .leftJoin(members, eq(transactions.member_id, members.id))
-    .where(eq(transactions.sacco_id, user.saccoId))
-    .orderBy(desc(transactions.created_at))
-    .limit(200)
-
-  // All complaints
-  const allComplaints = await db
-    .select({
-      id: complaints.id,
-      complaint_ref: complaints.complaint_ref,
-      subject: complaints.subject,
-      body: complaints.body,
-      category: complaints.category,
-      priority: complaints.priority,
-      status: complaints.status,
-      resolution_notes: complaints.resolution_notes,
-      satisfaction_rating: complaints.satisfaction_rating,
-      feedback: complaints.feedback,
-      created_at: complaints.created_at,
-      resolved_at: complaints.resolved_at,
-      member_id: complaints.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-      member_phone: members.phone,
-    })
-    .from(complaints)
-    .leftJoin(members, eq(complaints.member_id, members.id))
-    .where(eq(complaints.sacco_id, user.saccoId))
-    .orderBy(desc(complaints.created_at))
-    .limit(200)
-
-  // All notifications
-  const allNotifications = await db
-    .select({
-      id: notifications.id,
-      title: notifications.title,
-      body: notifications.body,
-      type: notifications.type,
-      status: notifications.status,
-      priority: notifications.priority,
-      channel: notifications.channel,
-      scheduled_at: notifications.scheduled_at,
-      sent_at: notifications.sent_at,
-      delivered_at: notifications.delivered_at,
-      read_at: notifications.read_at,
-      created_at: notifications.created_at,
-      member_id: notifications.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-    })
-    .from(notifications)
-    .leftJoin(members, eq(notifications.member_id, members.id))
-    .where(eq(notifications.sacco_id, user.saccoId))
-    .orderBy(desc(notifications.created_at))
-    .limit(200)
-
-  // Interest rates table
-  const interestRatesList = await db
-    .select()
-    .from(interestRates)
-    .where(eq(interestRates.sacco_id, user.saccoId))
-    .orderBy(interestRates.min_amount)
-
-  // Loan categories
-  const loanCategoriesList = await db
-    .select()
-    .from(loanCategories)
-    .where(eq(loanCategories.sacco_id, user.saccoId))
-
-  // Savings categories
-  const savingsCategoriesList = await db
-    .select()
-    .from(savingsCategories)
-    .where(eq(savingsCategories.sacco_id, user.saccoId))
-
-  // Fine categories
-  const fineCategoriesList = await db
-    .select()
-    .from(fineCategories)
-    .where(eq(fineCategories.sacco_id, user.saccoId))
-
-  // SACCO settings
-  const sacco = await getSaccoSettings(user.saccoId)
+  const allNotifications = (allNotificationsData as any[])?.map(notification => ({
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    type: notification.type,
+    status: notification.status,
+    priority: notification.priority,
+    channel: notification.channel,
+    scheduled_at: notification.scheduled_at,
+    sent_at: notification.sent_at,
+    delivered_at: notification.delivered_at,
+    read_at: notification.read_at,
+    createdAt: notification.created_at,
+    memberId: notification.member_id,
+    member_name: notification.members?.full_name,
+    member_code: notification.members?.member_code,
+  })) || []
 
   return (
     <ReportsClient
@@ -464,17 +333,17 @@ export default async function ReportsPage() {
         sentNotifications: sentNotifications?.count ?? 0,
         failedNotifications: failedNotifications?.count ?? 0,
       }}
-      loans={allLoans}
+      loans={formattedAllLoans}
       savings={allSavings}
-      members={allMembers}
+      members={formattedAllMembers}
       fines={allFines}
       transactions={allTransactions}
       complaints={allComplaints}
       notifications={allNotifications}
-      interestRates={interestRatesList}
-      loanCategories={loanCategoriesList}
-      savingsCategories={savingsCategoriesList}
-      fineCategories={fineCategoriesList}
+      interestRates={interestRatesList || []}
+      loanCategories={loanCategoriesList || []}
+      savingsCategories={savingsCategoriesList || []}
+      fineCategories={fineCategoriesList || []}
     />
   )
 }

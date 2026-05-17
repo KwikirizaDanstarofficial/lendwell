@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server"
-import { getIronSession } from "iron-session"
-import { cookies } from "next/headers"
-import type { SessionData } from "@/lib/auth"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function POST() {
-  const cookieStore = await cookies()
-  const session = await getIronSession<SessionData>(cookieStore, {
-    password: process.env.SESSION_SECRET as string,
-    cookieName: "sacco_session",
-    cookieOptions: { secure: process.env.NODE_ENV === "production" },
-  })
-  session.destroy()
+  const supabase = await createSupabaseServerClient()
+
+  // Sign out from Supabase Auth
+  const { error } = await supabase.auth.signOut()
+
+  if (error) {
+    console.error('Logout error:', error)
+    return NextResponse.json(
+      { error: "Failed to logout" },
+      { status: 500 }
+    )
+  }
+
   return NextResponse.json({ success: true })
 }

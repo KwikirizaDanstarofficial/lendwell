@@ -3,9 +3,13 @@
 import { useActionState, useEffect } from "react"
 import { toast } from "sonner"
 import { addComplaintAction, type ComplaintFormState } from "../actions"
-import { type Member } from "@/db/schema"
 
-type MemberSelect = Pick<Member, "id" | "full_name" | "member_code" | "phone">
+type MemberSelect = {
+  id: string
+  full_name: string
+  member_code: string
+  phone: string | null
+}
 import {
   Dialog,
   DialogContent,

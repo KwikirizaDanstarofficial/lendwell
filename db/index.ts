@@ -1,10 +1,5 @@
-import { drizzle } from "drizzle-orm/postgres-js"
-import postgres from "postgres"
-import * as schema from "./schema"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-const client = postgres(process.env.DATABASE_URL!, {
-  ssl: process.env.NODE_ENV === "production" ? "require" : false,
-  max: 10,
-})
-
-export const db = drizzle(client, { schema })
+// Note: This is now async, so it can't be used as a direct export
+// You'll need to call createSupabaseServerClient() directly in your code
+// export const db = await createSupabaseServerClient()

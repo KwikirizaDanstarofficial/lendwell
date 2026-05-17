@@ -1,9 +1,7 @@
 "use server"
 
 import { getCurrentUser } from "@/lib/auth"
-import { smartDb } from "@/lib/db/database-adapter"
-import { fines, members, fineCategories } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendSms, smsTemplates } from "@/lib/sms"
 import {
@@ -56,6 +54,8 @@ export async function addFineAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
+    
+
     const member_id = formData.get("member_id") as string
     const amount = formData.get("amount") as string
     const reason = formData.get("reason") as string
@@ -89,33 +89,49 @@ export async function addFineAction(
     const amountInCents = Math.floor(parsed.data.amount * 100)
     const fine_ref = `FN-${Date.now()}`
 
-    await smartDb.insert(fines).values({
-      sacco_id: user.saccoId,
-      member_id: parsed.data.member_id,
-      category_id: parsed.data.category_id ?? null,
-      fine_ref,
-      amount: amountInCents,
-      reason: parsed.data.reason,
-      description: parsed.data.description ?? null,
-      priority: parsed.data.priority ?? "normal",
-      due_date: parsed.data.due_date ?? null,
-      notes: parsed.data.notes ?? null,
-      status: "pending",
-    })
+    // Insert fine
+    const { error: insertError } = await supabaseAdmin
+      .from('fines')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: parsed.data.member_id,
+        category_id: parsed.data.category_id ?? null,
+        fine_ref,
+        amount: amountInCents,
+        reason: parsed.data.reason,
+        description: parsed.data.description ?? null,
+        priority: parsed.data.priority ?? "normal",
+        due_date: parsed.data.due_date ?? null,
+        notes: parsed.data.notes ?? null,
+        status: "pending",
+      })
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, parsed.data.member_id))
+    if (insertError) {
+      console.error('Supabase insert error:', insertError)
+      return { error: "Failed to add fine." }
+    }
+
+    // Get member for SMS notification
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', parsed.data.member_id)
+      .single()
 
     if (member?.phone) {
-      await sendSms({
-        to: member.phone,
-        message: smsTemplates.fineIssued(
-          member.full_name,
-          `UGX ${(amountInCents / 100).toLocaleString()}`,
-          parsed.data.reason
-        ),
-      })
+      try {
+        await sendSms({
+          to: member.phone,
+          message: smsTemplates.fineIssued(
+            member.full_name,
+            `UGX ${(amountInCents / 100).toLocaleString()}`,
+            parsed.data.reason
+          ),
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the fine creation if SMS fails
+      }
     }
 
     revalidatePath("/fines")
@@ -133,17 +149,29 @@ export async function markFinePaidAction(
   formData: FormData
 ): Promise<FineFormState> {
   try {
+    
+
     const id = formData.get("fine_id") as string
     const payment_method = formData.get("payment_method") as string
     const payment_reference = formData.get("payment_reference") as string
 
-    const [fine] = await smartDb.select(fines).where(eq(fines.id, id))
+    // Get the fine
+    const { data: fine, error: fetchError } = await supabaseAdmin
+      .from('fines')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    if (!fine) return { error: "Fine not found." }
+    if (fetchError || !fine) {
+      return { error: "Fine not found." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, fine.member_id))
+    // Get member for payment processing and SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name, email')
+      .eq('id', fine.member_id)
+      .single()
 
     let finalReference = payment_reference
     let finalMethod = payment_method || "cash"
@@ -175,22 +203,33 @@ export async function markFinePaidAction(
       finalMethod = "flutterwave"
     }
 
-    await smartDb
-      .update(fines)
-      .set({
+    // Update fine status
+    const { error: updateError } = await supabaseAdmin
+      .from('fines')
+      .update({
         status: "paid",
-        paid_at: new Date(),
-        payment_method: finalMethod as any,
+        paid_at: new Date().toISOString(),
+        payment_method: finalMethod,
         payment_reference: finalReference || null,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(fines.id, id))
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to mark fine as paid." }
+    }
 
     if (member?.phone) {
-      await sendSms({
-        to: member.phone,
-        message: `Dear ${member.full_name}, your fine of UGX ${(fine.amount / 100).toLocaleString()} (Ref: ${fine.fine_ref}) has been paid. Thank you. - SACCO`,
-      })
+      try {
+        await sendSms({
+          to: member.phone,
+          message: `Dear ${member.full_name}, your fine of UGX ${(fine.amount / 100).toLocaleString()} (Ref: ${fine.fine_ref}) has been paid. Thank you. - SACCO`,
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the payment update if SMS fails
+      }
     }
 
     revalidatePath("/fines")
@@ -208,28 +247,51 @@ export async function waiveFineAction(
   waiver_reason: string
 ): Promise<FineFormState> {
   try {
-    const [fine] = await smartDb.select(fines).where(eq(fines.id, id))
+    
 
-    if (!fine) return { error: "Fine not found." }
+    // Get the fine
+    const { data: fine, error: fetchError } = await supabaseAdmin
+      .from('fines')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    await smartDb
-      .update(fines)
-      .set({
+    if (fetchError || !fine) {
+      return { error: "Fine not found." }
+    }
+
+    // Update fine status
+    const { error: updateError } = await supabaseAdmin
+      .from('fines')
+      .update({
         status: "waived",
         waiver_reason,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(fines.id, id))
+      .eq('id', id)
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, fine.member_id))
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to waive fine." }
+    }
+
+    // Get member for SMS notification
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', fine.member_id)
+      .single()
 
     if (member?.phone) {
-      await sendSms({
-        to: member.phone,
-        message: `Dear ${member.full_name}, your fine of UGX ${(fine.amount / 100).toLocaleString()} (Ref: ${fine.fine_ref}) has been waived. Reason: ${waiver_reason}. - SACCO`,
-      })
+      try {
+        await sendSms({
+          to: member.phone,
+          message: `Dear ${member.full_name}, your fine of UGX ${(fine.amount / 100).toLocaleString()} (Ref: ${fine.fine_ref}) has been waived. Reason: ${waiver_reason}. - SACCO`,
+        })
+      } catch (smsError) {
+        console.error('SMS sending failed:', smsError)
+        // Don't fail the waiver if SMS fails
+      }
     }
 
     revalidatePath("/fines")
@@ -244,7 +306,18 @@ export async function waiveFineAction(
 
 export async function deleteFineAction(id: string): Promise<FineFormState> {
   try {
-    await smartDb.delete(fines).where(eq(fines.id, id))
+    
+
+    const { error } = await supabaseAdmin
+      .from('fines')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Supabase delete error:', error)
+      return { error: "Failed to delete fine." }
+    }
+
     revalidatePath("/fines")
     return { success: true }
   } catch (err) {

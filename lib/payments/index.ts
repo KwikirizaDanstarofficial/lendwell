@@ -50,10 +50,7 @@ export async function processPayment({
     return { success: true, data: result }
   } catch (error) {
     console.error("Payment charge error:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Payment failed",
-    }
+    return { success: false, error: "Payment failed. Please try again." }
   }
 }
 
@@ -86,10 +83,7 @@ export async function processWithdrawal({
     return { success: true, data: result }
   } catch (error) {
     console.error("Withdrawal error:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Transfer failed",
-    }
+    return { success: false, error: "Transfer failed. Please try again." }
   }
 }
 

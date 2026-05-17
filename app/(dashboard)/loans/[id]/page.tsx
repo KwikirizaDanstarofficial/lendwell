@@ -4,7 +4,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { requireAuth } from "@/lib/auth"
 import { getLoanById } from "@/db/queries/loans"
-import { getAllMembers } from "@/db/queries/members"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import {
   Table,
   TableBody,
@@ -184,8 +184,12 @@ async function LoanDetailContent({ id }: { id: string }) {
   const loan = await getLoanById(id, user.saccoId)
   if (!loan) notFound()
 
-  const members = await getAllMembers(user.saccoId)
-  const member = members.find((m) => m.id === loan.member_id)
+  const supabase = supabaseAdmin
+  const { data: member } = await supabase
+    .from('members')
+    .select('id, full_name, member_code, phone, email')
+    .eq('id', loan.memberId)
+    .single()
 
   const loanWithMember = {
     ...loan,
@@ -196,24 +200,24 @@ async function LoanDetailContent({ id }: { id: string }) {
   }
 
   const schedule =
-    loan.duration_months && loan.monthly_payment && loan.created_at
+    loan.durationMonths && loan.monthlyPayment && loan.createdAt
       ? formatLoanSchedule(
-          loan.expected_received,
-          loan.duration_months,
-          new Date(loan.created_at)
+          loan.expectedReceived,
+          loan.durationMonths,
+          new Date(loan.createdAt)
         )
       : []
 
-  const repaidAmount = loan.expected_received - loan.balance
+  const repaidAmount = loan.expectedReceived - loan.balance
   const progress = Math.min(
     100,
-    Math.round((repaidAmount / loan.expected_received) * 100)
+    Math.round((repaidAmount / loan.expectedReceived) * 100)
   )
 
   const timelineEvents = [
-    { label: "Applied", date: loan.created_at, color: "bg-yellow-400" },
-    { label: "Disbursed", date: loan.disbursed_at, color: "bg-purple-500" },
-    { label: "Settled", date: loan.settled_at, color: "bg-green-500" },
+    { label: "Applied", date: loan.createdAt, color: "bg-yellow-400" },
+    { label: "Disbursed", date: loan.disbursedAt, color: "bg-purple-500" },
+    { label: "Settled", date: loan.settledAt, color: "bg-green-500" },
   ].filter((e) => e.date)
 
   return (
@@ -243,7 +247,7 @@ async function LoanDetailContent({ id }: { id: string }) {
             Loan Reference
           </p>
           <h1 className="font-mono text-xl font-bold text-foreground">
-            {loan.loan_ref}
+            {loan.loanRef}
           </h1>
         </div>
 
@@ -275,7 +279,7 @@ async function LoanDetailContent({ id }: { id: string }) {
       </div>
 
       {/* ── Decline reason ── */}
-      {loan.decline_reason && (
+      {loan.declineReason && (
         <div className="flex items-start gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <div>
@@ -283,7 +287,7 @@ async function LoanDetailContent({ id }: { id: string }) {
               Decline Reason
             </p>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {loan.decline_reason}
+              {loan.declineReason}
             </p>
           </div>
         </div>
@@ -317,7 +321,7 @@ async function LoanDetailContent({ id }: { id: string }) {
             <InfoItem label="Principal" value={formatUGX(loan.amount)} />
             <InfoItem
               label="Total to Repay"
-              value={formatUGX(loan.expected_received)}
+              value={formatUGX(loan.expectedReceived)}
               accent="green"
             />
             <InfoItem
@@ -327,18 +331,18 @@ async function LoanDetailContent({ id }: { id: string }) {
             />
             <InfoItem
               label="Interest Rate"
-              value={`${loan.interest_rate}% · ${loan.interest_type}`}
+              value={`${loan.interestRate}% · ${loan.interestType}`}
               accent="blue"
             />
             <InfoItem
               label="Duration"
-              value={`${loan.duration_months} months`}
+              value={`${loan.durationMonths} months`}
             />
-            <InfoItem label="Due Date" value={formatDate(loan.due_date)} />
-            {(loan.late_penalty_fee ?? 0) > 0 && (
+            <InfoItem label="Due Date" value={formatDate(loan.dueDate)} />
+            {(loan.latePenaltyFee ?? 0) > 0 && (
               <InfoItem
                 label="Late Penalty"
-                value={formatUGX(loan.late_penalty_fee ?? 0)}
+                value={formatUGX(loan.latePenaltyFee ?? 0)}
                 accent="red"
               />
             )}
@@ -351,17 +355,17 @@ async function LoanDetailContent({ id }: { id: string }) {
         <div className="mb-6 grid grid-cols-3 gap-3">
           <PaymentTile
             label="Daily Payment"
-            value={formatUGX(loan.daily_payment ?? 0)}
+            value={formatUGX(loan.dailyPayment ?? 0)}
             accent="blue"
           />
           <PaymentTile
             label="Monthly Payment"
-            value={formatUGX(loan.monthly_payment ?? 0)}
+            value={formatUGX(loan.monthlyPayment ?? 0)}
             accent="green"
           />
           <PaymentTile
             label="Late Penalty"
-            value={formatUGX(loan.late_penalty_fee ?? 0)}
+            value={formatUGX(loan.latePenaltyFee ?? 0)}
             accent="orange"
           />
         </div>

@@ -80,7 +80,7 @@ export function AccountDetailDialog({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-muted-foreground">Account No</p>
-                  <p className="font-mono font-medium">{account.account_number}</p>
+                  <p className="font-mono font-medium">{account.accountNumber}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Member</p>
@@ -94,12 +94,12 @@ export function AccountDetailDialog({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Type</p>
-                  <Badge variant="outline">{account.account_type}</Badge>
+                  <Badge variant="outline">{account.accountType}</Badge>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge variant={account.is_locked ? "destructive" : "default"}>
-                    {account.is_locked ? (
+                  <Badge variant={account.isLocked ? "destructive" : "default"}>
+                    {account.isLocked ? (
                       <><Lock className="h-3 w-3 mr-1" />Locked</>
                     ) : (
                       <><Unlock className="h-3 w-3 mr-1" />Active</>
@@ -108,18 +108,18 @@ export function AccountDetailDialog({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Opened</p>
-                  <p>{formatDate(account.created_at)}</p>
+                  <p>{formatDate(account.createdAt)}</p>
                 </div>
-                {account.lock_until && (
+                {account.lockUntil && (
                   <div>
                     <p className="text-xs text-muted-foreground">Locked Until</p>
-                    <p>{formatDate(account.lock_until)}</p>
+                    <p>{formatDate(account.lockUntil)}</p>
                   </div>
                 )}
-                {account.lock_reason && (
+                {account.lockReason && (
                   <div className="col-span-2">
                     <p className="text-xs text-muted-foreground">Lock Reason</p>
-                    <p>{account.lock_reason}</p>
+                    <p>{account.lockReason}</p>
                   </div>
                 )}
               </div>
@@ -210,18 +210,18 @@ export function AccountDetailDialog({
                             {formatUGX(tx.amount)}
                           </TableCell>
                           <TableCell className="text-sm">
-                            {tx.balance_after != null
-                              ? formatUGX(tx.balance_after)
+                            {tx.balanceAfter != null
+                              ? formatUGX(tx.balanceAfter)
                               : "—"}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {tx.payment_method ?? "—"}
+                            {tx.paymentMethod ?? "—"}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {tx.narration ?? "—"}
                           </TableCell>
                           <TableCell className="text-xs">
-                            {formatDate(tx.created_at)}
+                            {formatDate(tx.createdAt)}
                           </TableCell>
                         </TableRow>
                       ))}

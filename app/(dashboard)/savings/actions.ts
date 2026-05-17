@@ -1,15 +1,7 @@
 "use server"
 
 import { getCurrentUser } from "@/lib/auth"
-import { smartDb } from "@/lib/db/database-adapter"
-import {
-  savingsAccounts,
-  transactions,
-  members,
-  loans,
-  savingsCategories,
-} from "@/db/schema"
-import { eq, and } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendSms, smsTemplates } from "@/lib/sms"
 import { initiateFlutterwaveTransfer } from "@/lib/payments/flutterwave"
@@ -47,24 +39,30 @@ export async function createSavingsAccountAction(
 
     if (!member_id) return { error: "Please select a member." }
 
-    const existing = await smartDb
-      .select(savingsAccounts)
-      .where(
-        and(
-          eq(savingsAccounts.member_id, member_id),
-          eq(savingsAccounts.sacco_id, user.saccoId)
-        )
-      )
+    
 
-    if (existing.length > 0) {
+    // Check for existing account
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('id')
+      .eq('member_id', member_id)
+      .eq('sacco_id', user.saccoId)
+
+    if (existingError) {
+      console.error('Error checking existing accounts:', existingError)
+      return { error: "Failed to check existing accounts." }
+    }
+
+    if (existing && existing.length > 0) {
       return { error: "Member already has a savings account." }
     }
 
     const account_number = `SAV-${Date.now()}`
 
-    const [account] = await smartDb
-      .insert(savingsAccounts)
-      .values({
+    // Create savings account
+    const { data: account, error: insertError } = await supabaseAdmin
+      .from('savings_accounts')
+      .insert({
         sacco_id: user.saccoId,
         member_id,
         category_id: category_id || null,
@@ -72,23 +70,40 @@ export async function createSavingsAccountAction(
         balance: initial_deposit,
         account_type: (account_type as "regular" | "fixed") || "regular",
       })
-      .returning()
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('Error creating savings account:', insertError)
+      return { error: "Failed to create savings account." }
+    }
 
     if (initial_deposit > 0) {
-      await smartDb.insert(transactions).values({
-        sacco_id: user.saccoId,
-        member_id,
-        type: "savings_deposit",
-        amount: initial_deposit,
-        balance_after: initial_deposit,
-        reference_id: account.id,
-        narration: "Initial deposit",
-        payment_method: "flutterwave",
-      })
+      // Create initial deposit transaction
+      const { error: transactionError } = await supabaseAdmin
+        .from('transactions')
+        .insert({
+          sacco_id: user.saccoId,
+          member_id,
+          type: "savings_deposit",
+          amount: initial_deposit,
+          balance_after: initial_deposit,
+          reference_id: account.id,
+          narration: "Initial deposit",
+          payment_method: "flutterwave",
+        })
 
-      const [member] = await smartDb
-        .select(members)
-        .where(eq(members.id, member_id))
+      if (transactionError) {
+        console.error('Error creating initial transaction:', transactionError)
+        // Continue anyway
+      }
+
+      // Get member for SMS
+      const { data: member } = await supabaseAdmin
+        .from('members')
+        .select('phone, full_name, member_code')
+        .eq('id', member_id)
+        .single()
 
       if (member?.phone) {
         try {
@@ -142,39 +157,64 @@ export async function depositAction(
 
     if (!amount || amount <= 0) return { error: "Enter a valid amount." }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(
-        and(
-          eq(savingsAccounts.id, account_id),
-          eq(savingsAccounts.sacco_id, user.saccoId)
-        )
-      )
+    
 
-    if (!account) return { error: "Account not found." }
-    if (account.is_locked) return { error: "This account is locked." }
+    // Get the account
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('*')
+      .eq('id', account_id)
+      .eq('sacco_id', user.saccoId)
+      .single()
+
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+    if (account.is_locked) {
+      return { error: "This account is locked." }
+    }
 
     const newBalance = account.balance + amount
 
-    await smartDb
-      .update(savingsAccounts)
-      .set({ balance: newBalance, updated_at: new Date() })
-      .where(eq(savingsAccounts.id, account_id))
+    // Update account balance
+    const { error: updateError } = await supabaseAdmin
+      .from('savings_accounts')
+      .update({
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', account_id)
 
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: account.member_id,
-      type: "savings_deposit",
-      amount,
-      balance_after: newBalance,
-      reference_id: account_id,
-      narration: narration || "Savings deposit",
-      payment_method: (payment_method as any) || "flutterwave",
-    })
+    if (updateError) {
+      console.error('Error updating account balance:', updateError)
+      return { error: "Failed to process deposit." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, account.member_id))
+    // Create transaction record
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: account.member_id,
+        type: "savings_deposit",
+        amount,
+        balance_after: newBalance,
+        reference_id: account_id,
+        narration: narration || "Savings deposit",
+        payment_method: payment_method || "flutterwave",
+      })
+
+    if (transactionError) {
+      console.error('Error creating transaction:', transactionError)
+      return { error: "Failed to process deposit." }
+    }
+
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name, member_code')
+      .eq('id', account.member_id)
+      .single()
 
     if (member?.phone) {
       try {
@@ -227,42 +267,68 @@ export async function withdrawAction(
 
     if (!amount || amount <= 0) return { error: "Enter a valid amount." }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(
-        and(
-          eq(savingsAccounts.id, account_id),
-          eq(savingsAccounts.sacco_id, user.saccoId)
-        )
-      )
+    
 
-    if (!account) return { error: "Account not found." }
-    if (account.is_locked)
+    // Get the account
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('*')
+      .eq('id', account_id)
+      .eq('sacco_id', user.saccoId)
+      .single()
+
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+    if (account.is_locked) {
       return { error: "This account is locked. Unlock it first." }
-    if (account.balance < amount) return { error: "Insufficient balance." }
+    }
+    if (account.balance < amount) {
+      return { error: "Insufficient balance." }
+    }
 
     const newBalance = account.balance - amount
 
-    await smartDb
-      .update(savingsAccounts)
-      .set({ balance: newBalance, updated_at: new Date() })
-      .where(eq(savingsAccounts.id, account_id))
+    // Update account balance
+    const { error: updateError } = await supabaseAdmin
+      .from('savings_accounts')
+      .update({
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', account_id)
 
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: account.member_id,
-      type: "savings_withdrawal",
-      amount,
-      balance_after: newBalance,
-      reference_id: account_id,
-      narration: narration || "Savings withdrawal",
-      payment_method:
-        payment_method === "mobile_money" ? "flutterwave" : payment_method,
-    })
+    if (updateError) {
+      console.error('Error updating account balance:', updateError)
+      return { error: "Failed to process withdrawal." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, account.member_id))
+    // Create transaction record
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: account.member_id,
+        type: "savings_withdrawal",
+        amount,
+        balance_after: newBalance,
+        reference_id: account_id,
+        narration: narration || "Savings withdrawal",
+        payment_method:
+          payment_method === "mobile_money" ? "flutterwave" : payment_method,
+      })
+
+    if (transactionError) {
+      console.error('Error creating transaction:', transactionError)
+      return { error: "Failed to process withdrawal." }
+    }
+
+    // Get member for transfer and SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', account.member_id)
+      .single()
 
     // Initiate Flutterwave transfer to member's phone
     if (member?.phone) {
@@ -331,25 +397,41 @@ export async function lockAccountAction(
 
     if (!lock_until) return { error: "Please set a lock expiry date." }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(eq(savingsAccounts.id, account_id))
+    
 
-    if (!account) return { error: "Account not found." }
+    // Get the account
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('*')
+      .eq('id', account_id)
+      .single()
 
-    await smartDb
-      .update(savingsAccounts)
-      .set({
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+
+    // Update account lock status
+    const { error: updateError } = await supabaseAdmin
+      .from('savings_accounts')
+      .update({
         is_locked: true,
         lock_until,
         lock_reason: lock_reason || null,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(savingsAccounts.id, account_id))
+      .eq('id', account_id)
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, account.member_id))
+    if (updateError) {
+      console.error('Error locking account:', updateError)
+      return { error: "Failed to lock account." }
+    }
+
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', account.member_id)
+      .single()
 
     if (member?.phone) {
       try {
@@ -387,25 +469,41 @@ export async function unlockAccountAction(
       return { error: "You don't have permission to unlock savings accounts" }
     }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(eq(savingsAccounts.id, id))
+    
 
-    if (!account) return { error: "Account not found." }
+    // Get the account
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    await smartDb
-      .update(savingsAccounts)
-      .set({
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+
+    // Update account unlock status
+    const { error: updateError } = await supabaseAdmin
+      .from('savings_accounts')
+      .update({
         is_locked: false,
         lock_until: null,
         lock_reason: null,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(savingsAccounts.id, id))
+      .eq('id', id)
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, account.member_id))
+    if (updateError) {
+      console.error('Error unlocking account:', updateError)
+      return { error: "Failed to unlock account." }
+    }
+
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', account.member_id)
+      .single()
 
     if (member?.phone) {
       try {
@@ -451,59 +549,97 @@ export async function trimToLoanAction(
     if (!amount || amount <= 0) return { error: "Enter a valid amount." }
     if (!loan_id) return { error: "Please select a loan." }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(
-        and(
-          eq(savingsAccounts.id, account_id),
-          eq(savingsAccounts.sacco_id, user.saccoId)
-        )
-      )
+    
 
-    if (!account) return { error: "Account not found." }
-    if (account.is_locked) return { error: "Account is locked." }
-    if (account.balance < amount)
+    // Get the savings account
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('*')
+      .eq('id', account_id)
+      .eq('sacco_id', user.saccoId)
+      .single()
+
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+    if (account.is_locked) {
+      return { error: "Account is locked." }
+    }
+    if (account.balance < amount) {
       return { error: "Insufficient savings balance." }
+    }
 
-    const [loan] = await smartDb
-      .select(loans)
-      .where(and(eq(loans.id, loan_id), eq(loans.sacco_id, user.saccoId)))
+    // Get the loan
+    const { data: loan, error: loanError } = await supabaseAdmin
+      .from('loans')
+      .select('*')
+      .eq('id', loan_id)
+      .eq('sacco_id', user.saccoId)
+      .single()
 
-    if (!loan) return { error: "Loan not found." }
+    if (loanError || !loan) {
+      return { error: "Loan not found." }
+    }
 
     const repayAmount = Math.min(amount, loan.balance)
     const newSavingsBalance = account.balance - repayAmount
     const newLoanBalance = loan.balance - repayAmount
 
-    await smartDb
-      .update(savingsAccounts)
-      .set({ balance: newSavingsBalance, updated_at: new Date() })
-      .where(eq(savingsAccounts.id, account_id))
+    // Update savings account balance
+    const { error: savingsUpdateError } = await supabaseAdmin
+      .from('savings_accounts')
+      .update({
+        balance: newSavingsBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', account_id)
 
-    await smartDb
-      .update(loans)
-      .set({
+    if (savingsUpdateError) {
+      console.error('Error updating savings balance:', savingsUpdateError)
+      return { error: "Failed to update savings balance." }
+    }
+
+    // Update loan balance and status
+    const { error: loanUpdateError } = await supabaseAdmin
+      .from('loans')
+      .update({
         balance: newLoanBalance,
         status: newLoanBalance === 0 ? "settled" : "active",
-        settled_at: newLoanBalance === 0 ? new Date() : null,
-        updated_at: new Date(),
+        settled_at: newLoanBalance === 0 ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(loans.id, loan_id))
+      .eq('id', loan_id)
 
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: account.member_id,
-      type: "loan_repayment",
-      amount: repayAmount,
-      balance_after: newSavingsBalance,
-      reference_id: loan_id,
-      narration: `Loan repayment from savings - ${loan.loan_ref}`,
-      payment_method: "flutterwave",
-    })
+    if (loanUpdateError) {
+      console.error('Error updating loan balance:', loanUpdateError)
+      return { error: "Failed to update loan balance." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, account.member_id))
+    // Create transaction record
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: account.member_id,
+        type: "loan_repayment",
+        amount: repayAmount,
+        balance_after: newSavingsBalance,
+        reference_id: loan_id,
+        narration: `Loan repayment from savings - ${loan.loan_ref}`,
+        payment_method: "flutterwave",
+      })
+
+    if (transactionError) {
+      console.error('Error creating transaction:', transactionError)
+      return { error: "Failed to create transaction record." }
+    }
+
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', account.member_id)
+      .single()
 
     if (member?.phone) {
       try {
@@ -532,10 +668,28 @@ export async function getSavingsCategoriesForSelect(): Promise<any[]> {
     const user = await getCurrentUser()
     if (!user) return []
 
-    const categories = await smartDb
-      .select(savingsCategories)
-      .where(eq(savingsCategories.sacco_id, user.saccoId))
-    return categories
+    
+
+    const { data, error } = await supabaseAdmin
+      .from('savings_categories')
+      .select('*')
+      .eq('sacco_id', user.saccoId)
+
+    if (error) {
+      console.error('Error fetching savings categories:', error)
+      return []
+    }
+
+    return data.map(category => ({
+      id: category.id,
+      saccoId: category.sacco_id,
+      name: category.name,
+      description: category.description,
+      interestRate: category.interest_rate,
+      isFixed: category.is_fixed,
+      isActive: category.is_active,
+      createdAt: new Date(category.created_at),
+    }))
   } catch (err) {
     console.error(err)
     return []
@@ -549,17 +703,20 @@ export async function getMembersForSavings(): Promise<any[]> {
     const user = await getCurrentUser()
     if (!user) return []
 
-    const membersList = await smartDb
-      .select({
-        id: members.id,
-        full_name: members.full_name,
-        member_code: members.member_code,
-        phone: members.phone,
-      })
-      .from(members)
-      .where(eq(members.sacco_id, user.saccoId))
-      .orderBy(members.full_name)
-    return membersList
+    
+
+    const { data, error } = await supabaseAdmin
+      .from('members')
+      .select('id, full_name, member_code, phone')
+      .eq('sacco_id', user.saccoId)
+      .order('full_name', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching members for savings:', error)
+      return []
+    }
+
+    return data || []
   } catch (err) {
     console.error(err)
     return []
@@ -570,28 +727,54 @@ export async function getMembersForSavings(): Promise<any[]> {
 
 export async function getSavingsById(id: string): Promise<any | null> {
   try {
-    const [account] = await smartDb
-      .select({
-        id: savingsAccounts.id,
-        sacco_id: savingsAccounts.sacco_id,
-        member_id: savingsAccounts.member_id,
-        category_id: savingsAccounts.category_id,
-        account_number: savingsAccounts.account_number,
-        balance: savingsAccounts.balance,
-        account_type: savingsAccounts.account_type,
-        is_locked: savingsAccounts.is_locked,
-        lock_until: savingsAccounts.lock_until,
-        lock_reason: savingsAccounts.lock_reason,
-        created_at: savingsAccounts.created_at,
-        updated_at: savingsAccounts.updated_at,
-        member_name: members.full_name,
-        member_code: members.member_code,
-        member_phone: members.phone,
-      })
-      .from(savingsAccounts)
-      .leftJoin(members, eq(savingsAccounts.member_id, members.id))
-      .where(eq(savingsAccounts.id, id))
-    return account
+    
+
+    const { data, error } = await supabaseAdmin
+      .from('savings_accounts')
+      .select(`
+        id,
+        sacco_id,
+        member_id,
+        category_id,
+        account_number,
+        balance,
+        account_type,
+        is_locked,
+        lock_until,
+        lock_reason,
+        created_at,
+        updated_at,
+        members:member_id (
+          full_name,
+          member_code,
+          phone
+        )
+      `)
+      .eq('id', id)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') return null // Not found
+      throw new Error(`Failed to fetch savings account: ${error.message}`)
+    }
+
+    return {
+      id: data.id,
+      sacco_id: data.sacco_id,
+      member_id: data.member_id,
+      category_id: data.category_id,
+      account_number: data.account_number,
+      balance: data.balance,
+      account_type: data.account_type,
+      is_locked: data.is_locked,
+      lock_until: data.lock_until ? new Date(data.lock_until) : null,
+      lock_reason: data.lock_reason,
+      created_at: new Date(data.created_at),
+      updated_at: new Date(data.updated_at),
+      member_name: (data as any).members?.full_name,
+      member_code: (data as any).members?.member_code,
+      member_phone: (data as any).members?.phone,
+    }
   } catch (err) {
     console.error(err)
     return null
@@ -604,13 +787,32 @@ export async function getSavingsTransactions(
   accountId: string
 ): Promise<any[]> {
   try {
-    const transactionsList = await smartDb
-      .select(transactions)
-      .where(eq(transactions.reference_id, accountId))
-      .orderBy(transactions.created_at)
+    
+
+    const { data, error } = await supabaseAdmin
+      .from('transactions')
+      .select('*')
+      .eq('reference_id', accountId)
+      .order('created_at', { ascending: false })
       .limit(50)
 
-    return transactionsList
+    if (error) {
+      console.error('Error fetching savings transactions:', error)
+      return []
+    }
+
+    return data?.map(tx => ({
+      id: tx.id,
+      saccoId: tx.sacco_id,
+      memberId: tx.member_id,
+      type: tx.type,
+      amount: tx.amount,
+      balanceAfter: tx.balance_after,
+      referenceId: tx.reference_id,
+      paymentMethod: tx.payment_method,
+      narration: tx.narration,
+      createdAt: new Date(tx.created_at),
+    })) || []
   } catch (err) {
     console.error(err)
     return []
@@ -621,11 +823,32 @@ export async function getSavingsTransactionsAction(
   accountId: string
 ): Promise<{ success: boolean; data?: any[]; error?: string }> {
   try {
-    const transactionsList = await smartDb
-      .select(transactions)
-      .where(eq(transactions.reference_id, accountId))
-      .orderBy(transactions.created_at)
+    
+
+    const { data, error } = await supabaseAdmin
+      .from('transactions')
+      .select('*')
+      .eq('reference_id', accountId)
+      .order('created_at', { ascending: false })
       .limit(50)
+
+    if (error) {
+      console.error('Error fetching savings transactions:', error)
+      return { success: false, error: 'Failed to fetch transactions' }
+    }
+
+    const transactionsList = data?.map(tx => ({
+      id: tx.id,
+      saccoId: tx.sacco_id,
+      memberId: tx.member_id,
+      type: tx.type,
+      amount: tx.amount,
+      balanceAfter: tx.balance_after,
+      referenceId: tx.reference_id,
+      paymentMethod: tx.payment_method,
+      narration: tx.narration,
+      createdAt: new Date(tx.created_at),
+    })) || []
 
     return { success: true, data: transactionsList }
   } catch (err) {
@@ -651,13 +874,29 @@ export async function deleteSavingsAccountAction(
       return { error: "You don't have permission to delete savings accounts" }
     }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(eq(savingsAccounts.id, id))
+    
 
-    if (!account) return { error: "Account not found." }
+    // Get the account to verify it exists
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('id')
+      .eq('id', id)
+      .single()
 
-    await smartDb.delete(savingsAccounts).where(eq(savingsAccounts.id, id))
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+
+    // Delete the account
+    const { error: deleteError } = await supabaseAdmin
+      .from('savings_accounts')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('Error deleting savings account:', deleteError)
+      return { error: "Failed to delete savings account." }
+    }
 
     revalidatePath("/savings")
     return { success: true }
@@ -688,20 +927,33 @@ export async function updateSavingsAction(
       return { error: "You don't have permission to update savings accounts" }
     }
 
-    const [account] = await smartDb
-      .select(savingsAccounts)
-      .where(eq(savingsAccounts.id, id))
+    
 
-    if (!account) return { error: "Account not found." }
+    // Get the account to verify it exists and get current values
+    const { data: account, error: accountError } = await supabaseAdmin
+      .from('savings_accounts')
+      .select('category_id, account_type')
+      .eq('id', id)
+      .single()
 
-    await smartDb
-      .update(savingsAccounts)
-      .set({
+    if (accountError || !account) {
+      return { error: "Account not found." }
+    }
+
+    // Update the account
+    const { error: updateError } = await supabaseAdmin
+      .from('savings_accounts')
+      .update({
         category_id: data.category_id ?? account.category_id,
         account_type: data.account_type ?? account.account_type,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(savingsAccounts.id, id))
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Error updating savings account:', updateError)
+      return { error: "Failed to update savings account." }
+    }
 
     revalidatePath("/savings")
     revalidatePath(`/savings/${id}`)

@@ -91,7 +91,7 @@ export function ComplaintCard({ complaint }: { complaint: Complaint }) {
               {/* Ref + Priority */}
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
                 <span className="font-mono text-xs text-muted-foreground">
-                  {complaint.complaint_ref ?? "—"}
+                  {complaint.complaintRef ?? "—"}
                 </span>
                 <span
                   className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${priorityColors[complaint.priority ?? "normal"]}`}
@@ -187,23 +187,23 @@ export function ComplaintCard({ complaint }: { complaint: Complaint }) {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <User className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate font-medium text-foreground">
-                {complaint.member_name ?? "Anonymous"}
+                {complaint.memberName ?? "Anonymous"}
               </span>
-              {complaint.member_code && (
+              {complaint.memberCode && (
                 <>
                   <span className="text-muted-foreground/40">·</span>
-                  <span className="font-mono">{complaint.member_code}</span>
+                  <span className="font-mono">{complaint.memberCode}</span>
                 </>
               )}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5 shrink-0" />
-              {formatDate(complaint.created_at)}
-              {complaint.resolved_at && (
+              {formatDate(complaint.createdAt)}
+              {complaint.resolvedAt && (
                 <>
                   <span className="text-muted-foreground/40">·</span>
                   <span className="text-green-600">
-                    Resolved {formatDate(complaint.resolved_at)}
+                    Resolved {formatDate(complaint.resolvedAt)}
                   </span>
                 </>
               )}
@@ -211,20 +211,20 @@ export function ComplaintCard({ complaint }: { complaint: Complaint }) {
           </div>
 
           {/* Rating Stars if resolved */}
-          {isResolved && complaint.satisfaction_rating && (
+          {isResolved && complaint.satisfactionRating && (
             <div className="flex items-center gap-1 pt-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
                   key={star}
                   className={`h-3.5 w-3.5 ${
-                    star <= (complaint.satisfaction_rating || 0)
+                    star <= (complaint.satisfactionRating || 0)
                       ? "fill-yellow-400 text-yellow-400"
                       : "text-muted-foreground/30"
                   }`}
                 />
               ))}
               <span className="ml-1 text-xs text-muted-foreground">
-                {complaint.satisfaction_rating}/5
+                {complaint.satisfactionRating}/5
               </span>
             </div>
           )}
@@ -272,7 +272,7 @@ export function ComplaintCard({ complaint }: { complaint: Complaint }) {
             <AlertDialogTitle>Delete Complaint?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete complaint{" "}
-              <strong>{complaint.complaint_ref}</strong>. This cannot be undone.
+              <strong>{complaint.complaintRef}</strong>. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

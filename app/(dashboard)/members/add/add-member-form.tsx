@@ -130,7 +130,7 @@ export function AddMemberForm() {
       toast.success("Member added successfully! Welcome SMS sent.")
       setUploading(false)
       setUploadProgress(100)
-      router.push("/members")
+      router.replace("/members")
     }
     if (state.error) {
       toast.error(state.error)

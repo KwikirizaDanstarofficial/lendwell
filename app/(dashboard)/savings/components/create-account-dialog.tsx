@@ -69,7 +69,7 @@ export function CreateAccountDialog({
               <SelectContent>
                 {members.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    {m.full_name} · {m.member_code}
+                    {m.fullName} · {m.memberCode}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -86,7 +86,7 @@ export function CreateAccountDialog({
                 <SelectContent>
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.interest_rate ? `(${c.interest_rate}% interest)` : ""}
+                      {c.name} {c.interestRate ? `(${c.interestRate}% interest)` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -243,39 +243,40 @@ export function ReportsClient({
 
   // Filter data based on date range
   const filteredLoans = useMemo(() => {
-    return loans.filter((loan) => isInDateRange(loan.created_at))
+    return loans.filter((loan) => isInDateRange(loan.createdAt))
   }, [loans, dateFrom, dateTo])
 
   const filteredSavings = useMemo(() => {
-    return savings.filter((saving) => isInDateRange(saving.created_at))
+    return savings.filter((saving) => isInDateRange(saving.createdAt))
   }, [savings, dateFrom, dateTo])
 
   const filteredMembers = useMemo(() => {
-    return members.filter((member) => isInDateRange(member.created_at))
+    return members.filter((member) => isInDateRange(member.createdAt))
   }, [members, dateFrom, dateTo])
 
   const filteredFines = useMemo(() => {
-    return fines.filter((fine) => isInDateRange(fine.created_at))
+    return fines.filter((fine) => isInDateRange(fine.createdAt))
   }, [fines, dateFrom, dateTo])
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((transaction) =>
-      isInDateRange(transaction.created_at)
+      isInDateRange(transaction.createdAt)
     )
   }, [transactions, dateFrom, dateTo])
 
   const filteredComplaints = useMemo(() => {
-    return complaints.filter((complaint) => isInDateRange(complaint.created_at))
+    return complaints.filter((complaint) => isInDateRange(complaint.createdAt))
   }, [complaints, dateFrom, dateTo])
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((notification) =>
-      isInDateRange(notification.created_at)
+      isInDateRange(notification.createdAt)
     )
   }, [notifications, dateFrom, dateTo])
 
   // Monthly loans chart data
   const monthlyLoansData = useMemo(() => {
+    if (!filteredLoans) return []
     const months: Record<string, { amount: number; count: number }> = {}
     const now = new Date()
     for (let i = 5; i >= 0; i--) {
@@ -285,8 +286,8 @@ export function ReportsClient({
       months[key] = { amount: 0, count: 0 }
     }
     filteredLoans.forEach((l) => {
-      if (!l.created_at) return
-      const key = new Date(l.created_at).toLocaleString("default", {
+      if (!l.createdAt) return
+      const key = new Date(l.createdAt).toLocaleString("default", {
         month: "short",
       })
       if (months[key]) {
@@ -294,11 +295,12 @@ export function ReportsClient({
         months[key].count += 1
       }
     })
-    return Object.entries(months).map(([month, v]) => ({ month, ...v }))
+    return Object.entries(months || {}).map(([month, v]) => ({ month, ...v }))
   }, [filteredLoans])
 
   // Monthly savings chart data
   const monthlySavingsData = useMemo(() => {
+    if (!filteredSavings) return []
     const months: Record<string, number> = {}
     const now = new Date()
     for (let i = 5; i >= 0; i--) {
@@ -307,13 +309,13 @@ export function ReportsClient({
       months[d.toLocaleString("default", { month: "short" })] = 0
     }
     filteredSavings.forEach((s) => {
-      if (!s.created_at) return
-      const key = new Date(s.created_at).toLocaleString("default", {
+      if (!s.createdAt) return
+      const key = new Date(s.createdAt).toLocaleString("default", {
         month: "short",
       })
       if (months[key] !== undefined) months[key] += s.balance / 100
     })
-    return Object.entries(months).map(([month, balance]) => ({
+    return Object.entries(months || {}).map(([month, balance]) => ({
       month,
       balance,
     }))
@@ -321,6 +323,7 @@ export function ReportsClient({
 
   // Members growth
   const memberGrowthData = useMemo(() => {
+    if (!members) return []
     const months: Record<string, number> = {}
     const now = new Date()
     for (let i = 5; i >= 0; i--) {
@@ -329,17 +332,21 @@ export function ReportsClient({
       months[d.toLocaleString("default", { month: "short" })] = 0
     }
     members.forEach((m) => {
-      if (!m.joined_at) return
-      const key = new Date(m.joined_at).toLocaleString("default", {
+      if (!m.joinedAt) return
+      const key = new Date(m.joinedAt).toLocaleString("default", {
         month: "short",
       })
       if (months[key] !== undefined) months[key] += 1
     })
-    return Object.entries(months).map(([month, count]) => ({ month, count }))
+    return Object.entries(months || {}).map(([month, count]) => ({
+      month,
+      count,
+    }))
   }, [members])
 
   // Loan status pie
   const loanStatusData = useMemo(() => {
+    if (!loans) return []
     const grouped: Record<string, number> = {}
     loans.forEach((l) => {
       grouped[l.status] = (grouped[l.status] || 0) + 1
@@ -886,12 +893,12 @@ export function ReportsClient({
                       handleExcelExport(
                         "loans",
                         filteredLoans.map((l) => ({
-                          loan_ref: l.loan_ref,
+                          loan_ref: l.loanRef,
                           member_name: l.member_name,
                           amount: l.amount,
                           balance: l.balance,
                           status: l.status,
-                          due_date: l.due_date,
+                          due_date: l.dueDate,
                         })),
                         {
                           loan_ref: "Loan Ref",
@@ -936,7 +943,7 @@ export function ReportsClient({
                           .filter(
                             (l) =>
                               !search ||
-                              l.loan_ref
+                              l.loanRef
                                 ?.toLowerCase()
                                 .includes(search.toLowerCase()) ||
                               l.member_name
@@ -950,7 +957,7 @@ export function ReportsClient({
                               className="hover:bg-muted/30"
                             >
                               <TableCell className="font-mono text-sm">
-                                {loan.loan_ref}
+                                {loan.loanRef}
                               </TableCell>
                               <TableCell>
                                 <div>
@@ -958,14 +965,14 @@ export function ReportsClient({
                                     {loan.member_name}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {loan.member_code}
+                                    {loan.memberCode}
                                   </p>
                                 </div>
                               </TableCell>
                               <TableCell>{formatUGX(loan.amount)}</TableCell>
                               <TableCell>{formatUGX(loan.balance)}</TableCell>
                               <TableCell>
-                                {formatUGX(loan.monthly_payment ?? 0)}
+                                {formatUGX(loan.monthlyPayment ?? 0)}
                               </TableCell>
                               <TableCell>
                                 <span
@@ -978,7 +985,7 @@ export function ReportsClient({
                                   {loan.status}
                                 </span>
                               </TableCell>
-                              <TableCell>{formatDate(loan.due_date)}</TableCell>
+                              <TableCell>{formatDate(loan.dueDate)}</TableCell>
                             </TableRow>
                           ))}
                       </TableBody>
@@ -1010,10 +1017,10 @@ export function ReportsClient({
                         "savings",
                         filteredSavings.map((s) => ({
                           member_name: s.member_name,
-                          account_number: s.account_number,
+                          account_number: s.accountNumber,
                           balance: s.balance,
-                          account_type: s.account_type,
-                          is_locked: s.is_locked,
+                          account_type: s.accountType,
+                          is_locked: s.isLocked,
                         })),
                         {
                           member_name: "Member",
@@ -1096,7 +1103,7 @@ export function ReportsClient({
                               s.member_name
                                 ?.toLowerCase()
                                 .includes(search.toLowerCase()) ||
-                              s.account_number
+                              s.accountNumber
                                 ?.toLowerCase()
                                 .includes(search.toLowerCase())
                           )
@@ -1113,12 +1120,12 @@ export function ReportsClient({
                                 <div>
                                   <p className="font-medium">{s.member_name}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    {s.member_code}
+                                    {s.memberCode}
                                   </p>
                                 </div>
                               </TableCell>
                               <TableCell className="font-mono text-sm">
-                                {s.account_number}
+                                {s.accountNumber}
                               </TableCell>
                               <TableCell className="font-semibold text-green-600">
                                 {formatUGX(s.balance)}
@@ -1126,13 +1133,13 @@ export function ReportsClient({
                               <TableCell>
                                 <Badge
                                   variant={
-                                    s.is_locked ? "destructive" : "default"
+                                    s.isLocked ? "destructive" : "default"
                                   }
                                 >
-                                  {s.is_locked ? "Locked" : "Active"}
+                                  {s.isLocked ? "Locked" : "Active"}
                                 </Badge>
                               </TableCell>
-                              <TableCell>{formatDate(s.created_at)}</TableCell>
+                              <TableCell>{formatDate(s.createdAt)}</TableCell>
                             </TableRow>
                           ))}
                       </TableBody>

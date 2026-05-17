@@ -6,9 +6,36 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Eye, Banknote } from "lucide-react"
-import { Member } from "@/db/schema"
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Banknote,
+} from "lucide-react"
 import { formatDate } from "@/lib/utils/format"
+
+type Member = {
+  id: string
+  saccoId: string
+  memberCode: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  nationalId: string | null
+  photoUrl: string | null
+  dateOfBirth: Date | null
+  address: string | null
+  nextOfKin: string | null
+  nextOfKinPhone: string | null
+  nextOfKinRelationship: string | null
+  nextOfKinAddress: string | null
+  status: "active" | "suspended" | "exited"
+  joinedAt: Date | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   active: "default",
@@ -24,9 +51,9 @@ export function MembersGrid({ members }: { members: Member[] }) {
 
   if (members.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground border rounded-lg">
+      <div className="flex flex-col items-center justify-center rounded-lg border py-20 text-muted-foreground">
         <p className="text-lg font-medium">No members found</p>
-        <p className="text-sm mt-1">Add your first member to get started</p>
+        <p className="mt-1 text-sm">Add your first member to get started</p>
       </div>
     )
   }
@@ -44,35 +71,35 @@ export function MembersGrid({ members }: { members: Member[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {paginatedMembers.map((member) => (
           <Card
             key={member.id}
-            className="hover:shadow-md transition-shadow cursor-pointer"
+            className="cursor-pointer transition-shadow hover:shadow-md"
             onClick={() => router.push(`/members/${member.id}`)}
           >
             <CardContent className="pt-6">
-              <div className="flex flex-col items-center text-center gap-3">
+              <div className="flex flex-col items-center gap-3 text-center">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={member.photo_url ?? ""} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl">
-                    {member.full_name.slice(0, 2).toUpperCase()}
+                  <AvatarImage src={member.photoUrl ?? ""} />
+                  <AvatarFallback className="bg-primary/10 text-xl font-bold text-primary">
+                    {member.fullName.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold text-base">{member.full_name}</p>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                    {member.member_code}
+                  <p className="text-base font-semibold">{member.fullName}</p>
+                  <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                    {member.memberCode}
                   </p>
                 </div>
                 <Badge variant={statusVariant[member.status]}>
                   {member.status}
                 </Badge>
-                <div className="w-full text-xs text-muted-foreground space-y-1 border-t pt-3">
+                <div className="w-full space-y-1 border-t pt-3 text-xs text-muted-foreground">
                   <p>{member.phone ?? "No phone"}</p>
-                  <p>Joined {formatDate(member.joined_at)}</p>
+                  <p>Joined {formatDate(member.joinedAt)}</p>
                 </div>
-                <div className="flex gap-2 w-full">
+                <div className="flex w-full gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -82,7 +109,7 @@ export function MembersGrid({ members }: { members: Member[] }) {
                       router.push(`/members/${member.id}`)
                     }}
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    <Eye className="mr-1 h-3.5 w-3.5" />
                     View
                   </Button>
                   <Button
@@ -94,7 +121,7 @@ export function MembersGrid({ members }: { members: Member[] }) {
                       router.push(`/loans?member=${member.id}`)
                     }}
                   >
-                    <Banknote className="h-3.5 w-3.5 mr-1" />
+                    <Banknote className="mr-1 h-3.5 w-3.5" />
                     Loan
                   </Button>
                 </div>

@@ -31,7 +31,7 @@ function formatM(value: number): string {
 
 export function SavingsLoanChart(props: { data: ChartData[] }) {
   const { data } = props
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className="overflow-hidden rounded border border-border bg-card shadow-sm">
         <div className="border-b border-border px-6 pt-5 pb-4">

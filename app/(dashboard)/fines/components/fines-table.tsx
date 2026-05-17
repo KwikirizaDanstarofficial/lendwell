@@ -79,7 +79,7 @@ export function FinesTable({ fines }: { fines: any[] }) {
       header: "Ref",
       cell: ({ row }) => (
         <span className="font-mono text-sm">
-          {row.original.fine_ref ?? "—"}
+          {row.original.fineRef ?? "—"}
         </span>
       ),
     },
@@ -99,7 +99,7 @@ export function FinesTable({ fines }: { fines: any[] }) {
         <div>
           <p className="font-medium">{row.original.member_name}</p>
           <p className="text-xs text-muted-foreground font-mono">
-            {row.original.member_code}
+            {row.original.memberCode}
           </p>
         </div>
       ),
@@ -158,12 +158,12 @@ export function FinesTable({ fines }: { fines: any[] }) {
     {
       accessorKey: "due_date",
       header: "Due",
-      cell: ({ row }) => formatDate(row.original.due_date),
+      cell: ({ row }) => formatDate(row.original.dueDate),
     },
     {
       accessorKey: "created_at",
       header: "Issued",
-      cell: ({ row }) => formatDate(row.original.created_at),
+      cell: ({ row }) => formatDate(row.original.createdAt),
     },
     {
       id: "actions",

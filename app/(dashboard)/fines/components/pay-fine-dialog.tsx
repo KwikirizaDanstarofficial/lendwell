@@ -51,7 +51,7 @@ export function PayFineDialog({
             Mark Fine as Paid
           </DialogTitle>
           <DialogDescription>
-            {fine.fine_ref} · {fine.member_name} ·{" "}
+            {fine.fineRef} · {fine.member_name} ·{" "}
             <span className="font-semibold text-foreground">
               {formatUGX(fine.amount)}
             </span>

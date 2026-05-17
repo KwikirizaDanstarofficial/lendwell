@@ -51,7 +51,7 @@ export function DepositDialog({
             Deposit Savings
           </DialogTitle>
           <DialogDescription>
-            {account.account_number} · {account.member_name} · Current balance:{" "}
+            {account.accountNumber} · {account.member_name} · Current balance:{" "}
             <span className="font-semibold text-foreground">
               {formatUGX(account.balance)}
             </span>

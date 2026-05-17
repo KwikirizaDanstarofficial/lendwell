@@ -163,17 +163,17 @@ const styles = StyleSheet.create({
 
 interface ApplicationFormProps {
   member: {
-    full_name: string
-    member_code: string
+    fullName: string
+    memberCode: string
     phone?: string | null
     email?: string | null
-    national_id?: string | null
+    nationalId?: string | null
     address?: string | null
-    date_of_birth?: string | null
-    next_of_kin?: string | null
-    next_of_kin_phone?: string | null
+    dateOfBirth?: string | null
+    nextOfKin?: string | null
+    nextOfKinPhone?: string | null
     status: string
-    joined_at?: Date | null
+    joinedAt?: string | null
   }
   sacco: {
     name: string
@@ -250,11 +250,11 @@ export function ApplicationFormDocument({
           <View style={{ flexDirection: "row" }}>
             <View style={{ flex: 1 }}>
               <View style={styles.row}>
-                <Field label="Full Name" value={member.full_name} />
+                <Field label="Full Name" value={member.fullName} />
               </View>
               <View style={styles.row}>
-                <Field label="Date of Birth" value={member.date_of_birth} />
-                <Field label="National ID" value={member.national_id} />
+                <Field label="Date of Birth" value={member.dateOfBirth} />
+                <Field label="National ID" value={member.nationalId} />
               </View>
               <View style={styles.row}>
                 <Field label="Phone Number" value={member.phone} />
@@ -277,8 +277,8 @@ export function ApplicationFormDocument({
         <View style={styles.section}>
           <Text style={dynamicStyles.sectionTitle}>2. Next of Kin</Text>
           <View style={styles.row}>
-            <Field label="Full Name" value={member.next_of_kin} />
-            <Field label="Phone Number" value={member.next_of_kin_phone} />
+            <Field label="Full Name" value={member.nextOfKin} />
+            <Field label="Phone Number" value={member.nextOfKinPhone} />
           </View>
           <View style={styles.row}>
             <Field label="Relationship" value={null} />
@@ -290,13 +290,13 @@ export function ApplicationFormDocument({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>3. Membership Details</Text>
           <View style={styles.row}>
-            <Field label="Member Code" value={member.member_code} />
+            <Field label="Member Code" value={member.memberCode} />
             <Field label="Status" value={member.status.toUpperCase()} />
             <Field
               label="Date Joined"
               value={
-                member.joined_at
-                  ? new Date(member.joined_at).toLocaleDateString()
+                member.joinedAt
+                  ? new Date(member.joinedAt).toLocaleDateString()
                   : undefined
               }
             />
@@ -358,7 +358,7 @@ export function ApplicationFormDocument({
           <View style={styles.row}>
             <Field label="Approved By" value={null} />
             <Field label="Date Approved" value={null} />
-            <Field label="Ref No" value={member.member_code} />
+            <Field label="Ref No" value={member.memberCode} />
           </View>
           <View style={styles.signatureSection}>
             <View style={styles.signatureBox}>
@@ -377,7 +377,7 @@ export function ApplicationFormDocument({
           <Text style={styles.footerText}>
             {sacco.name} · Membership Application
           </Text>
-          <Text style={styles.footerText}>{member.member_code}</Text>
+          <Text style={styles.footerText}>{member.memberCode}</Text>
           <Text style={styles.footerText}>
             Generated: {new Date().toLocaleDateString()}
           </Text>

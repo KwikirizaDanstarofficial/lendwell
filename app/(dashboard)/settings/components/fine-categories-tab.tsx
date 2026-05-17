@@ -87,7 +87,7 @@ export function FineCategoriesTab({ categories }: { categories: any[] }) {
                   <TableRow key={cat.id}>
                     <TableCell className="font-medium">{cat.name}</TableCell>
                     <TableCell className="text-red-600 font-semibold">
-                      {formatUGX(cat.default_amount ?? 0)}
+                      {formatUGX(cat.defaultAmount ?? 0)}
                     </TableCell>
                     <TableCell>
                       <Button

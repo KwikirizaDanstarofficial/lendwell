@@ -1,9 +1,7 @@
 "use server"
 
 import { getCurrentUser } from "@/lib/auth"
-import { smartDb, isUsingLocalDatabase } from "@/lib/db/database-adapter"
-import { complaints, members, notifications } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendSms } from "@/lib/sms"
 import { z } from "zod"
@@ -37,6 +35,8 @@ export async function addComplaintAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
+    
+
     const raw = {
       member_id: formData.get("member_id") as string,
       subject: formData.get("subject") as string,
@@ -56,30 +56,44 @@ export async function addComplaintAction(
 
     const complaint_ref = `CMP-${Date.now()}`
 
-    // Use smart database adapter (automatically switches between local and remote)
-    await smartDb.insert(complaints).values({
-      sacco_id: user.saccoId,
-      member_id: parsed.data.member_id || null,
-      complaint_ref,
-      subject: parsed.data.subject,
-      body: parsed.data.body,
-      category: parsed.data.category,
-      priority: parsed.data.priority,
-      notes: parsed.data.notes || null,
-      status: "open",
-    })
+    // Insert complaint using Supabase
+    const { error: insertError } = await supabaseAdmin
+      .from('complaints')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: parsed.data.member_id || null,
+        complaint_ref,
+        subject: parsed.data.subject,
+        body: parsed.data.body,
+        category: parsed.data.category,
+        priority: parsed.data.priority,
+        notes: parsed.data.notes || null,
+        status: "open",
+      })
 
-    // Notify member if linked (only when online)
-    if (parsed.data.member_id && !isUsingLocalDatabase()) {
-      const [member] = await smartDb
-        .select(members)
-        .where(eq(members.id, parsed.data.member_id))
+    if (insertError) {
+      console.error('Supabase insert error:', insertError)
+      return { error: "Failed to submit complaint." }
+    }
+
+    // Notify member if linked
+    if (parsed.data.member_id) {
+      const { data: member } = await supabaseAdmin
+        .from('members')
+        .select('phone, full_name')
+        .eq('id', parsed.data.member_id)
+        .single()
 
       if (member?.phone) {
-        await sendSms({
-          to: member.phone,
-          message: `Dear ${member.full_name}, your complaint (Ref: ${complaint_ref}) has been received and is being reviewed. We will respond shortly. - SACCO`,
-        })
+        try {
+          await sendSms({
+            to: member.phone,
+            message: `Dear ${member.full_name}, your complaint (Ref: ${complaint_ref}) has been received and is being reviewed. We will respond shortly. - SACCO`,
+          })
+        } catch (smsError) {
+          console.error('SMS sending failed:', smsError)
+          // Don't fail the complaint creation if SMS fails
+        }
       }
     }
 
@@ -87,18 +101,6 @@ export async function addComplaintAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    // Check if it's a database connection error (offline)
-    if (
-      err instanceof Error &&
-      (err.message.includes("ENOTFOUND") ||
-        err.message.includes("ECONNREFUSED") ||
-        err.message.includes("getaddrinfo"))
-    ) {
-      return {
-        error:
-          "You are offline. Please check your internet connection and try again.",
-      }
-    }
     return { error: "Failed to submit complaint." }
   }
 }
@@ -111,37 +113,61 @@ export async function updateComplaintStatusAction(
   resolution_notes?: string
 ): Promise<ComplaintFormState> {
   try {
-    const [complaint] = await smartDb
-      .select(complaints)
-      .where(eq(complaints.id, id))
+    
 
-    if (!complaint) return { error: "Complaint not found." }
+    // Get current complaint
+    const { data: complaint, error: fetchError } = await supabaseAdmin
+      .from('complaints')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    await smartDb
-      .update(complaints)
-      .set({
-        status,
-        resolution_notes: resolution_notes || complaint.resolution_notes,
-        resolved_at: status === "resolved" ? new Date() : null,
-        updated_at: new Date(),
-      })
-      .where(eq(complaints.id, id))
+    if (fetchError || !complaint) {
+      return { error: "Complaint not found." }
+    }
 
-    // Notify member on resolution (only when online)
-    if (
-      status === "resolved" &&
-      complaint.member_id &&
-      !isUsingLocalDatabase()
-    ) {
-      const [member] = await smartDb
-        .select(members)
-        .where(eq(members.id, complaint.member_id))
+    // Update complaint
+    const updateData: any = {
+      status,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (resolution_notes !== undefined) {
+      updateData.resolution_notes = resolution_notes
+    }
+
+    if (status === "resolved") {
+      updateData.resolved_at = new Date().toISOString()
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('complaints')
+      .update(updateData)
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to update complaint status." }
+    }
+
+    // Notify member on resolution
+    if (status === "resolved" && complaint.member_id) {
+      const { data: member } = await supabaseAdmin
+        .from('members')
+        .select('phone, full_name')
+        .eq('id', complaint.member_id)
+        .single()
 
       if (member?.phone) {
-        await sendSms({
-          to: member.phone,
-          message: `Dear ${member.full_name}, your complaint (Ref: ${complaint.complaint_ref}) has been resolved. ${resolution_notes ? `Resolution: ${resolution_notes}` : ""} - SACCO`,
-        })
+        try {
+          await sendSms({
+            to: member.phone,
+            message: `Dear ${member.full_name}, your complaint (Ref: ${complaint.complaint_ref}) has been resolved. ${resolution_notes ? `Resolution: ${resolution_notes}` : ""} - SACCO`,
+          })
+        } catch (smsError) {
+          console.error('SMS sending failed:', smsError)
+          // Don't fail the status update if SMS fails
+        }
       }
     }
 
@@ -149,18 +175,6 @@ export async function updateComplaintStatusAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    // Check if it's a database connection error (offline)
-    if (
-      err instanceof Error &&
-      (err.message.includes("ENOTFOUND") ||
-        err.message.includes("ECONNREFUSED") ||
-        err.message.includes("getaddrinfo"))
-    ) {
-      return {
-        error:
-          "You are offline. Please check your internet connection and try again.",
-      }
-    }
     return { error: "Failed to update complaint status." }
   }
 }
@@ -187,23 +201,22 @@ export async function deleteComplaintAction(
   id: string
 ): Promise<ComplaintFormState> {
   try {
-    await smartDb.delete(complaints).where(eq(complaints.id, id))
+    
+
+    const { error } = await supabaseAdmin
+      .from('complaints')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Supabase delete error:', error)
+      return { error: "Failed to delete complaint." }
+    }
+
     revalidatePath("/complaints")
     return { success: true }
   } catch (err) {
     console.error(err)
-    // Check if it's a database connection error (offline)
-    if (
-      err instanceof Error &&
-      (err.message.includes("ENOTFOUND") ||
-        err.message.includes("ECONNREFUSED") ||
-        err.message.includes("getaddrinfo"))
-    ) {
-      return {
-        error:
-          "You are offline. Please check your internet connection and try again.",
-      }
-    }
     return { error: "Failed to delete complaint." }
   }
 }
@@ -216,31 +229,26 @@ export async function submitRatingAction(
   feedback: string
 ): Promise<ComplaintFormState> {
   try {
-    await smartDb
-      .update(complaints)
-      .set({
+    
+
+    const { error } = await supabaseAdmin
+      .from('complaints')
+      .update({
         satisfaction_rating: rating,
         feedback,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(complaints.id, id))
+      .eq('id', id)
+
+    if (error) {
+      console.error('Supabase update error:', error)
+      return { error: "Failed to submit rating." }
+    }
 
     revalidatePath("/complaints")
     return { success: true }
   } catch (err) {
     console.error(err)
-    // Check if it's a database connection error (offline)
-    if (
-      err instanceof Error &&
-      (err.message.includes("ENOTFOUND") ||
-        err.message.includes("ECONNREFUSED") ||
-        err.message.includes("getaddrinfo"))
-    ) {
-      return {
-        error:
-          "You are offline. Please check your internet connection and try again.",
-      }
-    }
     return { error: "Failed to submit rating." }
   }
 }

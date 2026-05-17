@@ -6,11 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { 
-  ArrowLeft,
-  Loader2,
-  Save
-} from "lucide-react"
+import { ArrowLeft, Loader2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import {
@@ -20,10 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  getSavingsById,
-  updateSavingsAction,
-} from "../../actions"
+import { getSavingsById, updateSavingsAction } from "../../actions"
 
 interface SavingsAccount {
   id: string
@@ -43,7 +36,11 @@ interface SavingsAccount {
   member_phone: string | null
 }
 
-export default function EditSavingsPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditSavingsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = use(params)
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -78,7 +75,7 @@ export default function EditSavingsPage({ params }: { params: Promise<{ id: stri
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     setSaving(true)
     try {
       const formData = new FormData()
@@ -106,7 +103,7 @@ export default function EditSavingsPage({ params }: { params: Promise<{ id: stri
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -114,10 +111,14 @@ export default function EditSavingsPage({ params }: { params: Promise<{ id: stri
 
   if (!savings) {
     return (
-      <div className="flex flex-col items-center justify-center h-96">
+      <div className="flex h-96 flex-col items-center justify-center">
         <p className="text-muted-foreground">Savings account not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push("/savings")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => router.push("/savings")}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Savings
         </Button>
       </div>
@@ -125,16 +126,22 @@ export default function EditSavingsPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="space-y-6 min-w-0 overflow-x-hidden">
+    <div className="min-w-0 space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => router.push(`/savings/${id}`)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/savings/${id}`)}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Edit Savings Account</h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <h1 className="text-2xl font-bold tracking-tight">
+              Edit Savings Account
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               {savings.account_number} · {savings.member_name || "Unknown"}
             </p>
           </div>
@@ -148,10 +155,13 @@ export default function EditSavingsPage({ params }: { params: Promise<{ id: stri
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="account-type">Account Type</Label>
-                <Select value={accountType} onValueChange={(value) => setAccountType(value || "regular")}>
+                <Select
+                  value={accountType}
+                  onValueChange={(value) => setAccountType(value || "regular")}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select account type" />
                   </SelectTrigger>
@@ -164,7 +174,10 @@ export default function EditSavingsPage({ params }: { params: Promise<{ id: stri
 
               <div className="space-y-2">
                 <Label htmlFor="is-locked">Account Status</Label>
-                <Select value={isLocked.toString()} onValueChange={(value) => setIsLocked(value === "true")}>
+                <Select
+                  value={isLocked.toString()}
+                  onValueChange={(value) => setIsLocked(value === "true")}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>

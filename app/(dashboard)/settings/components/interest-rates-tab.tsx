@@ -123,17 +123,17 @@ export function InterestRatesTab({ rates }: { rates: any[] }) {
               <TableBody>
                 {rates.map((rate) => (
                   <TableRow key={rate.id}>
-                    <TableCell>{formatUGX(rate.min_amount)}</TableCell>
-                    <TableCell>{formatUGX(rate.max_amount)}</TableCell>
+                    <TableCell>{formatUGX(rate.minAmount)}</TableCell>
+                    <TableCell>{formatUGX(rate.maxAmount)}</TableCell>
                     <TableCell className="font-semibold text-green-600">
                       {rate.rate}%
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{rate.rate_type}</Badge>
+                      <Badge variant="outline">{rate.rateType}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={rate.is_active ? "default" : "secondary"}>
-                        {rate.is_active ? "Active" : "Inactive"}
+                      <Badge variant={rate.isActive ? "default" : "secondary"}>
+                        {rate.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell>

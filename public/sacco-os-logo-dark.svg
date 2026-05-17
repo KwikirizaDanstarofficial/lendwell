@@ -1,33 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 120" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 100" fill="none">
   <defs>
-    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F59E0B"/>
-      <stop offset="100%" stop-color="#D97706"/>
+    <linearGradient id="dIconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a3660"/>
+      <stop offset="100%" stop-color="#0a1628"/>
     </linearGradient>
-    <linearGradient id="markGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#F59E0B"/>
-      <stop offset="100%" stop-color="#B45309"/>
+    <linearGradient id="dChevBot" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#047857"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="dChevMid" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="dChevTop" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#a7f3d0"/>
+    </linearGradient>
+    <linearGradient id="dAmber" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
     </linearGradient>
   </defs>
 
-  <!-- ── Geometric mark ──────────────────────────────────────────────── -->
-  <!-- Outer hexagon ring -->
-  <polygon points="60,10 98,30 98,70 60,90 22,70 22,30" stroke="url(#amberGrad)" stroke-width="2.5" fill="none"/>
-  <!-- Inner diamond -->
-  <polygon points="60,22 82,50 60,78 38,50" fill="url(#markGrad)" opacity="0.15"/>
-  <!-- Stack of three horizontal bars — represents data / savings layers -->
-  <rect x="40" y="38" width="40" height="6" rx="3" fill="url(#amberGrad)"/>
-  <rect x="44" y="49" width="32" height="6" rx="3" fill="url(#amberGrad)" opacity="0.75"/>
-  <rect x="48" y="60" width="24" height="6" rx="3" fill="url(#amberGrad)" opacity="0.5"/>
-  <!-- Top accent dot -->
-  <circle cx="60" cy="17" r="3" fill="#F59E0B"/>
+  <!-- ── Icon mark (scaled to fit 100px height) ── -->
+  <g transform="translate(3, 3) scale(1.175)">
+    <!-- Hex bg -->
+    <polygon points="40,3 72,21 72,59 40,77 8,59 8,21" fill="url(#dIconBg)"/>
+    <polygon points="40,7 68,23 68,57 40,73 12,57 12,23"
+             stroke="#ffffff" stroke-width="0.75" stroke-opacity="0.08" fill="none"/>
+    <!-- Chevrons -->
+    <path d="M19 63 L40 49 L61 63"
+          stroke="url(#dChevBot)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M21 51 L40 37 L59 51"
+          stroke="url(#dChevMid)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M23 39 L40 23 L57 39"
+          stroke="url(#dChevTop)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- Coin -->
+    <circle cx="40" cy="19" r="6" fill="#f59e0b"/>
+    <circle cx="40" cy="19" r="3.5" fill="#fbbf24"/>
+    <circle cx="38.5" cy="17.5" r="1" fill="#fde68a" opacity="0.7"/>
+  </g>
 
-  <!-- ── Wordmark ─────────────────────────────────────────────────────── -->
-  <!-- "Sacco" — heavy weight -->
-  <text x="114" y="63" font-family="'Cabinet Grotesk', 'DM Sans', Georgia, serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#0F172A">Sacco</text>
-  <!-- "OS" — amber accent, slightly smaller -->
-  <text x="278" y="63" font-family="'Cabinet Grotesk', 'DM Sans', Georgia, serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="url(#amberGrad)">OS</text>
+  <!-- ── Wordmark ── -->
+  <!-- "Sacco" in near-black -->
+  <text x="113" y="58"
+        font-family="'DM Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif"
+        font-size="40" font-weight="800" letter-spacing="-1.5"
+        fill="#0f172a">Sacco</text>
+  <!-- "OS" in amber -->
+  <text x="275" y="58"
+        font-family="'DM Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif"
+        font-size="40" font-weight="800" letter-spacing="-1.5"
+        fill="url(#dAmber)">OS</text>
+
+  <!-- Divider rule -->
+  <line x1="113" y1="67" x2="420" y2="67" stroke="#e2e8f0" stroke-width="0.75"/>
 
   <!-- Tagline -->
-  <text x="114" y="83" font-family="'DM Mono', 'Courier New', monospace" font-size="11" font-weight="400" letter-spacing="3" fill="#64748B">COOPERATIVE MANAGEMENT PLATFORM</text>
+  <text x="113" y="82"
+        font-family="'DM Mono', 'Courier New', monospace"
+        font-size="10" font-weight="400" letter-spacing="3.5"
+        fill="#94a3b8">COOPERATIVE MANAGEMENT PLATFORM</text>
 </svg>

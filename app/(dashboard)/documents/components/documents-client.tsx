@@ -67,9 +67,9 @@ export function DocumentsClient({ documents, members }: DocumentsClientProps) {
   const filtered = useMemo(() => {
     return documents.filter((d) => {
       const matchSearch =
-        d.member_name?.toLowerCase().includes(search.toLowerCase()) ||
-        d.file_name?.toLowerCase().includes(search.toLowerCase()) ||
-        d.member_code?.toLowerCase().includes(search.toLowerCase())
+        d.memberName?.toLowerCase().includes(search.toLowerCase()) ||
+        d.fileName?.toLowerCase().includes(search.toLowerCase()) ||
+        d.memberCode?.toLowerCase().includes(search.toLowerCase())
       const matchType = typeFilter === "all" || d.type === typeFilter
       return matchSearch && matchType
     })

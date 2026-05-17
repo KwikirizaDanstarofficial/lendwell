@@ -24,7 +24,31 @@ import { formatUGX } from "@/lib/utils/format"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { topUpLoanAction, LoanFormState } from "../actions"
-import type { Loan } from "@/db/schema"
+type Loan = {
+  id: string
+  saccoId: string
+  memberId: string
+  categoryId: string | null
+  loanRef: string
+  amount: number
+  balance: number
+  interestRate: string
+  status: string
+  dueDate: string | null
+  disbursedAt: string | null
+  settledAt: string | null
+  declineReason: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+  interestRateId: string | null
+  expectedReceived: number
+  interestType: string
+  durationMonths: number
+  latePenaltyFee: number
+  dailyPayment: number
+  monthlyPayment: number
+}
 
 interface TopUpDialogProps {
   loan: Loan | null
@@ -56,7 +80,7 @@ export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
         <DialogHeader>
           <DialogTitle>Top Up Loan</DialogTitle>
           <DialogDescription>
-            Loan: {loan.loan_ref} · Current Balance:{" "}
+            Loan: {loan.loanRef} · Current Balance:{" "}
             <span className="font-semibold text-foreground">
               {formatUGX(loan.balance)}
             </span>

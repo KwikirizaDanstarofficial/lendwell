@@ -18,15 +18,15 @@ export async function GET(
 
     // Enrich with member data
     const members = await getAllMembers(user.saccoId)
-    const member = members.find((m) => m.id === loan.member_id)
+    const member = members.find((m) => m.id === loan.memberId)
 
     const loanWithMember = {
       ...loan,
-      member_name: member?.full_name || "Unknown",
-      member_code: member?.member_code || "N/A",
+      member_name: member?.fullName || "Unknown",
+      member_code: member?.memberCode || "N/A",
       member_phone: member?.phone,
       member_email: member?.email,
-      member_national_id: member?.national_id,
+      member_national_id: member?.nationalId,
       member_address: member?.address,
     }
 

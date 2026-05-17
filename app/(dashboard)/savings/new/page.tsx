@@ -185,7 +185,10 @@ export default function NewSavingsPage() {
       if (lockDuration) formData.append("lock_until", lockDuration)
       if (lockReason) formData.append("lock_reason", lockReason)
 
-      const result = await createSavingsAccountAction({ success: false }, formData)
+      const result = await createSavingsAccountAction(
+        { success: false },
+        formData
+      )
       if (result.success) {
         toast.success("Savings account created successfully")
         router.push("/savings")
@@ -250,12 +253,13 @@ export default function NewSavingsPage() {
           <CardContent className="space-y-4">
             {/* Search and Filter Bar */}
             <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1">
-                
-              </div>
+              <div className="relative flex-1"></div>
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <Select value={memberFilter} onValueChange={(value) => setMemberFilter(value || "all")}>
+                <Select
+                  value={memberFilter}
+                  onValueChange={(value) => setMemberFilter(value || "all")}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Filter" />
                   </SelectTrigger>
@@ -377,12 +381,12 @@ export default function NewSavingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="regular">
-                      <div className="flex items-center  gap-2">
+                      <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4" />
                         Regular Savings
                       </div>
                     </SelectItem>
-                    <SelectItem value="fixed" >
+                    <SelectItem value="fixed">
                       <div className="flex items-center gap-2">
                         <Lock className="h-4 w-4" />
                         Fixed Deposit

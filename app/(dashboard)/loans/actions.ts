@@ -2,15 +2,7 @@
 "use server"
 
 import { getCurrentUser } from "@/lib/auth"
-import { smartDb } from "@/lib/db/database-adapter"
-import {
-  loans,
-  members,
-  transactions,
-  interestRates,
-  loanTopUps,
-  type InterestRate,
-} from "@/db/schema"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendSms, smsTemplates } from "@/lib/sms"
 import {
@@ -22,7 +14,6 @@ import {
   initiateFlutterwaveCharge,
 } from "@/lib/payments/flutterwave"
 import { z } from "zod"
-import { eq } from "drizzle-orm"
 
 export type LoanFormState = {
   success?: boolean
@@ -64,22 +55,33 @@ export async function addLoanAction(
       }
     }
 
-    // Get member
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, parsed.data.member_id))
+    
 
-    if (!member) return { error: "Member not found." }
+    // Get member
+    const { data: member, error: memberError } = await supabaseAdmin
+      .from('members')
+      .select('full_name, phone')
+      .eq('id', parsed.data.member_id)
+      .single()
+
+    if (memberError || !member) return { error: "Member not found." }
 
     const amountInCents = Math.floor(parsed.data.amount * 100)
 
     // Get applicable interest rate from interest_rates table
-    const interestRatesList = await smartDb
-      .select(interestRates)
-      .where(eq(interestRates.sacco_id, user.saccoId))
+    const { data: interestRatesList, error: ratesError } = await supabaseAdmin
+      .from('interest_rates')
+      .select('*')
+      .eq('sacco_id', user.saccoId)
+      .eq('is_active', true)
+
+    if (ratesError) {
+      console.error('Error fetching interest rates:', ratesError)
+      return { error: "Failed to fetch interest rates." }
+    }
 
     const { rate: interestRate, rateType: interestType } =
-      getInterestRateForAmount(amountInCents, interestRatesList)
+      getInterestRateForAmount(amountInCents, interestRatesList || [])
 
     // Calculate loan details
     const calc = calculateLoan({
@@ -92,30 +94,37 @@ export async function addLoanAction(
     const loan_ref = `LN-${Date.now()}`
 
     // Get the interest rate ID
-    const applicableRate = interestRatesList.find(
-      (rate: InterestRate) =>
+    const applicableRate = (interestRatesList || []).find(
+      (rate) =>
         amountInCents >= rate.min_amount && amountInCents <= rate.max_amount
     )
 
     // Insert loan
-    await smartDb.insert(loans).values({
-      sacco_id: user.saccoId,
-      member_id: parsed.data.member_id,
-      interest_rate_id: applicableRate?.id,
-      loan_ref,
-      amount: amountInCents,
-      expected_received: calc.totalExpectedReceived,
-      balance: calc.totalExpectedReceived,
-      interest_rate: String(interestRate),
-      interest_type: interestType,
-      duration_months: parsed.data.duration_months,
-      late_penalty_fee: calc.latePenaltyFee,
-      daily_payment: calc.dailyPayment,
-      monthly_payment: calc.monthlyPayment,
-      due_date: parsed.data.due_date,
-      notes: parsed.data.notes || null,
-      status: "pending",
-    })
+    const { error: insertError } = await supabaseAdmin
+      .from('loans')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: parsed.data.member_id,
+        interest_rate_id: applicableRate?.id,
+        loan_ref,
+        amount: amountInCents,
+        expected_received: calc.totalExpectedReceived,
+        balance: calc.totalExpectedReceived,
+        interest_rate: String(interestRate),
+        interest_type: interestType,
+        duration_months: parsed.data.duration_months,
+        late_penalty_fee: calc.latePenaltyFee,
+        daily_payment: calc.dailyPayment,
+        monthly_payment: calc.monthlyPayment,
+        due_date: parsed.data.due_date,
+        notes: parsed.data.notes || null,
+        status: "pending",
+      })
+
+    if (insertError) {
+      console.error('Supabase insert error:', insertError)
+      return { error: "Failed to add loan. Please try again." }
+    }
 
     // Send SMS notification (don't fail if SMS fails)
     if (member.phone) {
@@ -142,18 +151,39 @@ export async function addLoanAction(
 
 export async function approveLoanAction(id: string): Promise<LoanFormState> {
   try {
-    const [loan] = await smartDb.select(loans).where(eq(loans.id, id))
+    
 
-    if (!loan) return { error: "Loan not found." }
+    // Get the loan
+    const { data: loan, error: loanError } = await supabaseAdmin
+      .from('loans')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, loan.member_id))
+    if (loanError || !loan) {
+      return { error: "Loan not found." }
+    }
 
-    await smartDb
-      .update(loans)
-      .set({ status: "approved", updated_at: new Date() })
-      .where(eq(loans.id, id))
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name, member_code')
+      .eq('id', loan.member_id)
+      .single()
+
+    // Update loan status
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update({
+        status: "approved",
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to approve loan." }
+    }
 
     if (member?.phone) {
       try {
@@ -185,22 +215,40 @@ export async function declineLoanAction(
   reason: string
 ): Promise<LoanFormState> {
   try {
-    const [loan] = await smartDb.select(loans).where(eq(loans.id, id))
+    
 
-    if (!loan) return { error: "Loan not found." }
+    // Get the loan
+    const { data: loan, error: loanError } = await supabaseAdmin
+      .from('loans')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, loan.member_id))
+    if (loanError || !loan) {
+      return { error: "Loan not found." }
+    }
 
-    await smartDb
-      .update(loans)
-      .set({
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', loan.member_id)
+      .single()
+
+    // Update loan status
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update({
         status: "declined",
         decline_reason: reason,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(loans.id, id))
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to decline loan." }
+    }
 
     if (member?.phone) {
       try {
@@ -228,33 +276,60 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
-    const [loan] = await smartDb.select(loans).where(eq(loans.id, id))
+    
 
-    if (!loan) return { error: "Loan not found." }
-    if (loan.status !== "approved")
+    // Get the loan
+    const { data: loan, error: loanError } = await supabaseAdmin
+      .from('loans')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (loanError || !loan) {
+      return { error: "Loan not found." }
+    }
+    if (loan.status !== "approved") {
       return { error: "Loan must be approved first." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, loan.member_id))
+    // Get member for transfer and SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', loan.member_id)
+      .single()
 
-    await smartDb
-      .update(loans)
-      .set({
+    // Update loan status
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update({
         status: "disbursed",
-        disbursed_at: new Date(),
-        updated_at: new Date(),
+        disbursed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(loans.id, id))
+      .eq('id', id)
 
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: loan.member_id,
-      type: "loan_disbursement",
-      amount: loan.amount,
-      narration: `Loan disbursement - ${loan.loan_ref}`,
-      payment_method: "flutterwave",
-    })
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to disburse loan." }
+    }
+
+    // Create transaction record
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: loan.member_id,
+        type: "loan_disbursement",
+        amount: loan.amount,
+        narration: `Loan disbursement - ${loan.loan_ref}`,
+        payment_method: "flutterwave",
+      })
+
+    if (transactionError) {
+      console.error('Transaction creation error:', transactionError)
+      // Continue anyway as the loan status was updated
+    }
 
     // Initiate Flutterwave transfer to member's phone
     if (member?.phone) {
@@ -315,6 +390,8 @@ export async function repayLoanAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
+    
+
     const id = formData.get("loan_id") as string
     const amountStr = (formData.get("amount") as string)?.replace(/,/g, "")
     const amount = Math.round(parseFloat(amountStr || "0") * 100)
@@ -323,15 +400,26 @@ export async function repayLoanAction(
     if (!amountStr || isNaN(amount) || amount <= 0)
       return { error: "Valid amount required." }
 
-    const [loan] = await smartDb.select(loans).where(eq(loans.id, id))
+    // Get the loan
+    const { data: loan, error: loanError } = await supabaseAdmin
+      .from('loans')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    if (!loan) return { error: "Loan not found." }
-    if (loan.status !== "disbursed" && loan.status !== "active")
+    if (loanError || !loan) {
+      return { error: "Loan not found." }
+    }
+    if (loan.status !== "disbursed" && loan.status !== "active") {
       return { error: "Loan must be disbursed to record repayments." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, loan.member_id))
+    // Get member for payment processing and SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', loan.member_id)
+      .single()
 
     // Process payment if mobile money
     if (payment_method === "mobile_money" && member?.phone) {
@@ -359,26 +447,40 @@ export async function repayLoanAction(
     const newBalance = Math.max(0, loan.balance - amount)
     const newStatus = newBalance === 0 ? "settled" : "active"
 
-    await smartDb
-      .update(loans)
-      .set({
+    // Update loan
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update({
         balance: newBalance,
         status: newStatus,
-        settled_at: newBalance === 0 ? new Date() : null,
-        updated_at: new Date(),
+        settled_at: newBalance === 0 ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(loans.id, id))
+      .eq('id', id)
 
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: loan.member_id,
-      type: "loan_repayment",
-      amount,
-      balance_after: newBalance,
-      narration: `Loan repayment - ${loan.loan_ref}`,
-      payment_method:
-        payment_method === "mobile_money" ? "flutterwave" : payment_method,
-    })
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Failed to record repayment." }
+    }
+
+    // Create transaction record
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: loan.member_id,
+        type: "loan_repayment",
+        amount,
+        balance_after: newBalance,
+        narration: `Loan repayment - ${loan.loan_ref}`,
+        payment_method:
+          payment_method === "mobile_money" ? "flutterwave" : payment_method,
+      })
+
+    if (transactionError) {
+      console.error('Transaction creation error:', transactionError)
+      // Continue anyway as the loan was updated
+    }
 
     if (member?.phone) {
       try {
@@ -414,6 +516,8 @@ export async function topUpLoanAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
+    
+
     const id = formData.get("loan_id") as string
     const amountStr = (formData.get("amount") as string)?.replace(/,/g, "")
     const amount = Math.round(parseFloat(amountStr || "0") * 100)
@@ -424,50 +528,80 @@ export async function topUpLoanAction(
     if (!amountStr || isNaN(amount) || amount <= 0)
       return { error: "Valid amount required." }
 
-    const [loan] = await smartDb.select(loans).where(eq(loans.id, id))
+    // Get the loan
+    const { data: loan, error: loanError } = await supabaseAdmin
+      .from('loans')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    if (!loan) return { error: "Loan not found." }
-    if (loan.status !== "active" && loan.status !== "disbursed")
+    if (loanError || !loan) {
+      return { error: "Loan not found." }
+    }
+    if (loan.status !== "active" && loan.status !== "disbursed") {
       return { error: "Loan must be active or disbursed to add top-up." }
+    }
 
-    const [member] = await smartDb
-      .select(members)
-      .where(eq(members.id, loan.member_id))
+    // Get member for SMS
+    const { data: member } = await supabaseAdmin
+      .from('members')
+      .select('phone, full_name')
+      .eq('id', loan.member_id)
+      .single()
 
     // Add top-up record
-    await smartDb.insert(loanTopUps).values({
-      loan_id: id,
-      amount,
-      reason,
-      payment_method: payment_method as any,
-      notes,
-      // processed_by: // TODO: Add current user/admin ID when authentication is implemented
-    })
+    const { error: topUpError } = await supabaseAdmin
+      .from('loan_top_ups')
+      .insert({
+        loan_id: id,
+        amount,
+        reason,
+        payment_method: payment_method as any,
+        notes,
+        // processed_by: // TODO: Add current user/admin ID when authentication is implemented
+      })
+
+    if (topUpError) {
+      console.error('Top-up creation error:', topUpError)
+      return { error: "Failed to process loan top-up." }
+    }
 
     // Update loan balance (add to balance since top-up increases the amount owed)
     const newBalance = loan.balance + amount
 
-    await smartDb
-      .update(loans)
-      .set({
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update({
         balance: newBalance,
-        updated_at: new Date(),
+        updated_at: new Date().toISOString(),
       })
-      .where(eq(loans.id, id))
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Loan update error:', updateError)
+      return { error: "Failed to process loan top-up." }
+    }
 
     // Record transaction
-    await smartDb.insert(transactions).values({
-      sacco_id: user.saccoId,
-      member_id: loan.member_id,
-      type: "loan_disbursement", // Top-up is essentially additional disbursement
-      amount,
-      balance_after: newBalance,
-      narration: `Loan top-up - ${loan.loan_ref}${reason ? ` - ${reason}` : ""}`,
-      payment_method:
-        payment_method === "mobile_money"
-          ? "flutterwave"
-          : (payment_method as any),
-    })
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: loan.member_id,
+        type: "loan_disbursement", // Top-up is essentially additional disbursement
+        amount,
+        balance_after: newBalance,
+        narration: `Loan top-up - ${loan.loan_ref}${reason ? ` - ${reason}` : ""}`,
+        payment_method:
+          payment_method === "mobile_money"
+            ? "flutterwave"
+            : payment_method,
+      })
+
+    if (transactionError) {
+      console.error('Transaction creation error:', transactionError)
+      // Continue anyway as the loan was updated
+    }
 
     // Send SMS notification
     if (member?.phone) {
@@ -495,7 +629,18 @@ export async function topUpLoanAction(
 
 export async function deleteLoanAction(id: string): Promise<LoanFormState> {
   try {
-    await smartDb.delete(loans).where(eq(loans.id, id))
+    
+
+    const { error } = await supabaseAdmin
+      .from('loans')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Supabase delete error:', error)
+      return { error: "Failed to delete loan." }
+    }
+
     revalidatePath("/loans")
     return { success: true }
   } catch (err) {

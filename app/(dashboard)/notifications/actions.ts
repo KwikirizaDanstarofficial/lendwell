@@ -1,16 +1,15 @@
 "use server"
 
 import { getCurrentUser } from "@/lib/auth"
-import { smartDb } from "@/lib/db/database-adapter"
-import { notifications, members } from "@/db/schema"
-import { eq, inArray } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { sendSms } from "@/lib/sms"
+import { enqueueSmsMany } from "@/lib/notification-queue"
 
 export type NotificationFormState = {
   success?: boolean
   error?: string
   sent?: number
+  queued?: number
 }
 
 export async function sendNotificationAction(
@@ -22,7 +21,7 @@ export async function sendNotificationAction(
     if (!user) return { error: "Not authenticated." }
 
     const target = formData.get("target") as string
-    const member_id = formData.get("member_id") as string
+    const memberId = formData.get("memberId") as string
     const title = formData.get("title") as string
     const body = formData.get("body") as string
     const channel = formData.get("channel") as string
@@ -30,81 +29,75 @@ export async function sendNotificationAction(
 
     if (!title || !body) return { error: "Title and message are required." }
 
-    let targetMembers: any[] = []
+    // Fetch target members
+    let targetMembers: { id: string; phone: string | null }[] = []
 
     if (target === "all") {
-      targetMembers = await smartDb
-        .select(members)
-        .where(eq(members.sacco_id, user.saccoId))
+      const { data, error } = await supabaseAdmin
+        .from("members")
+        .select("id, phone")
+        .eq("sacco_id", user.saccoId)
+      if (error) return { error: "Failed to fetch members." }
+      targetMembers = data || []
     } else if (target === "active") {
-      targetMembers = await smartDb
-        .select(members)
-        .where(
-          eq(members.sacco_id, user.saccoId) && eq(members.status, "active")
-        )
-    } else if (target === "member" && member_id) {
-      const [m] = await smartDb.select(members).where(eq(members.id, member_id))
-      if (m) targetMembers = [m]
+      const { data, error } = await supabaseAdmin
+        .from("members")
+        .select("id, phone")
+        .eq("sacco_id", user.saccoId)
+        .eq("status", "active")
+      if (error) return { error: "Failed to fetch active members." }
+      targetMembers = data || []
+    } else if (target === "member" && memberId) {
+      const { data, error } = await supabaseAdmin
+        .from("members")
+        .select("id, phone")
+        .eq("id", memberId)
+        .single()
+      if (!error && data) targetMembers = [data]
     }
 
-    let sent = 0
+    if (targetMembers.length === 0) return { error: "No members to notify." }
 
-    for (const member of targetMembers) {
-      await smartDb.insert(notifications).values({
-        sacco_id: user.saccoId,
-        member_id: member.id,
-        title,
-        body,
-        type: channel === "sms" ? "sms" : "in_app",
-        status: "pending",
-        priority: priority || "normal",
-        channel,
-        recipient_phone: member.phone,
-      })
-
-      if (channel === "sms" && member.phone) {
-        try {
-          const smsResult = await sendSms({
-            to: member.phone,
-            message: `${title}: ${body}`,
-          })
-
-          if (smsResult.success) {
-            await smartDb
-              .update(notifications)
-              .set({ status: "sent", sent_at: new Date() })
-              .where(eq(notifications.member_id, member.id))
-            sent++
-          } else {
-            await smartDb
-              .update(notifications)
-              .set({
-                status: "failed",
-                error_message: smsResult.error || "SMS delivery failed",
-              })
-              .where(eq(notifications.member_id, member.id))
-          }
-        } catch (error) {
-          await smartDb
-            .update(notifications)
-            .set({
-              status: "failed",
-              error_message:
-                error instanceof Error ? error.message : "SMS delivery failed",
-            })
-            .where(eq(notifications.member_id, member.id))
-        }
-      } else {
-        await smartDb
-          .update(notifications)
-          .set({ status: "sent", sent_at: new Date() })
-          .where(eq(notifications.member_id, member.id))
-        sent++
-      }
+    if (channel === "sms") {
+      // Enqueue — the queue worker sends in batches of 50, with retries
+      const withPhone = targetMembers.filter((m) => m.phone)
+      const { count } = await enqueueSmsMany(
+        withPhone.map((m) => ({
+          saccoId: user.saccoId,
+          memberId: m.id,
+          phone: m.phone!,
+          title,
+          body,
+          type: "sms",
+          priority: priority || "normal",
+        }))
+      )
+      revalidatePath("/notifications")
+      return { success: true, queued: count }
     }
+
+    // In-app notifications: insert and mark sent immediately
+    const { data: inserted, error: insertError } = await supabaseAdmin
+      .from("notifications")
+      .insert(
+        targetMembers.map((member) => ({
+          sacco_id: user.saccoId,
+          member_id: member.id,
+          title,
+          body,
+          type: "in_app",
+          channel: "in_app",
+          status: "sent",
+          priority: priority || "normal",
+          sent_at: new Date().toISOString(),
+        }))
+      )
+      .select("id")
+
+    if (insertError) return { error: "Failed to send notifications." }
 
     revalidatePath("/notifications")
-    return { success: true, sent }
+    return { success: true, sent: inserted?.length ?? 0 }
   } catch (err) {
     console.error(err)
     return { error: "Failed to send notification." }
@@ -113,20 +106,40 @@ export async function sendNotificationAction(
 
 export async function markNotificationReadAction(id: string) {
   try {
-    await smartDb
-      .update(notifications)
-      .set({ read_at: new Date() })
-      .where(eq(notifications.id, id))
+    
+
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error marking notification as read:', error)
+      return { error: "Failed to mark as read." }
+    }
+
     revalidatePath("/notifications")
     return { success: true }
   } catch (err) {
+    console.error(err)
     return { error: "Failed to mark as read." }
   }
 }
 
 export async function deleteNotificationAction(id: string) {
   try {
-    await smartDb.delete(notifications).where(eq(notifications.id, id))
+    
+
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting notification:', error)
+      return { error: "Failed to delete." }
+    }
+
     revalidatePath("/notifications")
     return { success: true }
   } catch {

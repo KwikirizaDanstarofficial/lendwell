@@ -1,72 +1,110 @@
-import { db } from "@/db"
-import { notifications, members } from "@/db/schema"
-import { eq, desc, count, isNull, and, or } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllNotifications(saccoId: string) {
-  return await db
-    .select({
-      id: notifications.id,
-      title: notifications.title,
-      body: notifications.body,
-      type: notifications.type,
-      status: notifications.status,
-      priority: notifications.priority,
-      channel: notifications.channel,
-      recipient_phone: notifications.recipient_phone,
-      reference_type: notifications.reference_type,
-      retry_count: notifications.retry_count,
-      error_message: notifications.error_message,
-      scheduled_at: notifications.scheduled_at,
-      sent_at: notifications.sent_at,
-      read_at: notifications.read_at,
-      created_at: notifications.created_at,
-      member_id: notifications.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-      member_phone: members.phone,
-    })
-    .from(notifications)
-    .leftJoin(members, eq(notifications.member_id, members.id))
-    .where(
-      and(
-        eq(notifications.sacco_id, saccoId),
-        or(isNull(notifications.member_id), eq(members.sacco_id, saccoId))
+  const { data, error } = await supabaseAdmin
+    .from('notifications')
+    .select(`
+      id,
+      title,
+      body,
+      type,
+      status,
+      priority,
+      channel,
+      recipient_phone,
+      reference_type,
+      retry_count,
+      error_message,
+      scheduled_at,
+      sent_at,
+      read_at,
+      created_at,
+      member_id,
+      members:member_id (
+        full_name,
+        member_code,
+        phone
       )
-    )
-    .orderBy(desc(notifications.created_at))
+    `)
+    .eq('sacco_id', saccoId)
+    .order('created_at', { ascending: false })
     .limit(100)
+
+  if (error) {
+    throw new Error(`Failed to fetch notifications: ${error.message}`)
+  }
+
+  return (data as any[]).map(notification => ({
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    type: notification.type,
+    status: notification.status,
+    priority: notification.priority,
+    channel: notification.channel,
+    recipientPhone: notification.recipient_phone,
+    referenceType: notification.reference_type,
+    retryCount: notification.retry_count,
+    errorMessage: notification.error_message,
+    scheduledAt: notification.scheduled_at ? new Date(notification.scheduled_at) : null,
+    sentAt: notification.sent_at ? new Date(notification.sent_at) : null,
+    readAt: notification.read_at ? new Date(notification.read_at) : null,
+    createdAt: new Date(notification.created_at),
+    memberId: notification.member_id,
+    memberName: notification.members?.full_name,
+    memberCode: notification.members?.member_code,
+    memberPhone: notification.members?.phone,
+  }))
 }
 
 export async function getUnreadNotificationsCount(saccoId: string) {
-  const [result] = await db
-    .select({ count: count() })
-    .from(notifications)
-    .where(eq(notifications.sacco_id, saccoId))
-  return result?.count ?? 0
+  const { count, error } = await supabaseAdmin
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('sacco_id', saccoId)
+
+  if (error) {
+    throw new Error(`Failed to count notifications: ${error.message}`)
+  }
+
+  return count ?? 0
 }
 
 export async function getLatestNotifications(saccoId: string, limit = 5) {
-  return await db
-    .select({
-      id: notifications.id,
-      title: notifications.title,
-      body: notifications.body,
-      type: notifications.type,
-      status: notifications.status,
-      channel: notifications.channel,
-      sent_at: notifications.sent_at,
-      read_at: notifications.read_at,
-      created_at: notifications.created_at,
-      member_name: members.full_name,
-    })
-    .from(notifications)
-    .leftJoin(members, eq(notifications.member_id, members.id))
-    .where(
-      and(
-        eq(notifications.sacco_id, saccoId),
-        or(isNull(notifications.member_id), eq(members.sacco_id, saccoId))
+  const { data, error } = await supabaseAdmin
+    .from('notifications')
+    .select(`
+      id,
+      title,
+      body,
+      type,
+      status,
+      channel,
+      sent_at,
+      read_at,
+      created_at,
+      members:member_id (
+        full_name
       )
-    )
-    .orderBy(desc(notifications.created_at))
+    `)
+    .eq('sacco_id', saccoId)
+    .order('created_at', { ascending: false })
     .limit(limit)
+
+  if (error) {
+    throw new Error(`Failed to fetch latest notifications: ${error.message}`)
+  }
+
+  return (data as any[]).map(notification => ({
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    type: notification.type,
+    status: notification.status,
+    channel: notification.channel,
+    sentAt: notification.sent_at ? new Date(notification.sent_at) : null,
+    readAt: notification.read_at ? new Date(notification.read_at) : null,
+    createdAt: new Date(notification.created_at),
+    memberName: notification.members?.full_name,
+  }))
 }

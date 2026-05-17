@@ -57,7 +57,7 @@ export function SendNotificationForm({ members }: { members: any[] }) {
           <SelectContent>
             {members.map((m) => (
               <SelectItem key={m.id} value={m.id}>
-                {m.full_name} · {m.member_code}
+                {m.fullName} · {m.memberCode}
               </SelectItem>
             ))}
           </SelectContent>

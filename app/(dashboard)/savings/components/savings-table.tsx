@@ -96,19 +96,19 @@ export function SavingsTable({
 
   const columns: ColumnDef<any>[] = [
     {
-      accessorKey: "account_number",
+      accessorKey: "accountNumber",
       header: "Account",
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.account_number}</span>
+        <span className="font-mono text-sm">{row.original.accountNumber}</span>
       ),
     },
     {
-      accessorKey: "member_name",
+      accessorKey: "memberName",
       header: ({ column }) => (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-0 h-auto font-semibold hover:bg-transparent"
+          className="h-auto p-0 font-semibold hover:bg-transparent"
         >
           Member
           <ArrowUpDown className="ml-2 h-3 w-3" />
@@ -116,9 +116,9 @@ export function SavingsTable({
       ),
       cell: ({ row }) => (
         <div>
-          <p className="font-medium">{row.original.member_name}</p>
-          <p className="text-xs text-muted-foreground font-mono">
-            {row.original.member_code}
+          <p className="font-medium">{row.original.memberName}</p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {row.original.memberCode}
           </p>
         </div>
       ),
@@ -129,7 +129,7 @@ export function SavingsTable({
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-0 h-auto font-semibold hover:bg-transparent"
+          className="h-auto p-0 font-semibold hover:bg-transparent"
         >
           Balance
           <ArrowUpDown className="ml-2 h-3 w-3" />
@@ -145,8 +145,10 @@ export function SavingsTable({
       accessorKey: "account_type",
       header: "Type",
       cell: ({ row }) => (
-        <Badge variant={row.original.account_type === "fixed" ? "default" : "outline"}>
-          {row.original.account_type}
+        <Badge
+          variant={row.original.accountType === "fixed" ? "default" : "outline"}
+        >
+          {row.original.accountType}
         </Badge>
       ),
     },
@@ -161,18 +163,24 @@ export function SavingsTable({
       cell: ({ row }) => (
         <div className="space-y-0.5">
           <Badge
-            variant={row.original.is_locked ? "destructive" : "default"}
+            variant={row.original.isLocked ? "destructive" : "default"}
             className="text-xs"
           >
-            {row.original.is_locked ? (
-              <><Lock className="h-3 w-3 mr-1" />Locked</>
+            {row.original.isLocked ? (
+              <>
+                <Lock className="mr-1 h-3 w-3" />
+                Locked
+              </>
             ) : (
-              <><Unlock className="h-3 w-3 mr-1" />Active</>
+              <>
+                <Unlock className="mr-1 h-3 w-3" />
+                Active
+              </>
             )}
           </Badge>
-          {row.original.lock_until && (
+          {row.original.lockUntil && (
             <p className="text-xs text-muted-foreground">
-              Until {formatDate(row.original.lock_until)}
+              Until {formatDate(row.original.lockUntil)}
             </p>
           )}
         </div>
@@ -181,7 +189,7 @@ export function SavingsTable({
     {
       accessorKey: "created_at",
       header: "Opened",
-      cell: ({ row }) => formatDate(row.original.created_at),
+      cell: ({ row }) => formatDate(row.original.createdAt),
     },
     {
       id: "actions",
@@ -189,7 +197,7 @@ export function SavingsTable({
       cell: ({ row }) => {
         const account = row.original
         const memberLoans = activeLoans.filter(
-          (l) => l.member_id === account.member_id
+          (l) => l.memberId === account.memberId
         )
 
         return (
@@ -200,96 +208,96 @@ export function SavingsTable({
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDetailAccount(account)
-                }}
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                View Timesheet
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-                className="text-green-600"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDepositAccount(account)
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Deposit
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
-                className="text-orange-600"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setWithdrawAccount(account)
-                }}
-                disabled={account.is_locked}
-              >
-                <Minus className="mr-2 h-4 w-4" />
-                Withdraw
-              </DropdownMenuItem>
-
-              {memberLoans.length > 0 && (
+              <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuItem
-                  className="text-blue-600"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setTrimAccount(account)
+                    setDetailAccount(account)
                   }}
-                  disabled={account.is_locked}
                 >
-                  <Scissors className="mr-2 h-4 w-4" />
-                  Trim to Loan
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Timesheet
                 </DropdownMenuItem>
-              )}
 
-              <DropdownMenuSeparator />
+                <DropdownMenuSeparator />
 
-              {account.is_locked ? (
                 <DropdownMenuItem
                   className="text-green-600"
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleUnlock(account.id)
+                    setDepositAccount(account)
                   }}
                 >
-                  <Unlock className="mr-2 h-4 w-4" />
-                  Unlock Account
+                  <Plus className="mr-2 h-4 w-4" />
+                  Deposit
                 </DropdownMenuItem>
-              ) : (
+
                 <DropdownMenuItem
                   className="text-orange-600"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setLockAccount(account)
+                    setWithdrawAccount(account)
+                  }}
+                  disabled={account.isLocked}
+                >
+                  <Minus className="mr-2 h-4 w-4" />
+                  Withdraw
+                </DropdownMenuItem>
+
+                {memberLoans.length > 0 && (
+                  <DropdownMenuItem
+                    className="text-blue-600"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setTrimAccount(account)
+                    }}
+                    disabled={account.isLocked}
+                  >
+                    <Scissors className="mr-2 h-4 w-4" />
+                    Trim to Loan
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuSeparator />
+
+                {account.isLocked ? (
+                  <DropdownMenuItem
+                    className="text-green-600"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleUnlock(account.id)
+                    }}
+                  >
+                    <Unlock className="mr-2 h-4 w-4" />
+                    Unlock Account
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    className="text-orange-600"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setLockAccount(account)
+                    }}
+                  >
+                    <Lock className="mr-2 h-4 w-4" />
+                    Lock Account
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDeleteAccount(account)
                   }}
                 >
-                  <Lock className="mr-2 h-4 w-4" />
-                  Lock Account
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Account
                 </DropdownMenuItem>
-              )}
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDeleteAccount(account)
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Account
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )
       },
@@ -313,17 +321,17 @@ export function SavingsTable({
 
   if (accounts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 border rounded-lg text-muted-foreground">
-        <PiggyBank className="h-12 w-12 mb-3 opacity-30" />
+      <div className="flex flex-col items-center justify-center rounded-lg border py-20 text-muted-foreground">
+        <PiggyBank className="mb-3 h-12 w-12 opacity-30" />
         <p className="text-lg font-medium">No savings accounts found</p>
-        <p className="text-sm mt-1">Create your first savings account</p>
+        <p className="mt-1 text-sm">Create your first savings account</p>
       </div>
     )
   }
 
   return (
     <>
-      <div className="rounded-lg border overflow-hidden">
+      <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
@@ -348,10 +356,7 @@ export function SavingsTable({
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    {flexRender(
-                      cell.column.columnDef.cell,
-                      cell.getContext()
-                    )}
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
               </TableRow>
@@ -387,9 +392,7 @@ export function SavingsTable({
       {trimAccount && (
         <TrimLoanDialog
           account={trimAccount}
-          loans={activeLoans.filter(
-            (l) => l.member_id === trimAccount.member_id
-          )}
+          loans={activeLoans.filter((l) => l.memberId === trimAccount.memberId)}
           open={!!trimAccount}
           onClose={() => setTrimAccount(null)}
         />
@@ -402,17 +405,21 @@ export function SavingsTable({
         />
       )}
 
-      <AlertDialog open={!!deleteAccount} onOpenChange={() => setDeleteAccount(null)}>
+      <AlertDialog
+        open={!!deleteAccount}
+        onOpenChange={() => setDeleteAccount(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Savings Account?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete account{" "}
-              <strong>{deleteAccount?.account_number}</strong>.
+              <strong>{deleteAccount?.accountNumber}</strong>.
               {deleteAccount?.balance > 0 && (
-                <span className="text-destructive block mt-1">
-                  This account has a balance of {formatUGX(deleteAccount?.balance)}.
-                  You must withdraw all funds first.
+                <span className="mt-1 block text-destructive">
+                  This account has a balance of{" "}
+                  {formatUGX(deleteAccount?.balance)}. You must withdraw all
+                  funds first.
                 </span>
               )}
             </AlertDialogDescription>

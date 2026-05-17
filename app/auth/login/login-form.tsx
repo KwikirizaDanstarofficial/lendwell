@@ -39,7 +39,11 @@ export function LoginForm({
           setError(data.error ?? "Invalid email or password.")
           return
         }
-        window.location.href = redirect
+        const safeRedirect =
+          redirect.startsWith("/") && !redirect.startsWith("//")
+            ? redirect
+            : "/dashboard"
+        window.location.href = safeRedirect
       } catch {
         setError("Something went wrong. Please try again.")
       }
@@ -128,8 +132,11 @@ export function LoginForm({
           )}
         </Button>
       </div>
-      <p className="text-center text-xs text-muted-foreground">
-        Contact your SACCO administrator to get access.
+      <p className="text-center text-sm text-muted-foreground">
+        No account yet?{" "}
+        <a href="/auth/signup" className="text-foreground underline underline-offset-4 hover:text-primary">
+          Create one
+        </a>
       </p>
     </form>
   )

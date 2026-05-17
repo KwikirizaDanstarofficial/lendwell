@@ -5,39 +5,51 @@ import {
   getMembersForSavings,
   getSavingsCategoriesForSelect,
 } from "@/db/queries/savings"
-import { db } from "@/db"
-import { loans } from "@/db/schema"
-import { eq, and } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { SavingsClient } from "./components/savings-client"
+
+export const revalidate = 60
 
 export default async function SavingsPage() {
   const user = await requireAuth()
+  const supabase = supabaseAdmin
   const [accounts, stats, membersForSelect, categories, activeLoans] =
     await Promise.all([
-      getAllSavingsAccounts(user.saccoId),
-      getSavingsStats(user.saccoId),
-      getMembersForSavings(user.saccoId),
-      getSavingsCategoriesForSelect(user.saccoId),
-      db
-        .select({
-          id: loans.id,
-          loan_ref: loans.loan_ref,
-          balance: loans.balance,
-          member_id: loans.member_id,
-        })
-        .from(loans)
-        .where(
-          and(eq(loans.status, "active"), eq(loans.sacco_id, user.saccoId))
-        ),
+      getAllSavingsAccounts(user.saccoId).catch(() => []),
+      getSavingsStats(user.saccoId).catch(() => ({
+        totalBalance: 0,
+        totalAccounts: 0,
+        lockedAccounts: 0,
+        regularAccounts: 0,
+        fixedAccounts: 0,
+        avgBalance: 0,
+      })),
+      getMembersForSavings(user.saccoId).catch(() => []),
+      getSavingsCategoriesForSelect(user.saccoId).catch(() => []),
+      supabase
+        .from('loans')
+        .select('id, loan_ref, balance, member_id')
+        .eq('sacco_id', user.saccoId)
+        .eq('status', 'active')
+        .then(({ data }) => data ?? []),
     ])
 
   return (
     <SavingsClient
-      accounts={accounts}
-      stats={stats}
-      members={membersForSelect}
-      categories={categories}
-      activeLoans={activeLoans}
+      accounts={accounts ?? []}
+      stats={
+        stats ?? {
+          totalBalance: 0,
+          totalAccounts: 0,
+          lockedAccounts: 0,
+          regularAccounts: 0,
+          fixedAccounts: 0,
+          avgBalance: 0,
+        }
+      }
+      members={membersForSelect ?? []}
+      categories={categories ?? []}
+      activeLoans={activeLoans ?? []}
     />
   )
 }

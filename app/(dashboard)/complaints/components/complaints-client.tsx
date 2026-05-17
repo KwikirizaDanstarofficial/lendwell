@@ -28,9 +28,13 @@ import {
 import { AddComplaintDialog } from "./add-complaint-dialog"
 import { ComplaintCard } from "./complaint-card"
 import { type Complaint } from "./complaints-table"
-import { type Member } from "@/db/schema"
 
-type MemberSelect = Pick<Member, "id" | "full_name" | "member_code" | "phone">
+type MemberSelect = {
+  id: string
+  full_name: string
+  member_code: string
+  phone: string | null
+}
 
 interface ComplaintsClientProps {
   complaints: Complaint[]
@@ -95,8 +99,8 @@ export function ComplaintsClient({
     return complaints.filter((c) => {
       const matchSearch =
         c.subject?.toLowerCase().includes(search.toLowerCase()) ||
-        c.member_name?.toLowerCase().includes(search.toLowerCase()) ||
-        c.complaint_ref?.toLowerCase().includes(search.toLowerCase()) ||
+        c.memberName?.toLowerCase().includes(search.toLowerCase()) ||
+        c.complaintRef?.toLowerCase().includes(search.toLowerCase()) ||
         c.body?.toLowerCase().includes(search.toLowerCase())
       const matchStatus = statusFilter === "all" || c.status === statusFilter
       const matchPriority =

@@ -51,25 +51,37 @@ import {
 } from "@/components/ui/alert-dialog"
 import { formatDate } from "@/lib/utils/format"
 
-const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const statusVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   sent: "default",
   pending: "secondary",
   failed: "destructive",
 }
 
-const typeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const typeVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   sms: "default",
   in_app: "secondary",
 }
 
-const priorityVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const priorityVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   low: "outline",
   normal: "secondary",
   high: "destructive",
   urgent: "destructive",
 }
 
-const channelVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const channelVariant: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   sms: "default",
   email: "secondary",
   push: "outline",
@@ -112,7 +124,9 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null)
+  const [notificationToDelete, setNotificationToDelete] = useState<
+    string | null
+  >(null)
 
   const columns: ColumnDef<Notification>[] = [
     {
@@ -121,7 +135,7 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-0 h-auto font-semibold hover:bg-transparent"
+          className="h-auto p-0 font-semibold hover:bg-transparent"
         >
           Title
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -130,7 +144,7 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
       cell: ({ row }) => (
         <div>
           <p className="font-medium">{row.original.title}</p>
-          <p className="text-sm text-muted-foreground line-clamp-1">
+          <p className="line-clamp-1 text-sm text-muted-foreground">
             {row.original.body}
           </p>
         </div>
@@ -149,7 +163,15 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
       accessorKey: "channel",
       header: "Channel",
       cell: ({ row }) => (
-        <Badge variant={row.original.channel === "sms" ? "default" : row.original.channel === "email" ? "secondary" : "outline"}>
+        <Badge
+          variant={
+            row.original.channel === "sms"
+              ? "default"
+              : row.original.channel === "email"
+                ? "secondary"
+                : "outline"
+          }
+        >
           {row.original.channel || "sms"}
         </Badge>
       ),
@@ -158,7 +180,15 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
       accessorKey: "priority",
       header: "Priority",
       cell: ({ row }) => (
-        <Badge variant={row.original.priority === "urgent" ? "destructive" : row.original.priority === "high" ? "destructive" : "secondary"}>
+        <Badge
+          variant={
+            row.original.priority === "urgent"
+              ? "destructive"
+              : row.original.priority === "high"
+                ? "destructive"
+                : "secondary"
+          }
+        >
           {row.original.priority || "normal"}
         </Badge>
       ),
@@ -169,7 +199,7 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-0 h-auto font-semibold hover:bg-transparent"
+          className="h-auto p-0 font-semibold hover:bg-transparent"
         >
           Member
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -179,7 +209,9 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-muted-foreground" />
           <div>
-            <p className="font-medium">{row.original.member_name || "Unknown"}</p>
+            <p className="font-medium">
+              {row.original.member_name || "Unknown"}
+            </p>
             <p className="text-sm text-muted-foreground">
               {row.original.member_code || "N/A"}
             </p>
@@ -191,10 +223,18 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant={row.original.status === "sent" ? "default" : row.original.status === "failed" ? "destructive" : "secondary"}>
+        <Badge
+          variant={
+            row.original.status === "sent"
+              ? "default"
+              : row.original.status === "failed"
+                ? "destructive"
+                : "secondary"
+          }
+        >
           {row.original.status || "pending"}
         </Badge>
-      )
+      ),
     },
     {
       accessorKey: "created_at",
@@ -202,7 +242,7 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-0 h-auto font-semibold hover:bg-transparent"
+          className="h-auto p-0 font-semibold hover:bg-transparent"
         >
           Created
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -211,16 +251,17 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
-          {row.original.created_at ? formatDate(row.original.created_at) : "N/A"}
+          {row.original.created_at
+            ? formatDate(row.original.created_at)
+            : "N/A"}
         </div>
       ),
     },
     {
       accessorKey: "sent_at",
       header: "Sent",
-      cell: ({ row }) => (
-        row.original.sent_at ? formatDate(row.original.sent_at) : "—"
-      ),
+      cell: ({ row }) =>
+        row.original.sent_at ? formatDate(row.original.sent_at) : "—",
     },
     {
       id: "actions",
@@ -228,7 +269,11 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-md hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground p-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-md p-1 hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+            >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -285,16 +330,18 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
 
   if (notifications.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground border rounded-lg">
+      <div className="flex flex-col items-center justify-center rounded-lg border py-20 text-muted-foreground">
         <p className="text-lg font-medium">No notifications found</p>
-        <p className="text-sm mt-1">Send your first notification to get started</p>
+        <p className="mt-1 text-sm">
+          Send your first notification to get started
+        </p>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border overflow-hidden">
+      <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
@@ -319,10 +366,7 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
-                    {flexRender(
-                      cell.column.columnDef.cell,
-                      cell.getContext()
-                    )}
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
               </TableRow>
@@ -336,7 +380,8 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Notification</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this notification? This action cannot be undone.
+              Are you sure you want to delete this notification? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -344,7 +389,8 @@ export function NotificationsTable({ notifications }: NotificationsTableProps) {
             <AlertDialogAction
               onClick={async () => {
                 if (notificationToDelete) {
-                  const result = await deleteNotificationAction(notificationToDelete)
+                  const result =
+                    await deleteNotificationAction(notificationToDelete)
                   if (result.success) {
                     toast.success("Notification deleted successfully")
                   } else {

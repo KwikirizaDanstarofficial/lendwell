@@ -70,7 +70,7 @@ export function AddFineDialog({
               <SelectContent>
                 {members.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    {m.full_name} · {m.member_code}
+                    {m.fullName} · {m.memberCode}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -94,8 +94,8 @@ export function AddFineDialog({
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
-                      {c.default_amount > 0
-                        ? ` — ${formatUGX(c.default_amount)}`
+                      {c.defaultAmount > 0
+                        ? ` — ${formatUGX(c.defaultAmount)}`
                         : ""}
                     </SelectItem>
                   ))}

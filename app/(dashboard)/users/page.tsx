@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation"
 import { getPagePermissions } from "@/lib/auth"
-import { db } from "@/db"
-import { saccoUsers } from "@/db/schema"
-import { eq, desc } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 import { UsersClient } from "./components/users-client"
 import type { Metadata } from "next"
 
@@ -11,32 +9,32 @@ export const metadata: Metadata = { title: "Users — SACCO Manager" }
 export default async function UsersPage() {
   const { role, user, canManageUsers } = await getPagePermissions()
 
-  // Field agents have no access
   if (role === "field_agent" || !user) redirect("/dashboard")
 
-  const allUsers = await db
-    .select({
-      id: saccoUsers.id,
-      sacco_id: saccoUsers.sacco_id,
-      full_name: saccoUsers.full_name,
-      email: saccoUsers.email,
-      phone: saccoUsers.phone,
-      role: saccoUsers.role,
-      is_active: saccoUsers.is_active,
-      must_change_password: saccoUsers.must_change_password,
-      last_login_at: saccoUsers.last_login_at,
-      notes: saccoUsers.notes,
-      created_by: saccoUsers.created_by,
-      created_at: saccoUsers.created_at,
-      updated_at: saccoUsers.updated_at,
-    })
-    .from(saccoUsers)
-    .where(eq(saccoUsers.sacco_id, user.saccoId))
-    .orderBy(desc(saccoUsers.created_at))
+  const { data } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+
+  const formattedUsers = (data?.users ?? [])
+    .filter((u) => u.user_metadata?.sacco_id === user.saccoId)
+    .map((u) => ({
+      id: u.id,
+      saccoId: u.user_metadata?.sacco_id ?? "",
+      fullName: (u.user_metadata?.full_name ?? u.email ?? "") as string,
+      email: u.email ?? "",
+      phone: (u.user_metadata?.phone ?? null) as string | null,
+      role: (u.user_metadata?.role ?? "cashier") as "admin" | "cashier" | "field_agent",
+      isActive: !u.banned_until || new Date(u.banned_until) < new Date(),
+      mustChangePassword: (u.user_metadata?.must_change_password ?? false) as boolean,
+      lastLoginAt: u.last_sign_in_at ? new Date(u.last_sign_in_at) : null,
+      notes: (u.user_metadata?.notes ?? null) as string | null,
+      createdBy: (u.user_metadata?.created_by ?? null) as string | null,
+      createdAt: new Date(u.created_at),
+      updatedAt: new Date(u.updated_at ?? u.created_at),
+    }))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
   return (
     <UsersClient
-      users={allUsers}
+      users={formattedUsers}
       currentUser={user}
       canManageUsers={canManageUsers}
     />

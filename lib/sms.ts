@@ -171,4 +171,32 @@ export const smsTemplates = {
   loanRepayment: (fullName: string, amount: string, balance: string): string => {
     return `Dear ${fullName}, we have received your loan repayment of ${amount}. Remaining balance: ${balance}. Thank you!`
   },
+
+  /**
+   * Loan reminder — 3 days before due date
+   */
+  loanReminder3Days: (fullName: string, loanRef: string, balance: string, dueDate: string): string => {
+    return `Dear ${fullName}, your loan (Ref: ${loanRef}) of ${balance} is due on ${dueDate} — 3 days from now. Please arrange payment to avoid penalties.`
+  },
+
+  /**
+   * Loan reminder — 1 day before due date
+   */
+  loanReminder1Day: (fullName: string, loanRef: string, balance: string, dueDate: string): string => {
+    return `Dear ${fullName}, REMINDER: Your loan (Ref: ${loanRef}) balance of ${balance} is due TOMORROW (${dueDate}). Please make payment today to avoid late fees.`
+  },
+
+  /**
+   * Loan reminder — due today
+   */
+  loanReminderToday: (fullName: string, loanRef: string, balance: string): string => {
+    return `Dear ${fullName}, your loan (Ref: ${loanRef}) balance of ${balance} is DUE TODAY. Please make payment immediately to avoid penalties.`
+  },
+
+  /**
+   * Loan overdue reminder — sent daily for overdue loans
+   */
+  loanOverdue: (fullName: string, loanRef: string, balance: string, daysOverdue: number): string => {
+    return `Dear ${fullName}, your loan (Ref: ${loanRef}) is OVERDUE by ${daysOverdue} day${daysOverdue === 1 ? "" : "s"}. Outstanding balance: ${balance}. Please pay immediately or contact us to avoid further action.`
+  },
 }

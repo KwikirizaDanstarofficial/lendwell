@@ -21,8 +21,28 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react"
-import { Member } from "@/db/schema"
 import { MembersTable } from "./members-table"
+
+type Member = {
+  id: string
+  saccoId: string
+  memberCode: string
+  fullName: string
+  email: string | null
+  phone: string | null
+  nationalId: string | null
+  photoUrl: string | null
+  dateOfBirth: Date | null
+  address: string | null
+  nextOfKin: string | null
+  nextOfKinPhone: string | null
+  nextOfKinRelationship: string | null
+  nextOfKinAddress: string | null
+  status: "active" | "suspended" | "exited"
+  joinedAt: Date | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
 import { MembersGrid } from "./members-grid"
 import { ImportExcel } from "./import-excel"
 import ExcelJS from "exceljs"
@@ -42,8 +62,8 @@ export function MembersClient({ members }: MembersClientProps) {
   const filtered = useMemo(() => {
     return members.filter((m) => {
       const matchSearch =
-        m.full_name.toLowerCase().includes(search.toLowerCase()) ||
-        m.member_code.toLowerCase().includes(search.toLowerCase()) ||
+        m.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        m.memberCode.toLowerCase().includes(search.toLowerCase()) ||
         (m.phone ?? "").toLowerCase().includes(search.toLowerCase())
       const matchStatus = statusFilter === "all" || m.status === statusFilter
       return matchSearch && matchStatus
@@ -69,17 +89,17 @@ export function MembersClient({ members }: MembersClientProps) {
     ]
 
     const data = filtered.map((m) => ({
-      member_code: m.member_code,
-      full_name: m.full_name,
+      member_code: m.memberCode,
+      full_name: m.fullName,
       email: m.email ?? "",
       phone: m.phone ?? "",
-      national_id: m.national_id ?? "",
+      national_id: m.nationalId ?? "",
       status: m.status,
-      date_of_birth: m.date_of_birth ?? "",
+      date_of_birth: m.dateOfBirth ?? "",
       address: m.address ?? "",
-      next_of_kin: m.next_of_kin ?? "",
-      next_of_kin_phone: m.next_of_kin_phone ?? "",
-      joined_at: m.joined_at ? new Date(m.joined_at).toLocaleDateString() : "",
+      next_of_kin: m.nextOfKin ?? "",
+      next_of_kin_phone: m.nextOfKinPhone ?? "",
+      joined_at: m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : "",
     }))
 
     worksheet.addRows(data)

@@ -187,14 +187,14 @@ export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
     if (!amount || Number(amount) <= 0) return null
     const amountCents = Number(amount) * 100
     const applicable = interestRates.find(
-      (rate) => amountCents >= rate.min_amount && amountCents <= rate.max_amount
+      (rate) => amountCents >= rate.minAmount && amountCents <= rate.maxAmount
     )
     if (!applicable) return null
     return {
       rate: Number(applicable.rate),
-      rateType: applicable.rate_type,
-      minAmount: applicable.min_amount / 100,
-      maxAmount: applicable.max_amount / 100,
+      rateType: applicable.rateType,
+      minAmount: applicable.minAmount / 100,
+      maxAmount: applicable.maxAmount / 100,
     }
   }
 

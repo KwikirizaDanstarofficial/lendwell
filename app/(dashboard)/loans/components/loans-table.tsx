@@ -89,7 +89,7 @@ export function LoansTable({ loans }: { loans: any[] }) {
         </Button>
       ),
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.loan_ref}</span>
+        <span className="font-mono text-sm">{row.original.loanRef}</span>
       ),
     },
     {
@@ -99,7 +99,7 @@ export function LoansTable({ loans }: { loans: any[] }) {
         <div>
           <p className="font-medium">{row.original.member_name}</p>
           <p className="font-mono text-xs text-muted-foreground">
-            {row.original.member_code}
+            {row.original.memberCode}
           </p>
         </div>
       ),
@@ -112,7 +112,7 @@ export function LoansTable({ loans }: { loans: any[] }) {
     {
       accessorKey: "expected_received",
       header: "Expected to Receive",
-      cell: ({ row }) => formatUGX(row.original.expected_received),
+      cell: ({ row }) => formatUGX(row.original.expectedReceived),
     },
     {
       accessorKey: "balance",
@@ -122,7 +122,7 @@ export function LoansTable({ loans }: { loans: any[] }) {
     {
       accessorKey: "monthly_payment",
       header: "Monthly",
-      cell: ({ row }) => formatUGX(row.original.monthly_payment ?? 0),
+      cell: ({ row }) => formatUGX(row.original.monthlyPayment ?? 0),
     },
     {
       accessorKey: "status",
@@ -140,12 +140,12 @@ export function LoansTable({ loans }: { loans: any[] }) {
     {
       accessorKey: "due_date",
       header: "Due Date",
-      cell: ({ row }) => formatDate(row.original.due_date),
+      cell: ({ row }) => formatDate(row.original.dueDate),
     },
     {
       accessorKey: "created_at",
       header: "Applied",
-      cell: ({ row }) => formatDate(row.original.created_at),
+      cell: ({ row }) => formatDate(row.original.createdAt),
     },
     {
       id: "actions",

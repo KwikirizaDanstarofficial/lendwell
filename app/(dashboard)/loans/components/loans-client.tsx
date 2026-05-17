@@ -98,9 +98,9 @@ export function LoansClient({
   const filtered = useMemo(() => {
     return loans.filter((l) => {
       const matchSearch =
-        l.loan_ref?.toLowerCase().includes(search.toLowerCase()) ||
+        l.loanRef?.toLowerCase().includes(search.toLowerCase()) ||
         l.member_name?.toLowerCase().includes(search.toLowerCase()) ||
-        l.member_code?.toLowerCase().includes(search.toLowerCase())
+        l.memberCode?.toLowerCase().includes(search.toLowerCase())
       const matchStatus = statusFilter === "all" || l.status === statusFilter
       return matchSearch && matchStatus
     })
@@ -108,6 +108,7 @@ export function LoansClient({
 
   // Chart data — loans by status
   const statusChartData = useMemo(() => {
+    if (!loans) return []
     const grouped: Record<string, number> = {}
     loans.forEach((l) => {
       grouped[l.status] = (grouped[l.status] || 0) + 1
@@ -121,6 +122,7 @@ export function LoansClient({
 
   // Chart data — monthly disbursements (last 6 months)
   const monthlyData = useMemo(() => {
+    if (!loans) return []
     const months: Record<string, { amount: number; balance: number }> = {}
     const now = new Date()
     for (let i = 5; i >= 0; i--) {
@@ -130,8 +132,8 @@ export function LoansClient({
       months[key] = { amount: 0, balance: 0 }
     }
     loans.forEach((l) => {
-      if (!l.created_at) return
-      const d = new Date(l.created_at)
+      if (!l.createdAt) return
+      const d = new Date(l.createdAt)
       const key = d.toLocaleString("default", { month: "short" })
       if (months[key]) {
         months[key].amount += l.amount / 100
@@ -172,22 +174,22 @@ export function LoansClient({
     ]
 
     const data = filtered.map((l) => ({
-      loan_ref: l.loan_ref,
+      loan_ref: l.loanRef,
       member: l.member_name,
-      member_code: l.member_code,
+      member_code: l.memberCode,
       amount: l.amount / 100,
-      expected_received: l.expected_received / 100,
+      expected_received: l.expectedReceived / 100,
       balance: l.balance / 100,
-      interest_rate: l.interest_rate,
-      interest_type: l.interest_type,
-      duration_months: l.duration_months,
-      daily_payment: l.daily_payment / 100,
-      monthly_payment: l.monthly_payment / 100,
-      late_penalty_fee: l.late_penalty_fee / 100,
+      interest_rate: l.interestRate,
+      interest_type: l.interestType,
+      duration_months: l.durationMonths,
+      daily_payment: l.dailyPayment / 100,
+      monthly_payment: l.monthlyPayment / 100,
+      late_penalty_fee: l.latePenaltyFee / 100,
       status: l.status,
-      due_date: l.due_date ?? "",
-      created_at: l.created_at
-        ? new Date(l.created_at).toLocaleDateString()
+      due_date: l.dueDate ?? "",
+      created_at: l.createdAt
+        ? new Date(l.createdAt).toLocaleDateString()
         : "",
     }))
 

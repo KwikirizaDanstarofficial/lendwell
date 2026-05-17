@@ -35,7 +35,7 @@ export function LoanPdfButton({ loan }: { loan: any }) {
           loan={loan}
           member={{
             full_name: loan.member_name ?? "",
-            member_code: loan.member_code ?? "",
+            member_code: loan.memberCode ?? "",
             phone: loan.member_phone,
             national_id: loan.member_national_id,
             address: loan.member_address,
@@ -47,7 +47,7 @@ export function LoanPdfButton({ loan }: { loan: any }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${loan.loan_ref}-Contract.pdf`
+      a.download = `${loan.loanRef}-Contract.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("Loan contract downloaded")

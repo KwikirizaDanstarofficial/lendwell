@@ -7,16 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table"
-import { 
-  PiggyBank, 
+import {
+  PiggyBank,
   ArrowLeft,
   Calendar,
   DollarSign,
@@ -25,7 +25,7 @@ import {
   Loader2,
   Plus,
   Minus,
-  FileText
+  FileText,
 } from "lucide-react"
 import { formatUGX, formatDate } from "@/lib/utils/format"
 import {
@@ -78,15 +78,22 @@ interface Transaction {
 
 const typeColors: Record<string, string> = {
   regular: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  fixed: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+  fixed:
+    "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
 }
 
 const transactionTypeColors: Record<string, string> = {
-  savings_deposit: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  savings_withdrawal: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  savings_deposit:
+    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  savings_withdrawal:
+    "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 }
 
-export default function SavingsDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function SavingsDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = use(params)
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -106,7 +113,7 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
     try {
       const [savingsData, transactionsData] = await Promise.all([
         getSavingsById(id),
-        getSavingsTransactions(id)
+        getSavingsTransactions(id),
       ])
       setSavings(savingsData as SavingsAccount)
       setTransactions(transactionsData as Transaction[])
@@ -185,7 +192,7 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -193,10 +200,14 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
 
   if (!savings) {
     return (
-      <div className="flex flex-col items-center justify-center h-96">
+      <div className="flex h-96 flex-col items-center justify-center">
         <p className="text-muted-foreground">Savings account not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push("/savings")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => router.push("/savings")}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Savings
         </Button>
       </div>
@@ -204,57 +215,63 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="space-y-6 min-w-0 overflow-x-hidden">
+    <div className="min-w-0 space-y-6 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => router.push("/savings")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/savings")}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Savings Account Details</h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <h1 className="text-2xl font-bold tracking-tight">
+              Savings Account Details
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               {savings.account_number} · {savings.member_name || "Unknown"}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => router.push(`/savings/${id}/pdf`)}
             className="whitespace-nowrap"
           >
-            <FileText className="h-4 w-4 mr-2" />
+            <FileText className="mr-2 h-4 w-4" />
             Export PDF
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setWithdrawDialogOpen(true)}
             disabled={savings.is_locked}
             className="whitespace-nowrap"
           >
-            <Minus className="h-4 w-4 mr-2" />
+            <Minus className="mr-2 h-4 w-4" />
             Withdraw
           </Button>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={() => setDepositDialogOpen(true)}
             disabled={savings.is_locked}
             className="whitespace-nowrap"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Deposit
           </Button>
         </div>
       </div>
 
       {/* Account Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs text-muted-foreground font-medium">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">
               Current Balance
             </CardTitle>
             <DollarSign className="h-4 w-4 text-green-500" />
@@ -265,8 +282,8 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
         </Card>
 
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs text-muted-foreground font-medium">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">
               Account Type
             </CardTitle>
             <PiggyBank className="h-4 w-4 text-blue-500" />
@@ -279,32 +296,42 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
         </Card>
 
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs text-muted-foreground font-medium">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">
               Status
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <Badge className={savings.is_locked ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}>
+            <Badge
+              className={
+                savings.is_locked
+                  ? "bg-red-100 text-red-800"
+                  : "bg-green-100 text-green-800"
+              }
+            >
               {savings.is_locked ? "Locked" : "Active"}
             </Badge>
             {savings.is_locked && savings.lock_reason && (
-              <p className="text-xs text-muted-foreground mt-1">{savings.lock_reason}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {savings.lock_reason}
+              </p>
             )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs text-muted-foreground font-medium">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">
               Member
             </CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <p className="font-medium">{savings.member_name || "Unknown"}</p>
-            <p className="text-xs text-muted-foreground font-mono">{savings.member_code || "N/A"}</p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {savings.member_code || "N/A"}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -315,7 +342,7 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
           <CardTitle>Transaction History (Timesheet)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border overflow-hidden overflow-x-auto">
+          <div className="overflow-hidden overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
@@ -330,7 +357,10 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={6}
+                      className="py-8 text-center text-muted-foreground"
+                    >
                       No transactions found
                     </TableCell>
                   </TableRow>
@@ -340,27 +370,39 @@ export default function SavingsDetailPage({ params }: { params: Promise<{ id: st
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {txn.created_at ? formatDate(txn.created_at.toString()) : "N/A"}
+                          {txn.created_at
+                            ? formatDate(txn.created_at.toString())
+                            : "N/A"}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={transactionTypeColors[txn.type] || "bg-gray-100 text-gray-800"}>
+                        <Badge
+                          className={
+                            transactionTypeColors[txn.type] ||
+                            "bg-gray-100 text-gray-800"
+                          }
+                        >
                           {txn.type === "savings_deposit" ? (
-                            <TrendingUp className="h-3 w-3 mr-1" />
+                            <TrendingUp className="mr-1 h-3 w-3" />
                           ) : (
-                            <TrendingDown className="h-3 w-3 mr-1" />
+                            <TrendingDown className="mr-1 h-3 w-3" />
                           )}
                           {txn.type.replace("savings_", "")}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <p className={`font-semibold ${txn.type === "savings_deposit" ? "text-green-600" : "text-red-600"}`}>
-                          {txn.type === "savings_deposit" ? "+" : "-"}{formatUGX(txn.amount)}
+                        <p
+                          className={`font-semibold ${txn.type === "savings_deposit" ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {txn.type === "savings_deposit" ? "+" : "-"}
+                          {formatUGX(txn.amount)}
                         </p>
                       </TableCell>
                       <TableCell>
                         <p className="font-medium">
-                          {txn.balance_after ? formatUGX(txn.balance_after) : "N/A"}
+                          {txn.balance_after
+                            ? formatUGX(txn.balance_after)
+                            : "N/A"}
                         </p>
                       </TableCell>
                       <TableCell>

@@ -43,12 +43,12 @@ export function DocumentCard({ doc }: { doc: Document }) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const isPdf = doc.file_name?.toLowerCase().endsWith(".pdf")
-  const isImage = /\.(jpg|jpeg|png|webp)$/i.test(doc.file_name ?? "")
+  const isPdf = doc.fileName?.toLowerCase().endsWith(".pdf")
+  const isImage = /\.(jpg|jpeg|png|webp)$/i.test(doc.fileName ?? "")
 
   const handleDelete = async () => {
     setDeleting(true)
-    const res = await deleteDocumentAction(doc.id, doc.blob_url)
+    const res = await deleteDocumentAction(doc.id, doc.blobUrl)
     setDeleting(false)
     if (res.success) {
       toast.success("Document deleted")
@@ -68,15 +68,15 @@ export function DocumentCard({ doc }: { doc: Document }) {
         >
           {isImage ? (
             <img
-              src={doc.blob_url}
-              alt={doc.file_name}
+              src={doc.blobUrl}
+              alt={doc.fileName}
               className="h-full w-full object-cover"
             />
           ) : (
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <FileText className="h-12 w-12 opacity-40" />
               <span className="font-mono text-xs uppercase">
-                {doc.file_name?.split(".").pop()}
+                {doc.fileName?.split(".").pop()}
               </span>
             </div>
           )}
@@ -126,13 +126,13 @@ export function DocumentCard({ doc }: { doc: Document }) {
                   Preview
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => window.open(doc.blob_url, "_blank")}
+                  onClick={() => window.open(doc.blobUrl, "_blank")}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Download
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => window.open(doc.blob_url, "_blank")}
+                  onClick={() => window.open(doc.blobUrl, "_blank")}
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Open in New Tab
@@ -152,18 +152,18 @@ export function DocumentCard({ doc }: { doc: Document }) {
 
         {/* Card Info */}
         <CardContent className="space-y-2 px-3 pt-3 pb-3">
-          <p className="truncate text-sm font-medium" title={doc.file_name}>
-            {doc.file_name}
+          <p className="truncate text-sm font-medium" title={doc.fileName}>
+            {doc.fileName}
           </p>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <User className="h-3 w-3 shrink-0" />
-            <span className="truncate">{doc.member_name ?? "—"}</span>
+            <span className="truncate">{doc.memberName ?? "—"}</span>
             <span className="text-muted-foreground/40">·</span>
-            <span className="shrink-0 font-mono">{doc.member_code}</span>
+            <span className="shrink-0 font-mono">{doc.memberCode}</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3 shrink-0" />
-            {formatDate(doc.created_at)}
+            {formatDate(doc.createdAt)}
           </div>
           <div className="flex gap-2 pt-1">
             <Button
@@ -179,7 +179,7 @@ export function DocumentCard({ doc }: { doc: Document }) {
               variant="outline"
               size="sm"
               className="h-7 flex-1 text-xs"
-              onClick={() => window.open(doc.blob_url, "_blank")}
+              onClick={() => window.open(doc.blobUrl, "_blank")}
             >
               <Download className="mr-2 h-2 w-2" />
               Download
@@ -201,7 +201,7 @@ export function DocumentCard({ doc }: { doc: Document }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Document?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{doc.file_name}</strong> from
+              This will permanently delete <strong>{doc.fileName}</strong> from
               storage. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

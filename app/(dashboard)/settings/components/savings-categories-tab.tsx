@@ -113,15 +113,15 @@ export function SavingsCategoriesTab({ categories }: { categories: any[] }) {
                   <TableRow key={cat.id}>
                     <TableCell className="font-medium">{cat.name}</TableCell>
                     <TableCell className="text-muted-foreground">{cat.description ?? "—"}</TableCell>
-                    <TableCell className="text-green-600 font-semibold">{cat.interest_rate}%</TableCell>
+                    <TableCell className="text-green-600 font-semibold">{cat.interestRate}%</TableCell>
                     <TableCell>
-                      <Badge variant={cat.is_fixed ? "default" : "outline"}>
-                        {cat.is_fixed ? "Fixed" : "Regular"}
+                      <Badge variant={cat.isFixed ? "default" : "outline"}>
+                        {cat.isFixed ? "Fixed" : "Regular"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={cat.is_active ? "default" : "secondary"}>
-                        {cat.is_active ? "Active" : "Inactive"}
+                      <Badge variant={cat.isActive ? "default" : "secondary"}>
+                        {cat.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell>

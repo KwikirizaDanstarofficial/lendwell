@@ -51,7 +51,7 @@ export function DeclineDialog({
         <DialogHeader>
           <DialogTitle>Decline Loan Application</DialogTitle>
           <DialogDescription>
-            Loan: {loan.loan_ref} · Member: {loan.member_name} · Amount: {formatUGX(loan.amount)}
+            Loan: {loan.loanRef} · Member: {loan.member_name} · Amount: {formatUGX(loan.amount)}
           </DialogDescription>
         </DialogHeader>
 

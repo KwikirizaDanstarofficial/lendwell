@@ -82,34 +82,36 @@ export function SavingsClient({
   const [lockFilter, setLockFilter] = useState<string | null>("all")
 
   const filtered = useMemo(() => {
+    if (!accounts || !Array.isArray(accounts)) return []
     return accounts.filter((a) => {
       const matchSearch =
-        a.member_name?.toLowerCase().includes(search.toLowerCase()) ||
-        a.account_number?.toLowerCase().includes(search.toLowerCase()) ||
-        a.member_code?.toLowerCase().includes(search.toLowerCase())
-      const matchType = typeFilter === "all" || a.account_type === typeFilter
+        a?.memberName?.toLowerCase().includes(search.toLowerCase()) ||
+        a?.accountNumber?.toLowerCase().includes(search.toLowerCase()) ||
+        a?.memberCode?.toLowerCase().includes(search.toLowerCase())
+      const matchType = typeFilter === "all" || a?.accountType === typeFilter
       const matchLock =
         lockFilter === "all" ||
-        (lockFilter === "locked" ? a.is_locked : !a.is_locked)
+        (lockFilter === "locked" ? a?.isLocked : !a?.isLocked)
       return matchSearch && matchType && matchLock
     })
   }, [accounts, search, typeFilter, lockFilter])
 
   // Top 8 savers for chart
   const topSaversData = useMemo(() => {
+    if (!accounts || !Array.isArray(accounts)) return []
     return [...accounts]
-      .sort((a, b) => b.balance - a.balance)
+      .sort((a, b) => (b?.balance ?? 0) - (a?.balance ?? 0))
       .slice(0, 8)
       .map((a) => ({
-        name: a.member_name?.split(" ")[0] ?? "—",
-        balance: a.balance / 100,
+        name: a?.member_name?.split(" ")[0] ?? "—",
+        balance: (a?.balance ?? 0) / 100,
       }))
   }, [accounts])
 
   // Account type pie
   const typeData = [
-    { label: "Regular", value: stats.regularAccounts, color: "#3b82f6" },
-    { label: "Fixed", value: stats.fixedAccounts, color: "#10b981" },
+    { label: "Regular", value: stats?.regularAccounts ?? 0, color: "#3b82f6" },
+    { label: "Fixed", value: stats?.fixedAccounts ?? 0, color: "#10b981" },
   ]
 
   const handleExport = async () => {
@@ -129,15 +131,15 @@ export function SavingsClient({
     ]
 
     const data = filtered.map((a) => ({
-      account_no: a.account_number,
+      account_no: a.accountNumber,
       member: a.member_name,
-      member_code: a.member_code,
+      member_code: a.memberCode,
       balance: a.balance / 100,
-      type: a.account_type,
-      status: a.is_locked ? "Locked" : "Active",
-      lock_until: a.lock_until ?? "",
+      type: a.accountType,
+      status: a.isLocked ? "Locked" : "Active",
+      lock_until: a.lockUntil ?? "",
       category: a.category_name ?? "",
-      opened: a.created_at ? new Date(a.created_at).toLocaleDateString() : "",
+      opened: a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "",
     }))
 
     worksheet.addRows(data)
@@ -163,7 +165,7 @@ export function SavingsClient({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Savings</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {stats.totalAccounts} savings accounts
+            {stats?.totalAccounts ?? 0} savings accounts
           </p>
         </div>
         <div className="flex gap-2">
@@ -183,42 +185,42 @@ export function SavingsClient({
         {[
           {
             title: "Total Savings",
-            value: formatUGX(stats.totalBalance),
+            value: formatUGX(stats?.totalBalance ?? 0),
             description: "All accounts",
             icon: PiggyBank,
             accentColor: "#10b981",
           },
           {
             title: "Total Accounts",
-            value: stats.totalAccounts,
+            value: stats?.totalAccounts ?? 0,
             description: "Savings accounts",
             icon: Users,
             accentColor: "#3b82f6",
           },
           {
             title: "Average Balance",
-            value: formatUGX(stats.avgBalance),
+            value: formatUGX(stats?.avgBalance ?? 0),
             description: "Per account",
             icon: TrendingUp,
             accentColor: "#a855f7",
           },
           {
             title: "Locked",
-            value: stats.lockedAccounts,
+            value: stats?.lockedAccounts ?? 0,
             description: "Locked accounts",
             icon: Lock,
             accentColor: "#f97316",
           },
           {
             title: "Regular",
-            value: stats.regularAccounts,
+            value: stats?.regularAccounts ?? 0,
             description: "Active accounts",
             icon: Unlock,
             accentColor: "#14b8a6",
           },
           {
             title: "Fixed",
-            value: stats.fixedAccounts,
+            value: stats?.fixedAccounts ?? 0,
             description: "Fixed deposits",
             icon: PiggyBank,
             accentColor: "#eab308",

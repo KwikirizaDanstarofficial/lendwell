@@ -1,20 +1,21 @@
 "use server"
 
-import { db } from "@/db"
-import {
-  transactions,
-  fines,
-  loans,
-  savingsAccounts,
-  members,
-} from "@/db/schema"
+import { supabaseAdmin } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function clearAllMemberDataAction() {
   try {
-    await db.delete(transactions).returning()
-    await db.delete(fines).returning()
-    await db.delete(loans).returning()
-    await db.delete(savingsAccounts).returning()
+    const user = await getCurrentUser()
+    if (!user || user.role !== "admin") {
+      return { success: false, error: "Not authorized." }
+    }
+
+    const saccoId = user.saccoId
+
+    await supabaseAdmin.from("transactions").delete().eq("sacco_id", saccoId)
+    await supabaseAdmin.from("fines").delete().eq("sacco_id", saccoId)
+    await supabaseAdmin.from("loans").delete().eq("sacco_id", saccoId)
+    await supabaseAdmin.from("savings_accounts").delete().eq("sacco_id", saccoId)
 
     return { success: true, message: "All member data cleared" }
   } catch (error) {

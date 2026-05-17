@@ -1,36 +1,59 @@
-import { db } from "@/db"
-import { documents, members } from "@/db/schema"
-import { eq, desc } from "drizzle-orm"
+import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllDocuments(saccoId: string) {
-  return await db
-    .select({
-      id: documents.id,
-      sacco_id: documents.sacco_id,
-      type: documents.type,
-      file_name: documents.file_name,
-      blob_url: documents.blob_url,
-      created_at: documents.created_at,
-      loan_id: documents.loan_id,
-      member_id: documents.member_id,
-      member_name: members.full_name,
-      member_code: members.member_code,
-      member_phone: members.phone,
-    })
-    .from(documents)
-    .leftJoin(members, eq(documents.member_id, members.id))
-    .where(eq(documents.sacco_id, saccoId))
-    .orderBy(desc(documents.created_at))
+  const { data, error } = await supabaseAdmin
+    .from('documents')
+    .select(`
+      id,
+      sacco_id,
+      type,
+      file_name,
+      blob_url,
+      created_at,
+      loan_id,
+      member_id,
+      members:member_id (
+        full_name,
+        member_code,
+        phone
+      )
+    `)
+    .eq('sacco_id', saccoId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to fetch documents: ${error.message}`)
+  }
+
+  return (data as any[]).map(document => ({
+    id: document.id,
+    saccoId: document.sacco_id,
+    type: document.type,
+    fileName: document.file_name,
+    blobUrl: document.blob_url,
+    createdAt: document.created_at,
+    loanId: document.loan_id,
+    memberId: document.member_id,
+    memberName: document.members?.full_name,
+    memberCode: document.members?.member_code,
+    memberPhone: document.members?.phone,
+  }))
 }
 
 export async function getMembersForDocuments(saccoId: string) {
-  return await db
-    .select({
-      id: members.id,
-      full_name: members.full_name,
-      member_code: members.member_code,
-    })
-    .from(members)
-    .where(eq(members.sacco_id, saccoId))
-    .orderBy(members.full_name)
+  const { data, error } = await supabaseAdmin
+    .from('members')
+    .select('id, full_name, member_code')
+    .eq('sacco_id', saccoId)
+    .order('full_name', { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to fetch members for documents: ${error.message}`)
+  }
+
+  return data.map(member => ({
+    id: member.id,
+    fullName: member.full_name,
+    memberCode: member.member_code,
+  }))
 }

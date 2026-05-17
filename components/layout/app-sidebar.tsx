@@ -154,13 +154,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const router = useRouter()
   const { state, isMobile } = useSidebar()
   const { theme } = useTheme()
-  const [logoSrc, setLogoSrc] = useState("/sacco-os-logo-dark.svg")
+  const [logoSrc, setLogoSrc] = useState("/lendwell-logo-dark.svg")
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
     setLogoSrc(
-      theme === "dark" ? "/sacco-os-logo-light.svg" : "/sacco-os-logo-dark.svg"
+      theme === "dark" ? "/lendwell-logo-primary.svg" : "/lendwell-logo-dark.svg"
     )
   }, [theme])
 
@@ -187,31 +187,22 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props} suppressHydrationWarning>
       {/* Logo */}
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="SaccoOS">
-              <Link
-                href="/dashboard"
-                className="flex w-full items-center gap-2"
-              >
-                {mounted ? (
-                  <img
-                    src={
-                      theme === "dark"
-                        ? "/sacco-os-logo-light.svg"
-                        : "/sacco-os-logo-dark.svg"
-                    }
-                    alt="SaccoOS"
-                    className="h-16 w-64 object-contain"
-                  />
-                ) : (
-                  <div className="h-16 w-64 animate-pulse rounded bg-muted" />
-                )}
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarHeader className="py-2">
+        <Link href="/dashboard" className="flex w-full items-center px-3">
+          {mounted ? (
+            <img
+              src={
+                theme === "dark"
+                  ? "/lendwell-logo-primary.svg"
+                  : "/lendwell-logo-dark.svg"
+              }
+              alt="Lendwell"
+              className="h-[77px] w-full object-contain"
+            />
+          ) : (
+            <div className="h-[77px] w-full animate-pulse rounded bg-muted" />
+          )}
+        </Link>
       </SidebarHeader>
 
       {/* Nav items */}

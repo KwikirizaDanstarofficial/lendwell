@@ -97,8 +97,7 @@ export default function InterestRatesPage() {
     const minInCents = minAmount * 100
     const maxInCents = maxAmount * 100
     const overlapping = rates.some(
-      (rate) =>
-        (minInCents < rate.max_amount && maxInCents > rate.min_amount)
+      (rate) => minInCents < rate.maxAmount && maxInCents > rate.minAmount
     )
 
     if (overlapping) {
@@ -109,10 +108,10 @@ export default function InterestRatesPage() {
     setLoading(true)
     try {
       const result = await addInterestRateAction({
-        min_amount: minAmount,
-        max_amount: maxAmount,
+        minAmount: minAmount,
+        maxAmount: maxAmount,
         rate: rate,
-        rate_type: formData.rate_type,
+        rateType: formData.rate_type,
       })
 
       if (result.error) {
@@ -162,8 +161,7 @@ export default function InterestRatesPage() {
     const minInCents = minAmount * 100
     const maxInCents = maxAmount * 100
     const overlapping = rates.some(
-      (r) =>
-        r.id !== id && (minInCents < r.max_amount && maxInCents > r.min_amount)
+      (r) => r.id !== id && minInCents < r.maxAmount && maxInCents > r.minAmount
     )
 
     if (overlapping) {
@@ -174,10 +172,10 @@ export default function InterestRatesPage() {
     setLoading(true)
     try {
       const result = await updateInterestRateAction(id, {
-        min_amount: minAmount,
-        max_amount: maxAmount,
+        minAmount: minAmount,
+        maxAmount: maxAmount,
         rate: rate,
-        rate_type: formData.rate_type,
+        rateType: formData.rate_type,
       })
 
       if (result.error) {
@@ -240,10 +238,10 @@ export default function InterestRatesPage() {
   const startEdit = (rate: any) => {
     setEditingId(rate.id)
     setFormData({
-      min_amount: (rate.min_amount / 100).toString(),
-      max_amount: (rate.max_amount / 100).toString(),
+      min_amount: (rate.minAmount / 100).toString(),
+      max_amount: (rate.maxAmount / 100).toString(),
       rate: rate.rate,
-      rate_type: rate.rate_type,
+      rate_type: rate.rateType,
     })
   }
 
@@ -276,7 +274,7 @@ export default function InterestRatesPage() {
 
   if (initialLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
@@ -293,11 +291,11 @@ export default function InterestRatesPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
               <TrendingUp className="h-6 w-6 text-green-600" />
               Interest Rate Configuration
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               Define interest rates based on loan amount ranges
             </p>
           </div>
@@ -305,10 +303,10 @@ export default function InterestRatesPage() {
       </div>
 
       {/* Info Card */}
-      <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+      <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
         <CardContent className="pt-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <AlertCircle className="mt-0.5 h-5 w-5 text-blue-600" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-blue-800 dark:text-blue-400">
                 How Interest Rates Work
@@ -316,8 +314,8 @@ export default function InterestRatesPage() {
               <p className="text-xs text-blue-700 dark:text-blue-300">
                 When a member applies for a loan, the system checks the loan
                 amount against these ranges and applies the corresponding
-                interest rate. Make sure the ranges do not overlap and cover
-                all possible loan amounts your SACCO offers.
+                interest rate. Make sure the ranges do not overlap and cover all
+                possible loan amounts your SACCO offers.
               </p>
             </div>
           </div>
@@ -331,7 +329,7 @@ export default function InterestRatesPage() {
           className="w-full sm:w-auto"
           disabled={loading}
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="mr-2 h-4 w-4" />
           Add Interest Rate Range
         </Button>
       )}
@@ -340,11 +338,11 @@ export default function InterestRatesPage() {
       {isAdding && (
         <Card className="border-green-200 bg-green-50/30 dark:bg-green-950/10">
           <CardContent className="pt-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <h3 className="mb-4 flex items-center gap-2 font-semibold">
               <Plus className="h-4 w-4 text-green-600" />
               Add New Interest Rate Range
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label className="text-sm font-medium">Min Amount (UGX)</Label>
                 <Input
@@ -356,7 +354,7 @@ export default function InterestRatesPage() {
                   }
                   className="mt-1"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Minimum loan amount
                 </p>
               </div>
@@ -371,7 +369,7 @@ export default function InterestRatesPage() {
                   }
                   className="mt-1"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Maximum loan amount
                 </p>
               </div>
@@ -387,7 +385,7 @@ export default function InterestRatesPage() {
                   }
                   className="mt-1"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Percentage per period
                 </p>
               </div>
@@ -408,17 +406,17 @@ export default function InterestRatesPage() {
                     <SelectItem value="annual">Annual Interest</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   How interest is calculated
                 </p>
               </div>
             </div>
-            <div className="flex gap-2 justify-end mt-4">
+            <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={cancelAdd} disabled={loading}>
                 Cancel
               </Button>
               <Button onClick={handleAdd} disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Add Rate Range
               </Button>
             </div>
@@ -428,7 +426,7 @@ export default function InterestRatesPage() {
 
       {/* Rates Table */}
       {rates.length > 0 ? (
-        <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-hidden rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -505,7 +503,7 @@ export default function InterestRatesPage() {
                         </Select>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
+                        <div className="flex justify-end gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -530,8 +528,8 @@ export default function InterestRatesPage() {
                     // View Mode
                     <>
                       <TableCell className="font-medium">
-                        {formatCurrency(rate.min_amount)} -{" "}
-                        {formatCurrency(rate.max_amount)}
+                        {formatCurrency(rate.minAmount)} -{" "}
+                        {formatCurrency(rate.maxAmount)}
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold text-green-600">
@@ -539,10 +537,10 @@ export default function InterestRatesPage() {
                         </span>
                       </TableCell>
                       <TableCell className="capitalize">
-                        {rate.rate_type}
+                        {rate.rateType}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -555,7 +553,11 @@ export default function InterestRatesPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() =>
-                              handleDelete(rate.id, rate.min_amount, rate.max_amount)
+                              handleDelete(
+                                rate.id,
+                                rate.minAmount,
+                                rate.maxAmount
+                              )
                             }
                             disabled={loading}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
@@ -572,12 +574,11 @@ export default function InterestRatesPage() {
           </Table>
         </div>
       ) : (
-        <div className="text-center py-12 text-muted-foreground border rounded-lg">
-          <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-30" />
+        <div className="rounded-lg border py-12 text-center text-muted-foreground">
+          <TrendingUp className="mx-auto mb-3 h-12 w-12 opacity-30" />
           <p className="text-lg font-medium">No interest rates configured</p>
-          <p className="text-sm mt-1">
-            Click "Add Interest Rate Range" to set up your first rate
-            tier.
+          <p className="mt-1 text-sm">
+            Click "Add Interest Rate Range" to set up your first rate tier.
           </p>
         </div>
       )}
@@ -589,14 +590,14 @@ export default function InterestRatesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Coverage Summary</p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {rates.length} rate tier{rates.length !== 1 ? "s" : ""}{" "}
                   configured
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-medium">Range Coverage</p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-xs text-muted-foreground">
                   From {formatCurrency(rates[0]?.min_amount || 0)} to{" "}
                   {formatCurrency(rates[rates.length - 1]?.max_amount || 0)}
                 </p>
