@@ -3,7 +3,7 @@
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { enqueueSmsMany } from "@/lib/notification-queue"
+import { enqueueSmsMany, processSmsBatch } from "@/lib/notification-queue"
 
 export type NotificationFormState = {
   success?: boolean
@@ -72,8 +72,18 @@ export async function sendNotificationAction(
           priority: priority || "normal",
         }))
       )
+      // Process immediately — no minute-cron on Hobby plan
+      let sent = 0
+      let failed = 0
+      while (true) {
+        const result = await processSmsBatch()
+        sent += result.sent
+        failed += result.failed
+        if (result.total < 50) break
+      }
+
       revalidatePath("/notifications")
-      return { success: true, queued: count }
+      return { success: true, queued: count, sent }
     }
 
     // In-app notifications: insert and mark sent immediately

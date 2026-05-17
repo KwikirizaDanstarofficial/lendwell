@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/server"
-import { enqueueSmsMany } from "@/lib/notification-queue"
+import { enqueueSmsMany, processSmsBatch } from "@/lib/notification-queue"
 import { smsTemplates } from "@/lib/sms"
 
 export const runtime = "nodejs"
-export const maxDuration = 30
+export const maxDuration = 60
 
 function dateStr(offsetDays: number): string {
   const d = new Date()
@@ -87,5 +87,17 @@ export async function GET(request: Request) {
 
   const { count } = await enqueueSmsMany(jobs)
   console.log(`[CRON:loan-reminders] queued ${count} reminders`)
-  return NextResponse.json({ queued: count })
+
+  // Drain the entire queue — process all pending SMS in batches of 50
+  let totalSent = 0
+  let totalFailed = 0
+  while (true) {
+    const result = await processSmsBatch()
+    totalSent += result.sent
+    totalFailed += result.failed
+    if (result.total < 50) break // last batch, queue is empty
+  }
+
+  console.log(`[CRON:loan-reminders] sent=${totalSent} failed=${totalFailed}`)
+  return NextResponse.json({ queued: count, sent: totalSent, failed: totalFailed })
 }
