@@ -21,21 +21,21 @@ import { formatUGX, formatDate } from "@/lib/utils/format"
 
 interface Loan {
   id: string
-  loan_ref: string
+  loanRef: string
   amount: number
-  expected_received: number
+  expectedReceived: number
   balance: number
-  interest_rate: string | null
-  interest_type: string | null
-  duration_months: number | null
-  monthly_payment: number | null
-  daily_payment: number | null
-  late_penalty_fee: number | null
-  due_date: string | null
+  interestRate: string | null
+  interestType: string | null
+  durationMonths: number | null
+  monthlyPayment: number | null
+  dailyPayment: number | null
+  latePenaltyFee: number | null
+  dueDate: string | Date | null
   status: string
-  created_at: Date | null
+  createdAt: Date | null
   notes: string | null
-  member_id: string
+  memberId: string
   member_name?: string
   member_code?: string
   member_phone?: string | null
@@ -99,22 +99,44 @@ export default function LoanContractPage() {
     try {
       const doc = (
         <LoanContractDocument
-          loan={loan}
+          loan={{
+            loanRef: loan.loanRef,
+            amount: loan.amount,
+            expectedReceived: loan.expectedReceived,
+            balance: loan.balance,
+            interestRate: loan.interestRate,
+            interestType: loan.interestType,
+            durationMonths: loan.durationMonths,
+            dailyPayment: loan.dailyPayment,
+            monthlyPayment: loan.monthlyPayment,
+            latePenaltyFee: loan.latePenaltyFee,
+            dueDate: loan.dueDate,
+            createdAt: loan.createdAt,
+            notes: loan.notes,
+          }}
           member={{
-            full_name: loan.member_name ?? "",
-            member_code: loan.member_code ?? "",
+            fullName: loan.member_name ?? "",
+            memberCode: loan.member_code ?? "",
             phone: loan.member_phone,
-            national_id: loan.member_national_id,
+            nationalId: loan.member_national_id,
             address: loan.member_address,
           }}
-          sacco={sacco}
+          sacco={{
+            name: sacco?.name ?? "SACCO",
+            address: sacco?.address,
+            phone: sacco?.contactPhone,
+            email: sacco?.contactEmail,
+            logoUrl: sacco?.logoUrl,
+            tagline: sacco?.tagline,
+            primaryColor: sacco?.primaryColor,
+          }}
         />
       )
       const blob = await pdf(doc).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${loan.loan_ref}-Contract.pdf`
+      a.download = `${loan.loanRef}-Contract.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("Loan contract downloaded")
@@ -158,15 +180,37 @@ export default function LoanContractPage() {
 
   const doc = (
     <LoanContractDocument
-      loan={loan}
+      loan={{
+        loanRef: loan.loanRef,
+        amount: loan.amount,
+        expectedReceived: loan.expectedReceived,
+        balance: loan.balance,
+        interestRate: loan.interestRate,
+        interestType: loan.interestType,
+        durationMonths: loan.durationMonths,
+        dailyPayment: loan.dailyPayment,
+        monthlyPayment: loan.monthlyPayment,
+        latePenaltyFee: loan.latePenaltyFee,
+        dueDate: loan.dueDate,
+        createdAt: loan.createdAt,
+        notes: loan.notes,
+      }}
       member={{
-        full_name: loan.member_name ?? "",
-        member_code: loan.member_code ?? "",
+        fullName: loan.member_name ?? "",
+        memberCode: loan.member_code ?? "",
         phone: loan.member_phone,
-        national_id: loan.member_national_id,
+        nationalId: loan.member_national_id,
         address: loan.member_address,
       }}
-      sacco={sacco}
+      sacco={{
+        name: sacco?.name ?? "SACCO",
+        address: sacco?.address,
+        phone: sacco?.contactPhone,
+        email: sacco?.contactEmail,
+        logoUrl: sacco?.logoUrl,
+        tagline: sacco?.tagline,
+        primaryColor: sacco?.primaryColor,
+      }}
     />
   )
 
@@ -220,7 +264,7 @@ export default function LoanContractPage() {
                 Loan Contract
               </p>
               <h1 className="font-mono text-lg font-bold tracking-tight text-foreground">
-                {loan.loan_ref}
+                {loan.loanRef}
               </h1>
             </div>
           </div>
@@ -251,10 +295,10 @@ export default function LoanContractPage() {
               {formatUGX(loan.amount)}
             </span>
 
-            {loan.due_date && (
+            {loan.dueDate && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
                 <Calendar className="h-3 w-3" />
-                Due {formatDate(loan.due_date)}
+                Due {formatDate(loan.dueDate)}
               </span>
             )}
           </div>

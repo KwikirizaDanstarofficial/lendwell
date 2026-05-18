@@ -99,7 +99,7 @@ export function LoansClient({
     return loans.filter((l) => {
       const matchSearch =
         l.loanRef?.toLowerCase().includes(search.toLowerCase()) ||
-        l.member_name?.toLowerCase().includes(search.toLowerCase()) ||
+        l.memberName?.toLowerCase().includes(search.toLowerCase()) ||
         l.memberCode?.toLowerCase().includes(search.toLowerCase())
       const matchStatus = statusFilter === "all" || l.status === statusFilter
       return matchSearch && matchStatus
@@ -175,7 +175,7 @@ export function LoansClient({
 
     const data = filtered.map((l) => ({
       loan_ref: l.loanRef,
-      member: l.member_name,
+      member: l.memberName,
       member_code: l.memberCode,
       amount: l.amount / 100,
       expected_received: l.expectedReceived / 100,

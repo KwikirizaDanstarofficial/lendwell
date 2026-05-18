@@ -1,4 +1,3 @@
-// app/(dashboard)/loans/components/loan-pdf-button.tsx
 "use client"
 
 import { useState } from "react"
@@ -15,39 +14,49 @@ export function LoanPdfButton({ loan }: { loan: any }) {
     e.preventDefault()
     setLoading(true)
     try {
-      // Fetch SACCO data
       const saccoResponse = await fetch("/api/settings")
-      let sacco
-      if (saccoResponse.ok) {
-        sacco = await saccoResponse.json()
-      } else {
-        // Fallback to basic SACCO info
-        sacco = {
-          name: "SACCO",
-          address: "Address not available",
-          contact_phone: "Phone not available",
-          contact_email: "Email not available",
-        }
-      }
+      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
 
       const doc = (
         <LoanContractDocument
-          loan={loan}
-          member={{
-            full_name: loan.member_name ?? "",
-            member_code: loan.memberCode ?? "",
-            phone: loan.member_phone,
-            national_id: loan.member_national_id,
-            address: loan.member_address,
+          loan={{
+            loanRef: loan.loanRef ?? loan.loan_ref ?? "",
+            amount: loan.amount ?? 0,
+            expectedReceived: loan.expectedReceived ?? loan.expected_received ?? 0,
+            balance: loan.balance ?? 0,
+            interestRate: loan.interestRate ?? loan.interest_rate ?? null,
+            interestType: loan.interestType ?? loan.interest_type ?? null,
+            durationMonths: loan.durationMonths ?? loan.duration_months ?? null,
+            dailyPayment: loan.dailyPayment ?? loan.daily_payment ?? null,
+            monthlyPayment: loan.monthlyPayment ?? loan.monthly_payment ?? null,
+            latePenaltyFee: loan.latePenaltyFee ?? loan.late_penalty_fee ?? null,
+            dueDate: loan.dueDate ?? loan.due_date ?? null,
+            createdAt: loan.createdAt ?? loan.created_at ?? null,
+            notes: loan.notes ?? null,
           }}
-          sacco={sacco}
+          member={{
+            fullName: loan.memberName ?? loan.member_name ?? "",
+            memberCode: loan.memberCode ?? loan.member_code ?? "",
+            phone: loan.memberPhone ?? loan.member_phone ?? null,
+            nationalId: loan.memberNationalId ?? loan.member_national_id ?? null,
+            address: loan.memberAddress ?? loan.member_address ?? null,
+          }}
+          sacco={{
+            name: rawSacco.name ?? "SACCO",
+            address: rawSacco.address,
+            phone: rawSacco.contactPhone,
+            email: rawSacco.contactEmail,
+            logoUrl: rawSacco.logoUrl,
+            tagline: rawSacco.tagline,
+            primaryColor: rawSacco.primaryColor,
+          }}
         />
       )
       const blob = await pdf(doc).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${loan.loanRef}-Contract.pdf`
+      a.download = `${loan.loanRef ?? loan.loan_ref ?? "loan"}-Contract.pdf`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("Loan contract downloaded")

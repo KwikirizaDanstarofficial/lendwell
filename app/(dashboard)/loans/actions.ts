@@ -185,23 +185,16 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
       return { error: "Failed to approve loan." }
     }
 
-    if (member?.phone) {
-      try {
-        await sendSms({
-          to: member.phone,
-          message: smsTemplates.loanApproved(
-            member.full_name,
-            loan.amount / 100,
-            member.member_code
-          ),
-        })
-      } catch (smsError) {
-        console.error("[Loan] SMS notification failed:", smsError)
-      }
+    // Auto-disburse immediately after approval
+    const disburseResult = await disburseLoanAction(id)
+    if (disburseResult.error) {
+      // Loan is approved but disburse failed — still a partial success
+      console.error("[Loan] Auto-disburse after approve failed:", disburseResult.error)
+      revalidatePath("/loans")
+      return { success: true }
     }
 
-    revalidatePath("/loans")
-    return { success: true }
+    return disburseResult
   } catch (err) {
     console.error(err)
     return { error: "Failed to approve loan." }

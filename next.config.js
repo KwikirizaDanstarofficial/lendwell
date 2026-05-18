@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 import withOffline from "next-pwa"
+import { withSentryConfig } from "@sentry/nextjs"
 
-export default withOffline({
+const nextConfig = withOffline({
   pwa: {
     dest: "public",
     register: true,
@@ -72,5 +73,17 @@ export default withOffline({
         permanent: true,
       },
     ]
+  },
+})
+
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  webpack: {
+    treeshake: { removeDebugLogging: true },
+    automaticVercelMonitors: true,
   },
 })

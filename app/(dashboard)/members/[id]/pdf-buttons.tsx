@@ -40,16 +40,18 @@ export function PdfButtons({ member }: PdfButtonsProps) {
   const downloadIdCard = async () => {
     setLoadingId(true)
     try {
-      // Fetch SACCO data
       const saccoResponse = await fetch("/api/settings")
-      let saccoName = "SACCO"
-      if (saccoResponse.ok) {
-        const sacco = await saccoResponse.json()
-        saccoName = sacco.name || "SACCO"
-      }
+      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
 
       const doc = (
-        <MemberIdCardDocument member={member} sacco={{ name: saccoName }} />
+        <MemberIdCardDocument
+          member={member}
+          sacco={{
+            name: rawSacco.name ?? "SACCO",
+            logoUrl: rawSacco.logoUrl,
+            primaryColor: rawSacco.primaryColor,
+          }}
+        />
       )
       const blob = await pdf(doc).toBlob()
       const url = URL.createObjectURL(blob)
@@ -75,13 +77,7 @@ export function PdfButtons({ member }: PdfButtonsProps) {
       if (saccoResponse.ok) {
         sacco = await saccoResponse.json()
       } else {
-        // Fallback to basic SACCO info
-        sacco = {
-          name: "SACCO",
-          address: "Address not available",
-          contact_phone: "Phone not available",
-          contact_email: "Email not available",
-        }
+        sacco = { name: "SACCO" }
       }
 
       const doc = (
@@ -90,11 +86,11 @@ export function PdfButtons({ member }: PdfButtonsProps) {
           sacco={{
             name: sacco.name,
             address: sacco.address,
-            contact_phone: sacco.contactPhone,
-            contact_email: sacco.contactEmail,
-            logo_url: sacco.logoUrl,
+            contactPhone: sacco.contactPhone,
+            contactEmail: sacco.contactEmail,
+            logoUrl: sacco.logoUrl,
             tagline: sacco.tagline,
-            primary_color: sacco.primaryColor,
+            primaryColor: sacco.primaryColor,
           }}
         />
       )

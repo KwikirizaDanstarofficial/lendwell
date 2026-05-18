@@ -4,19 +4,22 @@ import { SaccoHeader } from "./sacco-header"
 const styles = StyleSheet.create({
   page: {
     padding: 40,
+    paddingBottom: 56,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Times-Roman",
     color: "#111827",
   },
   title: {
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontFamily: "Times-Bold",
     textAlign: "center",
     marginBottom: 4,
     color: "#111827",
+    letterSpacing: 0.3,
   },
   subtitle: {
     fontSize: 9,
+    fontFamily: "Times-Italic",
     textAlign: "center",
     color: "#6b7280",
     marginBottom: 20,
@@ -26,13 +29,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 10,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
     color: "#16a34a",
     borderBottomWidth: 1,
     borderBottomColor: "#d1fae5",
     paddingBottom: 4,
     marginBottom: 10,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   row: {
     flexDirection: "row",
@@ -44,12 +48,14 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 8,
+    fontFamily: "Times-Roman",
     color: "#6b7280",
     marginBottom: 2,
     textTransform: "uppercase",
   },
   fieldValue: {
     fontSize: 10,
+    fontFamily: "Times-Roman",
     color: "#111827",
     borderBottomWidth: 1,
     borderBottomColor: "#d1d5db",
@@ -58,6 +64,7 @@ const styles = StyleSheet.create({
   },
   fieldEmpty: {
     fontSize: 10,
+    fontFamily: "Times-Roman",
     color: "#d1d5db",
     borderBottomWidth: 1,
     borderBottomColor: "#d1d5db",
@@ -76,6 +83,7 @@ const styles = StyleSheet.create({
   },
   photoLabel: {
     fontSize: 7,
+    fontFamily: "Times-Roman",
     color: "#9ca3af",
     textAlign: "center",
   },
@@ -96,6 +104,7 @@ const styles = StyleSheet.create({
   },
   signatureLabel: {
     fontSize: 8,
+    fontFamily: "Times-Roman",
     color: "#6b7280",
     textAlign: "center",
   },
@@ -108,9 +117,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   declarationText: {
-    fontSize: 8,
+    fontSize: 9,
+    fontFamily: "Times-Roman",
     color: "#374151",
-    lineHeight: 1.6,
+    lineHeight: 1.8,
+    textAlign: "justify",
   },
   confirmBox: {
     flexDirection: "row",
@@ -127,7 +138,8 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     flex: 1,
-    fontSize: 8,
+    fontSize: 9,
+    fontFamily: "Times-Roman",
     color: "#374151",
   },
   footer: {
@@ -143,6 +155,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 7,
+    fontFamily: "Times-Roman",
     color: "#9ca3af",
   },
   officialBox: {
@@ -155,9 +168,10 @@ const styles = StyleSheet.create({
   },
   officialTitle: {
     fontSize: 9,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
     color: "#15803d",
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
 })
 
@@ -178,10 +192,14 @@ interface ApplicationFormProps {
   sacco: {
     name: string
     address?: string
+    contactPhone?: string
     contact_phone?: string
+    contactEmail?: string
     contact_email?: string
+    logoUrl?: string
     logo_url?: string
     tagline?: string
+    primaryColor?: string
     primary_color?: string
   }
 }
@@ -203,7 +221,7 @@ export function ApplicationFormDocument({
   member,
   sacco,
 }: ApplicationFormProps) {
-  const primaryColor = sacco.primary_color || "#16a34a"
+  const primaryColor = sacco.primaryColor ?? sacco.primary_color ?? "#16a34a"
 
   const dynamicStyles = StyleSheet.create({
     sectionTitle: {
@@ -229,11 +247,11 @@ export function ApplicationFormDocument({
         <SaccoHeader
           name={sacco.name}
           address={sacco.address}
-          phone={sacco.contact_phone}
-          email={sacco.contact_email}
-          logoUrl={sacco.logo_url}
+          phone={sacco.contactPhone ?? sacco.contact_phone}
+          email={sacco.contactEmail ?? sacco.contact_email}
+          logoUrl={sacco.logoUrl ?? sacco.logo_url}
           tagline={sacco.tagline}
-          primaryColor={sacco.primary_color}
+          primaryColor={sacco.primaryColor ?? sacco.primary_color}
         />
 
         {/* Title */}

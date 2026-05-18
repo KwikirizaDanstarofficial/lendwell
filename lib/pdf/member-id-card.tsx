@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer"
 
+// CR80 card: 85.6mm x 53.98mm → 243pt x 153pt at 72dpi
 const styles = StyleSheet.create({
   page: {
     padding: 0,
@@ -18,76 +19,133 @@ const styles = StyleSheet.create({
     width: 243,
     height: 153,
     backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
     borderRadius: 8,
     overflow: "hidden",
+    position: "relative",
+  },
+  // Decorative background circles
+  bgCircle1: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    right: -30,
+    top: -40,
+    opacity: 0.08,
+  },
+  bgCircle2: {
+    position: "absolute",
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    right: 20,
+    bottom: 15,
+    opacity: 0.06,
   },
   header: {
-    backgroundColor: "#16a34a",
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+  logoContainer: {
+    width: 26,
+    height: 26,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginRight: 6,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: {
+    width: 26,
+    height: 26,
+  },
+  logoInitial: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   headerText: {
     color: "#ffffff",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "bold",
   },
   headerSub: {
-    color: "#d1fae5",
-    fontSize: 7,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 6,
+    marginTop: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  statusText: {
+    color: "#ffffff",
+    fontSize: 6,
+    fontWeight: "bold",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   body: {
     flexDirection: "row",
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
     flex: 1,
   },
   photoContainer: {
-    width: 55,
-    height: 55,
-    borderRadius: 4,
+    width: 52,
+    height: 62,
+    borderRadius: 5,
     overflow: "hidden",
     marginRight: 10,
-    backgroundColor: "#f3f4f6",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.6)",
   },
   photo: {
-    width: 55,
-    height: 55,
+    width: 52,
+    height: 62,
   },
   photoPlaceholder: {
-    width: 55,
-    height: 55,
-    backgroundColor: "#16a34a",
+    width: 52,
+    height: 62,
     justifyContent: "center",
     alignItems: "center",
   },
   photoInitials: {
     color: "#ffffff",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
   },
   info: {
     flex: 1,
   },
   name: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "bold",
     color: "#111827",
-    marginBottom: 3,
+    marginBottom: 5,
   },
   row: {
     flexDirection: "row",
-    marginBottom: 2,
+    marginBottom: 2.5,
+    alignItems: "center",
   },
   label: {
-    fontSize: 7,
-    color: "#6b7280",
-    width: 45,
+    fontSize: 6,
+    color: "#9ca3af",
+    width: 42,
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
   },
   value: {
     fontSize: 7,
@@ -95,36 +153,47 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     flex: 1,
   },
+  divider: {
+    height: 1,
+    backgroundColor: "#f3f4f6",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  signatureArea: {
+    marginTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: "#d1d5db",
+    paddingTop: 2,
+    width: 65,
+  },
+  signatureLabel: {
+    fontSize: 5.5,
+    color: "#9ca3af",
+    textAlign: "center",
+  },
   footer: {
-    backgroundColor: "#f9fafb",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
     paddingHorizontal: 12,
     paddingVertical: 5,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
   },
   footerText: {
-    fontSize: 6,
-    color: "#6b7280",
+    fontSize: 5.5,
+    color: "#9ca3af",
+  },
+  memberCodeBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 3,
   },
   memberCode: {
     fontSize: 7,
-    color: "#16a34a",
     fontWeight: "bold",
-  },
-  signatureBox: {
-    borderTopWidth: 1,
-    borderTopColor: "#9ca3af",
-    marginTop: 8,
-    paddingTop: 2,
-    width: 70,
-  },
-  signatureLabel: {
-    fontSize: 6,
-    color: "#6b7280",
-    textAlign: "center",
+    color: "#ffffff",
+    letterSpacing: 0.3,
   },
 })
 
@@ -142,35 +211,72 @@ interface MemberIdCardProps {
   sacco: {
     name: string
     logoUrl?: string
+    primaryColor?: string
   }
 }
 
 export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
+  const primary = sacco.primaryColor ?? "#16a34a"
+
   return (
     <Document>
       <Page size={{ width: 243, height: 153 }} style={styles.page}>
         <View style={styles.card}>
+          {/* Background decorative circles */}
+          <View
+            style={[styles.bgCircle1, { backgroundColor: primary }]}
+          />
+          <View
+            style={[styles.bgCircle2, { backgroundColor: primary }]}
+          />
+
           {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.headerText}>{sacco.name}</Text>
-              <Text style={styles.headerSub}>Member Identity Card</Text>
+          <View style={[styles.header, { backgroundColor: primary }]}>
+            <View style={styles.headerLeft}>
+              <View style={styles.logoContainer}>
+                {sacco.logoUrl ? (
+                  <Image src={sacco.logoUrl} style={styles.logo} />
+                ) : (
+                  <Text style={styles.logoInitial}>
+                    {sacco.name.slice(0, 1).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View>
+                <Text style={styles.headerText}>{sacco.name}</Text>
+                <Text style={styles.headerSub}>Member Identity Card</Text>
+              </View>
             </View>
-            <Text style={{ color: "#d1fae5", fontSize: 7 }}>
-              {member.status.toUpperCase()}
-            </Text>
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>{member.status}</Text>
+            </View>
           </View>
 
           {/* Body */}
           <View style={styles.body}>
             {/* Photo */}
-            <View style={styles.photoContainer}>
+            <View
+              style={[
+                styles.photoContainer,
+                { borderColor: `${primary}40` },
+              ]}
+            >
               {member.photoUrl ? (
                 <Image src={member.photoUrl} style={styles.photo} />
               ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoInitials}>
-                    {member.fullName.slice(0, 2).toUpperCase()}
+                <View
+                  style={[
+                    styles.photoPlaceholder,
+                    { backgroundColor: `${primary}20` },
+                  ]}
+                >
+                  <Text style={[styles.photoInitials, { color: primary }]}>
+                    {member.fullName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
                   </Text>
                 </View>
               )}
@@ -180,22 +286,20 @@ export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
             <View style={styles.info}>
               <Text style={styles.name}>{member.fullName}</Text>
               <View style={styles.row}>
-                <Text style={styles.label}>Code:</Text>
-                <Text style={styles.value}>{member.memberCode}</Text>
+                <Text style={styles.label}>Code</Text>
+                <Text style={[styles.value, { color: primary }]}>
+                  {member.memberCode}
+                </Text>
               </View>
               <View style={styles.row}>
-                <Text style={styles.label}>Phone:</Text>
+                <Text style={styles.label}>Phone</Text>
                 <Text style={styles.value}>{member.phone ?? "—"}</Text>
               </View>
               <View style={styles.row}>
-                <Text style={styles.label}>ID No:</Text>
+                <Text style={styles.label}>ID No</Text>
                 <Text style={styles.value}>{member.nationalId ?? "—"}</Text>
               </View>
-              <View style={styles.row}>
-                <Text style={styles.label}>Address:</Text>
-                <Text style={styles.value}>{member.address ?? "—"}</Text>
-              </View>
-              <View style={styles.signatureBox}>
+              <View style={styles.signatureArea}>
                 <Text style={styles.signatureLabel}>Member Signature</Text>
               </View>
             </View>
@@ -206,11 +310,22 @@ export function MemberIdCardDocument({ member, sacco }: MemberIdCardProps) {
             <Text style={styles.footerText}>
               Joined:{" "}
               {member.joinedAt
-                ? new Date(member.joinedAt).toLocaleDateString()
+                ? new Date(member.joinedAt).toLocaleDateString("en-UG", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
                 : "—"}
             </Text>
-            <Text style={styles.memberCode}>{member.memberCode}</Text>
-            <Text style={styles.footerText}>Valid · {sacco.name}</Text>
+            <View
+              style={[
+                styles.memberCodeBadge,
+                { backgroundColor: primary },
+              ]}
+            >
+              <Text style={styles.memberCode}>{member.memberCode}</Text>
+            </View>
+            <Text style={styles.footerText}>{sacco.name}</Text>
           </View>
         </View>
       </Page>

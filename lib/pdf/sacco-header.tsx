@@ -26,26 +26,28 @@ const styles = StyleSheet.create({
   logoText: {
     color: "#ffffff",
     fontSize: 24,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
   },
   saccoInfo: {
     flex: 1,
   },
   saccoName: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontFamily: "Times-Bold",
     color: "#111827",
+    letterSpacing: 0.3,
   },
   saccoDetails: {
     fontSize: 9,
+    fontFamily: "Times-Roman",
     color: "#6b7280",
     marginTop: 2,
   },
   tagline: {
-    fontSize: 8,
+    fontSize: 9,
+    fontFamily: "Times-Italic",
     color: "#16a34a",
-    marginTop: 2,
-    fontStyle: "italic",
+    marginTop: 3,
   },
 })
 

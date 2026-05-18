@@ -9,7 +9,7 @@ export async function getAllLoans(saccoId: string) {
       decline_reason, notes, created_at, updated_at,
       interest_rate_id, expected_received, interest_type,
       duration_months, late_penalty_fee, daily_payment, monthly_payment,
-      members:member_id ( full_name, member_code )
+      members:member_id ( full_name, member_code, phone, national_id, address )
     `)
     .eq('sacco_id', saccoId)
     .order('created_at', { ascending: false })
@@ -43,8 +43,12 @@ export async function getAllLoans(saccoId: string) {
     latePenaltyFee: loan.late_penalty_fee,
     dailyPayment: loan.daily_payment,
     monthlyPayment: loan.monthly_payment,
-    memberName: (loan.members as { full_name?: string } | null)?.full_name,
-    memberCode: (loan.members as { member_code?: string } | null)?.member_code,
+    memberName: (loan.members as any)?.full_name ?? null,
+    member_name: (loan.members as any)?.full_name ?? null,
+    memberCode: (loan.members as any)?.member_code ?? null,
+    memberPhone: (loan.members as any)?.phone ?? null,
+    memberNationalId: (loan.members as any)?.national_id ?? null,
+    memberAddress: (loan.members as any)?.address ?? null,
   }))
 }
 

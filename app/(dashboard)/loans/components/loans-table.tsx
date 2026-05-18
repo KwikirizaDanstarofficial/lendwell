@@ -93,11 +93,11 @@ export function LoansTable({ loans }: { loans: any[] }) {
       ),
     },
     {
-      accessorKey: "member_name",
+      accessorKey: "memberName",
       header: "Member",
       cell: ({ row }) => (
         <div>
-          <p className="font-medium">{row.original.member_name}</p>
+          <p className="font-medium">{row.original.memberName}</p>
           <p className="font-mono text-xs text-muted-foreground">
             {row.original.memberCode}
           </p>
@@ -189,13 +189,13 @@ export function LoansTable({ loans }: { loans: any[] }) {
                     onClick={async (e) => {
                       e.stopPropagation()
                       const res = await approveLoanAction(loan.id)
-                      if (res.success) toast.success("Loan approved")
+                      if (res.success) toast.success("Loan approved & disbursed")
                       else toast.error(res.error)
                     }}
                     className="text-green-600"
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    Approve Loan
+                    Approve & Disburse
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={(e) => {

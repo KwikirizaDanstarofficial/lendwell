@@ -1,21 +1,25 @@
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
 import { SaccoHeader } from "./sacco-header"
+import { BarChart, LineChart } from "./charts"
 
 const styles = StyleSheet.create({
   page: {
     padding: 36,
+    paddingBottom: 48,
     fontSize: 9,
-    fontFamily: "Helvetica",
+    fontFamily: "Times-Roman",
     color: "#111827",
   },
   title: {
-    fontSize: 13,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontFamily: "Times-Bold",
     textAlign: "center",
     marginBottom: 2,
+    letterSpacing: 0.3,
   },
   subtitle: {
     fontSize: 8,
+    fontFamily: "Times-Italic",
     textAlign: "center",
     color: "#6b7280",
     marginBottom: 16,
@@ -36,25 +40,27 @@ const styles = StyleSheet.create({
   },
   kpiLabel: {
     fontSize: 7,
+    fontFamily: "Times-Roman",
     color: "#6b7280",
     marginBottom: 2,
     textAlign: "center",
   },
   kpiValue: {
     fontSize: 11,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
     color: "#15803d",
     textAlign: "center",
   },
   sectionTitle: {
     fontSize: 9,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
     color: "#16a34a",
     borderBottomWidth: 1,
     borderBottomColor: "#d1fae5",
     paddingBottom: 3,
     marginBottom: 8,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   tableHeader: {
     flexDirection: "row",
@@ -66,7 +72,7 @@ const styles = StyleSheet.create({
   tableHeaderText: {
     color: "#ffffff",
     fontSize: 7,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
     flex: 1,
   },
   tableRow: {
@@ -84,6 +90,7 @@ const styles = StyleSheet.create({
   },
   tableCell: {
     fontSize: 8,
+    fontFamily: "Times-Roman",
     color: "#374151",
     flex: 1,
   },
@@ -92,7 +99,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 3,
     fontSize: 7,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
   },
   footer: {
     position: "absolute",
@@ -107,6 +114,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 6,
+    fontFamily: "Times-Roman",
     color: "#9ca3af",
   },
   section: {
@@ -126,13 +134,27 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 7,
+    fontFamily: "Times-Roman",
     color: "#6b7280",
     marginBottom: 2,
   },
   summaryValue: {
     fontSize: 10,
-    fontWeight: "bold",
+    fontFamily: "Times-Bold",
     color: "#111827",
+  },
+  chartRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  chartBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 4,
+    padding: 6,
+    backgroundColor: "#fafafa",
   },
 })
 
@@ -167,11 +189,80 @@ export function ReportDocument({
   members = [],
   fines = [],
   transactions = [],
-  complaints = [],
-  notifications = [],
+  complaints: _complaints = [],
+  notifications: _notifications = [],
   sacco,
   dateRange,
 }: ReportDocumentProps) {
+  const primaryColor = sacco?.primaryColor ?? sacco?.primary_color ?? "#16a34a"
+
+  // ── Chart data derivations ────────────────────────────────────────────────
+
+  // Loan status counts
+  const loanStatusCounts = loans.reduce<Record<string, number>>((acc, l) => {
+    const s: string = l.status ?? "unknown"
+    acc[s] = (acc[s] ?? 0) + 1
+    return acc
+  }, {})
+  const loanStatusData = Object.entries(loanStatusCounts).map(([label, value]) => ({ label, value }))
+
+  // Financial overview (amounts in UGX, not cents)
+  const financialsData = [
+    { label: "Disbursed", value: Math.round((stats.totalLoansAmount ?? 0) / 100) },
+    { label: "Outstanding", value: Math.round((stats.activeLoansAmount ?? 0) / 100) },
+    { label: "Savings", value: Math.round((stats.totalSavings ?? 0) / 100) },
+    { label: "Fines", value: Math.round((stats.pendingFines ?? 0) / 100) },
+  ].filter((d) => d.value > 0)
+
+  // Monthly loan disbursements (last 8 months)
+  const monthlyLoans = (() => {
+    const map: Record<string, number> = {}
+    loans.forEach((l) => {
+      const d = new Date(l.createdAt ?? l.created_at)
+      if (isNaN(d.getTime())) return
+      const key = d.toLocaleDateString("en-UG", { month: "short", year: "2-digit" })
+      map[key] = (map[key] ?? 0) + 1
+    })
+    return Object.entries(map).slice(-8).map(([label, value]) => ({ label, value }))
+  })()
+
+  // Top savers
+  const topSaversData = [...savings]
+    .sort((a, b) => (b.balance ?? 0) - (a.balance ?? 0))
+    .slice(0, 8)
+    .map((s) => ({
+      label: ((s.member_name ?? s.memberName ?? "—") as string).split(" ")[0],
+      value: Math.round((s.balance ?? 0) / 100),
+    }))
+
+  // Member status breakdown
+  const memberStatusData = Object.entries(
+    members.reduce<Record<string, number>>((acc, m) => {
+      const s: string = m.status ?? "unknown"
+      acc[s] = (acc[s] ?? 0) + 1
+      return acc
+    }, {})
+  ).map(([label, value]) => ({ label, value }))
+
+  // Fines by status
+  const fineStatusData = [
+    { label: "Pending", value: Math.round((stats.pendingFines ?? 0) / 100) },
+    {
+      label: "Collected",
+      value: Math.round(((stats.totalFines ?? 0) - (stats.pendingFines ?? 0)) / 100),
+    },
+  ].filter((d) => d.value > 0)
+
+  // Transaction amounts by type
+  const txTypeData = (() => {
+    const map: Record<string, number> = {}
+    transactions.forEach((t) => {
+      const key: string = (t.type ?? "other").replace(/_/g, " ")
+      map[key] = (map[key] ?? 0) + Math.round((t.amount ?? 0) / 100)
+    })
+    return Object.entries(map).map(([label, value]): { label: string; value: number } => ({ label, value }))
+  })()
+
   const titles: Record<string, string> = {
     overview: "SACCO Overview Report",
     loans: "Loans Report",
@@ -187,11 +278,11 @@ export function ReportDocument({
         <SaccoHeader
           name={sacco.name}
           address={sacco.address}
-          phone={sacco.contact_phone}
-          email={sacco.contact_email}
-          logoUrl={sacco.logo_url}
+          phone={sacco.contactPhone ?? sacco.contact_phone}
+          email={sacco.contactEmail ?? sacco.contact_email}
+          logoUrl={sacco.logoUrl ?? sacco.logo_url}
           tagline={sacco.tagline}
-          primaryColor={sacco.primary_color}
+          primaryColor={sacco.primaryColor ?? sacco.primary_color}
         />
 
         <Text style={styles.title}>{titles[type]}</Text>
@@ -251,6 +342,28 @@ export function ReportDocument({
               </View>
             </View>
 
+            {/* Charts */}
+            <View style={styles.chartRow}>
+              <View style={styles.chartBox}>
+                <BarChart
+                  data={loanStatusData}
+                  width={245}
+                  height={130}
+                  color={primaryColor}
+                  title="Loan Status Distribution"
+                />
+              </View>
+              <View style={styles.chartBox}>
+                <BarChart
+                  data={financialsData}
+                  width={245}
+                  height={130}
+                  color="#3b82f6"
+                  title="Financial Overview (UGX)"
+                />
+              </View>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Recent Loans</Text>
               <View style={styles.tableHeader}>
@@ -270,7 +383,7 @@ export function ReportDocument({
                   <Text style={styles.tableCell}>{formatUGX(l.amount)}</Text>
                   <Text style={styles.tableCell}>{l.status}</Text>
                   <Text style={styles.tableCell}>
-                    {formatDate(l.created_at)}
+                    {formatDate(l.createdAt ?? l.created_at)}
                   </Text>
                 </View>
               ))}
@@ -326,6 +439,39 @@ export function ReportDocument({
                 <Text style={styles.kpiValue}>{stats.settledLoansCount}</Text>
               </View>
             </View>
+
+            {/* Charts */}
+            <View style={styles.chartRow}>
+              <View style={styles.chartBox}>
+                <BarChart
+                  data={loanStatusData}
+                  width={245}
+                  height={130}
+                  color={primaryColor}
+                  title="Loans by Status"
+                />
+              </View>
+              <View style={styles.chartBox}>
+                {monthlyLoans.length >= 2 ? (
+                  <LineChart
+                    data={monthlyLoans}
+                    width={245}
+                    height={130}
+                    color="#8b5cf6"
+                    title="Monthly Disbursements (count)"
+                  />
+                ) : (
+                  <BarChart
+                    data={monthlyLoans.length ? monthlyLoans : loanStatusData}
+                    width={245}
+                    height={130}
+                    color="#8b5cf6"
+                    title="Monthly Disbursements (count)"
+                  />
+                )}
+              </View>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>All Loans</Text>
               <View style={styles.tableHeader}>
@@ -382,6 +528,20 @@ export function ReportDocument({
                 </Text>
               </View>
             </View>
+
+            {/* Chart */}
+            {topSaversData.length > 0 && (
+              <View style={[styles.chartBox, { marginBottom: 16 }]}>
+                <BarChart
+                  data={topSaversData}
+                  width={511}
+                  height={130}
+                  color={primaryColor}
+                  title="Top Savers by Balance (UGX)"
+                />
+              </View>
+            )}
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Savings Accounts</Text>
               <View style={styles.tableHeader}>
@@ -405,7 +565,7 @@ export function ReportDocument({
                     {s.is_locked ? "Locked" : "Active"}
                   </Text>
                   <Text style={styles.tableCell}>
-                    {formatDate(s.created_at)}
+                    {formatDate(s.createdAt ?? s.created_at)}
                   </Text>
                 </View>
               ))}
@@ -432,6 +592,20 @@ export function ReportDocument({
                 </Text>
               </View>
             </View>
+
+            {/* Chart */}
+            {memberStatusData.length > 0 && (
+              <View style={[styles.chartBox, { marginBottom: 16 }]}>
+                <BarChart
+                  data={memberStatusData}
+                  width={511}
+                  height={110}
+                  color={primaryColor}
+                  title="Members by Status"
+                />
+              </View>
+            )}
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Members List</Text>
               <View style={styles.tableHeader}>
@@ -447,13 +621,13 @@ export function ReportDocument({
                   key={m.id}
                   style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}
                 >
-                  <Text style={styles.tableCell}>{m.member_code}</Text>
-                  <Text style={styles.tableCell}>{m.full_name}</Text>
+                  <Text style={styles.tableCell}>{m.memberCode ?? m.member_code}</Text>
+                  <Text style={styles.tableCell}>{m.fullName ?? m.full_name}</Text>
                   <Text style={styles.tableCell}>{m.phone ?? "—"}</Text>
-                  <Text style={styles.tableCell}>{m.national_id ?? "—"}</Text>
+                  <Text style={styles.tableCell}>{m.nationalId ?? m.national_id ?? "—"}</Text>
                   <Text style={styles.tableCell}>{m.status}</Text>
                   <Text style={styles.tableCell}>
-                    {formatDate(m.joined_at)}
+                    {formatDate(m.joinedAt ?? m.joined_at)}
                   </Text>
                 </View>
               ))}
@@ -482,6 +656,20 @@ export function ReportDocument({
                 <Text style={styles.kpiValue}>{stats.finesCount}</Text>
               </View>
             </View>
+
+            {/* Chart */}
+            {fineStatusData.length > 0 && (
+              <View style={[styles.chartBox, { marginBottom: 16 }]}>
+                <BarChart
+                  data={fineStatusData}
+                  width={511}
+                  height={110}
+                  color="#ef4444"
+                  title="Fines Overview (UGX)"
+                />
+              </View>
+            )}
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Fines List</Text>
               <View style={styles.tableHeader}>
@@ -503,7 +691,7 @@ export function ReportDocument({
                   <Text style={styles.tableCell}>{f.reason ?? "—"}</Text>
                   <Text style={styles.tableCell}>{f.status}</Text>
                   <Text style={styles.tableCell}>
-                    {formatDate(f.created_at)}
+                    {formatDate(f.createdAt ?? f.created_at)}
                   </Text>
                 </View>
               ))}
@@ -513,37 +701,50 @@ export function ReportDocument({
 
         {/* TRANSACTIONS */}
         {type === "transactions" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Transaction Ledger</Text>
-            <View style={styles.tableHeader}>
-              <Text style={styles.tableHeaderText}>Member</Text>
-              <Text style={styles.tableHeaderText}>Type</Text>
-              <Text style={styles.tableHeaderText}>Amount</Text>
-              <Text style={styles.tableHeaderText}>Method</Text>
-              <Text style={styles.tableHeaderText}>Narration</Text>
-              <Text style={styles.tableHeaderText}>Date</Text>
-            </View>
-            {transactions.map((t, i) => (
-              <View
-                key={t.id}
-                style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}
-              >
-                <Text style={styles.tableCell}>{t.member_name ?? "—"}</Text>
-                <Text style={styles.tableCell}>
-                  {t.type?.replace(/_/g, " ")}
-                </Text>
-                <Text style={styles.tableCell}>{formatUGX(t.amount)}</Text>
-                <Text style={styles.tableCell}>{t.payment_method ?? "—"}</Text>
-                <Text style={styles.tableCell}>{t.narration ?? "—"}</Text>
-                <Text style={styles.tableCell}>{formatDate(t.created_at)}</Text>
+          <>
+            {txTypeData.length > 0 && (
+              <View style={[styles.chartBox, { marginBottom: 16 }]}>
+                <BarChart
+                  data={txTypeData}
+                  width={511}
+                  height={130}
+                  color="#3b82f6"
+                  title="Transaction Amounts by Type (UGX)"
+                />
               </View>
-            ))}
-          </View>
+            )}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Transaction Ledger</Text>
+              <View style={styles.tableHeader}>
+                <Text style={styles.tableHeaderText}>Member</Text>
+                <Text style={styles.tableHeaderText}>Type</Text>
+                <Text style={styles.tableHeaderText}>Amount</Text>
+                <Text style={styles.tableHeaderText}>Method</Text>
+                <Text style={styles.tableHeaderText}>Narration</Text>
+                <Text style={styles.tableHeaderText}>Date</Text>
+              </View>
+              {transactions.map((t, i) => (
+                <View
+                  key={t.id}
+                  style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}
+                >
+                  <Text style={styles.tableCell}>{t.member_name ?? "—"}</Text>
+                  <Text style={styles.tableCell}>
+                    {t.type?.replace(/_/g, " ")}
+                  </Text>
+                  <Text style={styles.tableCell}>{formatUGX(t.amount)}</Text>
+                  <Text style={styles.tableCell}>{t.payment_method ?? "—"}</Text>
+                  <Text style={styles.tableCell}>{t.narration ?? "—"}</Text>
+                  <Text style={styles.tableCell}>{formatDate(t.createdAt ?? t.created_at)}</Text>
+                </View>
+              ))}
+            </View>
+          </>
         )}
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            {sacco.name} · {titles[type]}
+            {sacco?.name} · {titles[type]}
           </Text>
           <Text style={styles.footerText}>Confidential</Text>
           <Text style={styles.footerText}>

@@ -185,7 +185,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   }
 
   return (
-    <Sidebar collapsible="icon" {...props} suppressHydrationWarning>
+    <Sidebar collapsible="icon" {...props} suppressHydrationWarning id="tour-sidebar">
       {/* Logo */}
       <SidebarHeader className="py-2">
         <Link href="/dashboard" className="flex w-full items-center px-3">
@@ -208,7 +208,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       {/* Nav items */}
       <SidebarContent suppressHydrationWarning>
         {filteredGroups.map((group) => (
-          <SidebarGroup key={group.label} suppressHydrationWarning>
+          <SidebarGroup
+            key={group.label}
+            suppressHydrationWarning
+            id={`tour-nav-${group.label.toLowerCase()}`}
+          >
             <SidebarGroupLabel suppressHydrationWarning>
               {mounted ? (
                 group.label
@@ -257,6 +261,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                   size="lg"
                   tooltip="Account"
                   className="cursor-pointer"
+                  id="tour-user-menu"
                 >
                   <Avatar className="h-8 w-8 rounded-lg">
                     <AvatarFallback className="rounded-lg bg-primary/10 text-sm font-semibold text-primary">
