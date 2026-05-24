@@ -1,7 +1,7 @@
 "use server"
 
 import { supabaseAdmin } from "@/lib/supabase/server"
-import { SupabaseStorage, STORAGE_BUCKETS } from "@/lib/supabase/storage"
+import { STORAGE_BUCKETS } from "@/lib/supabase/storage"
 import { revalidatePath } from "next/cache"
 import { generateMemberCode, generateMemberCodes } from "@/lib/member-code"
 import { sendSms, smsTemplates } from "@/lib/sms"
@@ -58,6 +58,18 @@ export type MemberFormState = {
 
 // ─── Photo Upload Helper ───────────────────────────────────────────────────────
 
+async function ensureAvatarsBucket() {
+  const { data: buckets } = await supabaseAdmin.storage.listBuckets()
+  const exists = buckets?.some((b) => b.name === STORAGE_BUCKETS.AVATARS)
+  if (!exists) {
+    await supabaseAdmin.storage.createBucket(STORAGE_BUCKETS.AVATARS, {
+      public: true,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+      fileSizeLimit: 5 * 1024 * 1024,
+    })
+  }
+}
+
 async function uploadMemberPhoto(
   photoFile: File,
   saccoId: string,
@@ -70,17 +82,25 @@ async function uploadMemberPhoto(
     }
 
     if (photoFile.size > 5 * 1024 * 1024) {
-      // 5MB limit
       throw new Error("Image must be less than 5MB")
     }
+
+    await ensureAvatarsBucket()
 
     const ext = photoFile.name.split(".").pop() || "jpg"
     const filename = `${saccoId}/${memberCode}/photo-${Date.now()}.${ext}`
 
-    await SupabaseStorage.uploadFile(STORAGE_BUCKETS.AVATARS, photoFile, filename)
-    const publicUrl = await SupabaseStorage.getPublicUrl(STORAGE_BUCKETS.AVATARS, filename)
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKETS.AVATARS)
+      .upload(filename, photoFile, { upsert: true })
 
-    return publicUrl
+    if (uploadError) throw new Error(uploadError.message)
+
+    const { data } = supabaseAdmin.storage
+      .from(STORAGE_BUCKETS.AVATARS)
+      .getPublicUrl(filename)
+
+    return data.publicUrl
   } catch (error) {
     console.error("Photo upload failed:", error)
     return null
