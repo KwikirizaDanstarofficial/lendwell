@@ -124,7 +124,11 @@ export async function addMemberAction(
       date_of_birth: formData.get("date_of_birth") as string,
       address: formData.get("address") as string,
       next_of_kin: formData.get("next_of_kin") as string,
+      next_of_kin_relationship: formData.get(
+        "next_of_kin_relationship"
+      ) as string,
       next_of_kin_phone: formData.get("next_of_kin_phone") as string,
+      next_of_kin_address: formData.get("next_of_kin_address") as string,
       status: (formData.get("status") as string) || "active",
       photo_url: photo_url || undefined,
     }
@@ -187,11 +191,6 @@ export async function editMemberAction(
     const user = await getCurrentUser()
     if (!user) {
       return { error: "Unauthorized" }
-    }
-
-    // Only admin can edit members
-    if (user.role !== "admin") {
-      return { error: "You don't have permission to edit members" }
     }
 
     // Only admin can edit members
