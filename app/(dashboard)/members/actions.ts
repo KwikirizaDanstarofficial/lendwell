@@ -162,7 +162,7 @@ export async function addMemberAction(
 
     if (insertError) {
       console.error('Supabase insert error:', insertError)
-      return { error: "Failed to add member. Please try again." }
+      return { error: insertError.message || "Failed to add member. Please try again." }
     }
 
     if (parsed.data.phone) {
