@@ -38,8 +38,19 @@ import {
   ArrowUpDown,
   Banknote,
   PiggyBank,
+  Loader2,
 } from "lucide-react"
 import { formatDate } from "@/lib/utils/format"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type Member = {
   id: string
@@ -80,6 +91,18 @@ interface MembersTableProps {
 export function MembersTable({ members }: MembersTableProps) {
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!memberToDelete) return
+    setDeleting(true)
+    const res = await deleteMemberAction(memberToDelete.id)
+    setDeleting(false)
+    setMemberToDelete(null)
+    if (res.success) toast.success("Member removed")
+    else toast.error(res.error)
+  }
 
   const columns: ColumnDef<Member>[] = [
     {
@@ -186,11 +209,9 @@ export function MembersTable({ members }: MembersTableProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={async (e) => {
+              onClick={(e) => {
                 e.stopPropagation()
-                const res = await deleteMemberAction(row.original.id)
-                if (res.success) toast.success("Member removed")
-                else toast.error(res.error)
+                setMemberToDelete(row.original)
               }}
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -227,7 +248,43 @@ export function MembersTable({ members }: MembersTableProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      <AlertDialog
+        open={!!memberToDelete}
+        onOpenChange={(open) => { if (!open) setMemberToDelete(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {memberToDelete?.fullName}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this member and all their associated
+              data including loans, savings, fines, and transactions. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                "Yes, Delete Member"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="space-y-4">
       <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
@@ -263,5 +320,6 @@ export function MembersTable({ members }: MembersTableProps) {
       </div>
       <DataTablePagination table={table} />
     </div>
+    </>
   )
 }

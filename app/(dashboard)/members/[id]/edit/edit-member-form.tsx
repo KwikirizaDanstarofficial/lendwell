@@ -19,7 +19,7 @@ type Member = {
   phone: string | null
   nationalId: string | null
   photoUrl: string | null
-  dateOfBirth: Date | null
+  dateOfBirth: string | null
   address: string | null
   nextOfKin: string | null
   nextOfKinPhone: string | null
@@ -364,7 +364,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               id="date_of_birth"
               name="date_of_birth"
               type="date"
-              defaultValue={member.dateOfBirth ? member.dateOfBirth.toISOString().split("T")[0] : ""}
+              defaultValue={member.dateOfBirth ?? ""}
               className={inputClass}
             />
           </Field>
