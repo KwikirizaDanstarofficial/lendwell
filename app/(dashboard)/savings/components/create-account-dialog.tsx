@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Loader2, PiggyBank } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 export function CreateAccountDialog({
   open,
@@ -62,35 +63,32 @@ export function CreateAccountDialog({
         <form action={formAction} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Member *</Label>
-            <Select name="member_id">
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select member" />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.fullName} · {m.memberCode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              name="member_id"
+              required
+              placeholder="Select member"
+              searchPlaceholder="Search by name or code..."
+              options={members.map((m) => ({
+                value: m.id,
+                label: m.fullName,
+                sub: m.memberCode,
+              }))}
+            />
           </div>
 
           {categories.length > 0 && (
             <div className="space-y-1.5">
               <Label>Savings Category</Label>
-              <Select name="category_id">
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} {c.interestRate ? `(${c.interestRate}% interest)` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                name="category_id"
+                placeholder="Select category (optional)"
+                searchPlaceholder="Search category..."
+                options={categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  sub: c.interestRate ? `${c.interestRate}% interest` : undefined,
+                }))}
+              />
             </div>
           )}
 

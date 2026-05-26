@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Loader2, Send } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 const initialState: { success?: boolean; error?: string; sent?: number } = {}
 
@@ -50,18 +51,16 @@ export function SendNotificationForm({ members }: { members: any[] }) {
       {/* Member Selection (conditional) */}
       <div className="space-y-1.5">
         <Label>Select Member</Label>
-        <Select name="member_id">
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Choose a member" />
-          </SelectTrigger>
-          <SelectContent>
-            {members.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.fullName} · {m.memberCode}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          name="member_id"
+          placeholder="Choose a member"
+          searchPlaceholder="Search by name or code..."
+          options={members.map((m: any) => ({
+            value: m.id,
+            label: m.full_name,
+            sub: m.member_code,
+          }))}
+        />
       </div>
 
       {/* Title */}

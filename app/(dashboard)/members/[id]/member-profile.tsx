@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Image from "next/image"
 import { pdf } from "@react-pdf/renderer"
 import { formatUGX, formatDate } from "@/lib/utils/format"
@@ -23,6 +24,7 @@ import {
   MoreVertical,
   ArrowUpRight,
   ArrowDownLeft,
+  ArrowLeft,
   CheckCircle,
   XCircle,
   Clock,
@@ -163,6 +165,7 @@ type Transaction = {
 }
 import { MemberIdCardDocument } from "@/lib/pdf/member-id-card"
 import { ApplicationFormDocument } from "@/lib/pdf/application-form"
+import { MemberTransactionsDocument } from "@/lib/pdf/member-transactions"
 
 interface MemberProfileProps {
   member: Member
@@ -192,6 +195,7 @@ export function MemberProfile({
   const [isLoading, setIsLoading] = useState(false)
   const [loadingId, setLoadingId] = useState(false)
   const [loadingForm, setLoadingForm] = useState(false)
+  const [loadingTx, setLoadingTx] = useState(false)
   const [showSmsDialog, setShowSmsDialog] = useState(false)
   const [showLoanDialog, setShowLoanDialog] = useState(false)
   const [showSavingsDialog, setShowSavingsDialog] = useState(false)
@@ -266,6 +270,41 @@ export function MemberProfile({
       toast.error("Failed to generate Application Form")
     } finally {
       setLoadingForm(false)
+    }
+  }
+
+  const downloadTransactions = async () => {
+    setLoadingTx(true)
+    try {
+      const saccoResponse = await fetch("/api/settings")
+      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
+      const doc = (
+        <MemberTransactionsDocument
+          member={member}
+          transactions={transactions}
+          sacco={{
+            name: rawSacco.name,
+            address: rawSacco.address,
+            contactPhone: rawSacco.contactPhone,
+            contactEmail: rawSacco.contactEmail,
+            logoUrl: rawSacco.logoUrl,
+            tagline: rawSacco.tagline,
+            primaryColor: rawSacco.primaryColor,
+          }}
+        />
+      )
+      const blob = await pdf(doc).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${member.memberCode}-Transactions.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success("Transaction statement downloaded")
+    } catch {
+      toast.error("Failed to generate transaction statement")
+    } finally {
+      setLoadingTx(false)
     }
   }
 
@@ -474,39 +513,119 @@ export function MemberProfile({
     }
   }
 
+  // ── small helpers (inline, no separate component needed) ──────────────────
+  const InfoItem = ({
+    label,
+    value,
+    accent,
+  }: {
+    label: string
+    value: React.ReactNode
+    accent?: "green" | "orange" | "red" | "blue"
+  }) => {
+    const color =
+      accent === "green"
+        ? "text-green-600 dark:text-green-400"
+        : accent === "orange"
+          ? "text-orange-500 dark:text-orange-400"
+          : accent === "red"
+            ? "text-red-500 dark:text-red-400"
+            : accent === "blue"
+              ? "text-blue-600 dark:text-blue-400"
+              : "text-foreground"
+    return (
+      <div className="flex flex-col gap-0.5">
+        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+          {label}
+        </p>
+        <p className={`text-sm font-semibold ${color}`}>{value}</p>
+      </div>
+    )
+  }
+
+  const SectionHeader = ({
+    icon: Icon,
+    title,
+  }: {
+    icon: React.ElementType
+    title: string
+  }) => (
+    <div className="mb-5 flex items-center gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <h2 className="text-sm font-semibold tracking-widest text-foreground uppercase">
+        {title}
+      </h2>
+    </div>
+  )
+
+  const StatTile = ({
+    label,
+    value,
+    accent,
+  }: {
+    label: string
+    value: string
+    accent: "green" | "blue" | "orange" | "purple"
+  }) => {
+    const ring =
+      accent === "green"
+        ? "border-green-200 dark:border-green-800"
+        : accent === "blue"
+          ? "border-blue-200 dark:border-blue-800"
+          : accent === "orange"
+            ? "border-orange-200 dark:border-orange-800"
+            : "border-purple-200 dark:border-purple-800"
+    const text =
+      accent === "green"
+        ? "text-green-600 dark:text-green-400"
+        : accent === "blue"
+          ? "text-blue-600 dark:text-blue-400"
+          : accent === "orange"
+            ? "text-orange-500 dark:text-orange-400"
+            : "text-purple-600 dark:text-purple-400"
+    return (
+      <div
+        className={`rounded-xl border ${ring} flex flex-col gap-1 bg-background px-4 py-3`}
+      >
+        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+          {label}
+        </p>
+        <p className={`text-lg font-bold ${text}`}>{value}</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="mx-auto max-w-4xl space-y-4">
+      {/* ── Page header: back + actions ── */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-primary/10">
-            {member.photoUrl && !imageError ? (
-              <Image
-                src={member.photoUrl}
-                alt={`${member.fullName} photo`}
-                width={64}
-                height={64}
-                className="h-full w-full object-cover"
-                unoptimized
-                onError={() => setImageError(true)}
-              />
-            ) : (
-              <User className="h-8 w-8 text-primary" />
-            )}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">{member.fullName}</h1>
-            <p className="text-muted-foreground">{member.memberCode}</p>
-          </div>
-        </div>
+        <Link href="/members">
+          <button className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Members
+          </button>
+        </Link>
         <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(member.status)}>
-            {member.status}
-          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadTransactions}
+            disabled={loadingTx || transactions.length === 0}
+          >
+            {loadingTx ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Receipt className="mr-2 h-4 w-4" />
+            )}
+            {loadingTx ? "Generating…" : "Print Transactions"}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="outline" size="sm" className="gap-2">
                 <MoreVertical className="h-4 w-4" />
+                Actions
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -520,7 +639,7 @@ export function MemberProfile({
                 ) : (
                   <CreditCard className="mr-2 h-4 w-4" />
                 )}
-                {loadingId ? "Generating..." : "Generate ID Card"}
+                {loadingId ? "Generating…" : "Generate ID Card"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={downloadApplicationForm}
@@ -531,7 +650,7 @@ export function MemberProfile({
                 ) : (
                   <FileText className="mr-2 h-4 w-4" />
                 )}
-                {loadingForm ? "Generating..." : "Application Form"}
+                {loadingForm ? "Generating…" : "Application Form"}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleStatusChange("active")}>
                 <CheckCircle className="mr-2 h-4 w-4" />
@@ -550,120 +669,130 @@ export function MemberProfile({
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Savings</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatUGX(stats.totalSavings)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatUGX(stats.totalLoans)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Fines</CardTitle>
-            <Flag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatUGX(stats.totalFines)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalTransactions}</div>
-          </CardContent>
-        </Card>
+      {/* ── Hero bar ── */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
+            {member.photoUrl && !imageError ? (
+              <Image
+                src={member.photoUrl}
+                alt={`${member.fullName} photo`}
+                width={64}
+                height={64}
+                className="h-full w-full object-cover"
+                unoptimized
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <User className="h-8 w-8 text-muted-foreground" />
+            )}
+          </div>
+          <div>
+            <p className="mb-0.5 text-xs font-medium tracking-widest text-muted-foreground uppercase">
+              Member Code
+            </p>
+            <h1 className="font-mono text-xl font-bold text-foreground">
+              {member.memberCode}
+            </h1>
+            <p className="text-base font-semibold text-foreground">
+              {member.fullName}
+            </p>
+          </div>
+        </div>
+        <Badge className={`${getStatusColor(member.status)} px-3 py-1 text-sm capitalize`}>
+          {member.status}
+        </Badge>
       </div>
 
-      {/* Member Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Member Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>{member.phone || "No phone"}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span>{member.email || "No email"}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{member.address || "No address"}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span>Joined {formatDate(member.createdAt)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Next of Kin */}
-      {(member.nextOfKin ||
-        member.nextOfKinRelationship ||
-        member.nextOfKinPhone ||
-        member.nextOfKinAddress) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Next of Kin</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {member.nextOfKin && (
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.nextOfKin}</span>
-                </div>
-              )}
-              {member.nextOfKinRelationship && (
-                <div className="flex items-center gap-2">
-                  <UserCheck className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.nextOfKinRelationship}</span>
-                </div>
-              )}
-              {member.nextOfKinPhone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.nextOfKinPhone}</span>
-                </div>
-              )}
-              {member.nextOfKinAddress && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.nextOfKinAddress}</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* ── Suspended / exited banner ── */}
+      {(member.status === "suspended" || member.status === "exited") && (
+        <div className="flex items-start gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">
+            This member&apos;s account is <strong>{member.status}</strong>.
+            Update status from the Actions menu to reactivate.
+          </p>
+        </div>
       )}
 
-      {/* Tabs */}
+      {/* ── Stat tiles ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile
+          label="Total Savings"
+          value={formatUGX(stats.totalSavings)}
+          accent="green"
+        />
+        <StatTile
+          label="Active Loans"
+          value={formatUGX(stats.totalLoans)}
+          accent="blue"
+        />
+        <StatTile
+          label="Total Fines"
+          value={formatUGX(stats.totalFines)}
+          accent="orange"
+        />
+        <StatTile
+          label="Transactions"
+          value={String(stats.totalTransactions)}
+          accent="purple"
+        />
+      </div>
+
+      {/* ── Two-col: Member Details + Next of Kin ── */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Member Details */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <SectionHeader icon={User} title="Member Details" />
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <InfoItem label="Phone" value={member.phone || "—"} />
+            <InfoItem label="Email" value={member.email || "—"} />
+            <InfoItem label="National ID" value={member.nationalId || "—"} />
+            <InfoItem
+              label="Date of Birth"
+              value={
+                member.dateOfBirth ? formatDate(member.dateOfBirth) : "—"
+              }
+            />
+            <InfoItem
+              label="Address"
+              value={member.address || "—"}
+            />
+            <InfoItem label="Joined" value={formatDate(member.joinedAt)} />
+          </div>
+        </div>
+
+        {/* Next of Kin */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <SectionHeader icon={UserCheck} title="Next of Kin" />
+          {member.nextOfKin ||
+          member.nextOfKinRelationship ||
+          member.nextOfKinPhone ||
+          member.nextOfKinAddress ? (
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <InfoItem label="Name" value={member.nextOfKin || "—"} />
+              <InfoItem
+                label="Relationship"
+                value={member.nextOfKinRelationship || "—"}
+              />
+              <InfoItem
+                label="Phone"
+                value={member.nextOfKinPhone || "—"}
+              />
+              <InfoItem
+                label="Address"
+                value={member.nextOfKinAddress || "—"}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No next of kin recorded.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
       <Tabs defaultValue="loans" className="space-y-4">
         <TabsList>
           <TabsTrigger value="loans">Loans</TabsTrigger>
@@ -688,47 +817,106 @@ export function MemberProfile({
             </Card>
           ) : (
             <div className="space-y-4">
-              {loans.map((loan) => (
-                <Card key={loan.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        {getLoanStatusIcon(loan.status)}
-                        <div>
-                          <p className="font-medium">{loan.loanRef}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(loan.createdAt)}
-                          </p>
-                        </div>
+              {loans.map((loan) => {
+                const repaid = loan.expectedReceived - loan.balance
+                const progress = loan.expectedReceived > 0
+                  ? Math.min(100, Math.round((repaid / loan.expectedReceived) * 100))
+                  : 0
+                return (
+                  <div
+                    key={loan.id}
+                    className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4"
+                  >
+                    {/* Header row */}
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase mb-0.5">
+                          Loan Reference
+                        </p>
+                        <p className="font-mono text-base font-bold text-foreground">
+                          {loan.loanRef}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {(loan.status === "active" ||
-                          loan.status === "disbursed") && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedLoan(loan)
-                              setShowTopUpDialog(true)
-                            }}
-                          >
-                            <Plus className="mr-1 h-3 w-3" />
-                            Top Up
-                          </Button>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Badge className={getStatusColor(loan.status)}>
+                          {loan.status}
+                        </Badge>
+                        {(loan.status === "active" || loan.status === "disbursed") && (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-green-500 transition-all"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-semibold text-foreground">
+                                {progress}%
+                              </span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedLoan(loan)
+                                setShowTopUpDialog(true)
+                              }}
+                            >
+                              <Plus className="mr-1 h-3 w-3" />
+                              Top Up
+                            </Button>
+                          </>
                         )}
-                        <div className="text-right">
-                          <p className="font-medium">
-                            {formatUGX(loan.amount)}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Balance: {formatUGX(loan.balance)}
-                          </p>
-                        </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                    {/* Info grid */}
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Principal</p>
+                        <p className="text-sm font-semibold text-foreground">{formatUGX(loan.amount)}</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Total to Repay</p>
+                        <p className="text-sm font-semibold text-green-600 dark:text-green-400">{formatUGX(loan.expectedReceived)}</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Balance</p>
+                        <p className="text-sm font-semibold text-orange-500 dark:text-orange-400">{formatUGX(loan.balance)}</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Interest</p>
+                        <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                          {loan.interestRate}% · {loan.interestType}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Duration</p>
+                        <p className="text-sm font-semibold text-foreground">{loan.durationMonths} months</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Due Date</p>
+                        <p className="text-sm font-semibold text-foreground">{formatDate(loan.dueDate)}</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Daily Payment</p>
+                        <p className="text-sm font-semibold text-foreground">{formatUGX(loan.dailyPayment)}</p>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Monthly Payment</p>
+                        <p className="text-sm font-semibold text-foreground">{formatUGX(loan.monthlyPayment)}</p>
+                      </div>
+                    </div>
+
+                    {loan.declineReason && (
+                      <div className="flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                        <p className="text-sm text-destructive">{loan.declineReason}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </TabsContent>

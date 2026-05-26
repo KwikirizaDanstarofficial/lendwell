@@ -376,8 +376,8 @@ export function AddMemberForm() {
       <div className="mb-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <SectionHeader
           step={3}
-          title="Next of Kin"
-          description="Optional emergency contact information."
+          title="Next of Kin or Guarantor"
+          description="Optional emergency contact or guarantor information."
         />
 
         <FieldGroup>

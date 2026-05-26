@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Upload, FileText, Image, X, Loader2, CheckCircle } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 const initialState: DocumentFormState = {}
 
@@ -125,22 +126,19 @@ export function UploadDialog({
           {/* Member Select */}
           <div className="space-y-1.5">
             <Label>Member *</Label>
-            <Select
-              value={memberId}
-              onValueChange={(value) => setMemberId(value ?? "")}
+            <SearchableSelect
               name="member_id"
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select member" />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.full_name} · {m.member_code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+              value={memberId}
+              onChange={(value) => setMemberId(value)}
+              placeholder="Select member"
+              searchPlaceholder="Search by name or code..."
+              options={members.map((m) => ({
+                value: m.id,
+                label: m.full_name,
+                sub: m.member_code,
+              }))}
+            />
           </div>
 
           {/* Document Type */}

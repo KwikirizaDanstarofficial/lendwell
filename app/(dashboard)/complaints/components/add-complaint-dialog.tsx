@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Loader2, MessageSquare } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 const initialState: ComplaintFormState = {}
 
@@ -72,18 +73,16 @@ export function AddComplaintDialog({
           {/* Member */}
           <div className="space-y-1.5">
             <Label>Member (Optional)</Label>
-            <Select name="member_id">
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select member or leave anonymous" />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.full_name} · {m.member_code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              name="member_id"
+              placeholder="Select member or leave anonymous"
+              searchPlaceholder="Search by name, code, or phone..."
+              options={members.map((m) => ({
+                value: m.id,
+                label: m.full_name,
+                sub: m.member_code,
+              }))}
+            />
           </div>
 
           {/* Subject */}

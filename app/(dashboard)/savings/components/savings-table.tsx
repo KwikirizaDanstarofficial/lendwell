@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   ColumnDef,
   flexRender,
@@ -66,12 +67,12 @@ export function SavingsTable({
   accounts: any[]
   activeLoans: any[]
 }) {
+  const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [depositAccount, setDepositAccount] = useState<any>(null)
   const [withdrawAccount, setWithdrawAccount] = useState<any>(null)
   const [lockAccount, setLockAccount] = useState<any>(null)
   const [trimAccount, setTrimAccount] = useState<any>(null)
-  const [detailAccount, setDetailAccount] = useState<any>(null)
   const [deleteAccount, setDeleteAccount] = useState<any>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -212,11 +213,11 @@ export function SavingsTable({
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    setDetailAccount(account)
+                    router.push(`/savings/${account.id}`)
                   }}
                 >
                   <Eye className="mr-2 h-4 w-4" />
-                  View Timesheet
+                  View Details
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
@@ -352,7 +353,7 @@ export function SavingsTable({
               <TableRow
                 key={row.id}
                 className="cursor-pointer hover:bg-muted/30"
-                onClick={() => setDetailAccount(row.original)}
+                onClick={() => router.push(`/savings/${row.original.id}`)}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
@@ -397,14 +398,6 @@ export function SavingsTable({
           onClose={() => setTrimAccount(null)}
         />
       )}
-      {detailAccount && (
-        <AccountDetailDialog
-          account={detailAccount}
-          open={!!detailAccount}
-          onClose={() => setDetailAccount(null)}
-        />
-      )}
-
       <AlertDialog
         open={!!deleteAccount}
         onOpenChange={() => setDeleteAccount(null)}

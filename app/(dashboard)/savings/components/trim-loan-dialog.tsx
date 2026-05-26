@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { formatUGX } from "@/lib/utils/format"
 import { Loader2, Scissors } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 export function TrimLoanDialog({
   account,
@@ -79,24 +80,21 @@ export function TrimLoanDialog({
 
           <div className="space-y-1.5">
             <Label>Select Loan *</Label>
-            <Select
+            <SearchableSelect
               name="loan_id"
-              onValueChange={(val) => {
+              required
+              placeholder="Select active loan"
+              searchPlaceholder="Search by loan reference..."
+              onChange={(val) => {
                 const loan = loans.find((l) => l.id === val)
                 setSelectedLoan(loan)
               }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select active loan" />
-              </SelectTrigger>
-              <SelectContent>
-                {loans.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.loanRef} · {formatUGX(l.balance)} remaining
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={loans.map((l) => ({
+                value: l.id,
+                label: l.loanRef,
+                sub: `${formatUGX(l.balance)} remaining`,
+              }))}
+            />
           </div>
 
           <div className="space-y-1.5">

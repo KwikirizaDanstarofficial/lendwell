@@ -20,8 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
 import { Loader2, AlertCircle } from "lucide-react"
 import { formatUGX } from "@/lib/utils/format"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 export function AddFineDialog({
   open,
@@ -63,18 +65,17 @@ export function AddFineDialog({
           {/* Member */}
           <div className="space-y-1.5">
             <Label>Member *</Label>
-            <Select name="member_id" required>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select member" />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.fullName} · {m.memberCode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              name="member_id"
+              required
+              placeholder="Select member"
+              searchPlaceholder="Search by name or code..."
+              options={members.map((m) => ({
+                value: m.id,
+                label: m.full_name,
+                sub: m.member_code,
+              }))}
+            />
             {fieldError("member_id") && (
               <p className="text-sm text-destructive">
                 {fieldError("member_id")}
@@ -86,21 +87,16 @@ export function AddFineDialog({
           {categories.length > 0 && (
             <div className="space-y-1.5">
               <Label>Fine Category</Label>
-              <Select name="category_id">
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select category (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                      {c.defaultAmount > 0
-                        ? ` — ${formatUGX(c.defaultAmount)}`
-                        : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                name="category_id"
+                placeholder="Select category (optional)"
+                searchPlaceholder="Search category..."
+                options={categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  sub: c.defaultAmount > 0 ? formatUGX(c.defaultAmount) : undefined,
+                }))}
+              />
             </div>
           )}
 
