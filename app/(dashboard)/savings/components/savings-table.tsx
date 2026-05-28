@@ -271,7 +271,7 @@ export function SavingsTable({
         <LockDialog account={lockAccount} open={!!lockAccount} onClose={() => setLockAccount(null)} />
       )}
       {trimAccount && (
-        <TrimLoanDialog account={trimAccount} open={!!trimAccount} onClose={() => setTrimAccount(null)} activeLoans={activeLoans} />
+        <TrimLoanDialog account={trimAccount} open={!!trimAccount} onClose={() => setTrimAccount(null)} loans={activeLoans} />
       )}
     </>
   )

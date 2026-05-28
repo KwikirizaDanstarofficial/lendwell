@@ -136,6 +136,7 @@ export function LoginForm({ className, branches = [], branchCode }: LoginFormPro
   const searchParams = useSearchParams()
   const redirect = searchParams.get("redirect") ?? "/dashboard"
   const hasBranches = branches.length > 0
+  const [tab, setTab] = useState<"main" | "branch">("main")
 
   // If a branch code is forced (branch-specific login page), skip tab UI
   if (branchCode) {
@@ -158,8 +159,6 @@ export function LoginForm({ className, branches = [], branchCode }: LoginFormPro
       </div>
     )
   }
-
-  const [tab, setTab] = useState<"main" | "branch">("main")
 
   return (
     <div className={cn("flex flex-col gap-6", className)}>

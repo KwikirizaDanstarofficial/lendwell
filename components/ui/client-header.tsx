@@ -105,7 +105,7 @@ export function ClientHeader({ user }: ClientHeaderProps) {
             <>
               {resolvedTheme === "light" && <Sun className="h-5 w-5" />}
               {resolvedTheme === "dark" && <Moon className="h-5 w-5" />}
-              {(!resolvedTheme || resolvedTheme === "system") && (
+              {!resolvedTheme && (
                 <Monitor className="h-5 w-5" />
               )}
             </>
