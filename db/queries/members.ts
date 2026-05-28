@@ -1,18 +1,39 @@
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllMembers(saccoId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('members')
-    .select('*')
-    .eq('sacco_id', saccoId)
-    .order('created_at', { ascending: true })
-    .limit(1000)
+  const [membersRes, savingsRes, loansRes] = await Promise.all([
+    supabaseAdmin
+      .from('members')
+      .select('*')
+      .eq('sacco_id', saccoId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1000),
+    supabaseAdmin
+      .from('savings_accounts')
+      .select('member_id, balance')
+      .eq('sacco_id', saccoId),
+    supabaseAdmin
+      .from('loans')
+      .select('member_id, balance')
+      .eq('sacco_id', saccoId)
+      .in('status', ['active', 'disbursed']),
+  ])
 
-  if (error) {
-    throw new Error(`Failed to fetch members: ${error.message}`)
+  if (membersRes.error) throw new Error(`Failed to fetch members: ${membersRes.error.message}`)
+
+  // Build per-member aggregates
+  const savingsMap: Record<string, number> = {}
+  for (const s of savingsRes.data ?? []) {
+    savingsMap[s.member_id] = (savingsMap[s.member_id] ?? 0) + (s.balance ?? 0)
   }
 
-  return data.map(member => ({
+  const loansMap: Record<string, number> = {}
+  for (const l of loansRes.data ?? []) {
+    loansMap[l.member_id] = (loansMap[l.member_id] ?? 0) + (l.balance ?? 0)
+  }
+
+  return membersRes.data.map(member => ({
     id: member.id,
     saccoId: member.sacco_id,
     memberCode: member.member_code,
@@ -31,6 +52,8 @@ export async function getAllMembers(saccoId: string) {
     joinedAt: new Date(member.joined_at),
     createdAt: new Date(member.created_at),
     updatedAt: new Date(member.updated_at),
+    totalSavings: savingsMap[member.id] ?? 0,
+    totalLoans: loansMap[member.id] ?? 0,
   }))
 }
 

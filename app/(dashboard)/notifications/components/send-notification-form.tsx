@@ -32,100 +32,89 @@ export function SendNotificationForm({ members }: { members: any[] }) {
   }, [state])
 
   return (
-    <form action={formAction} className="space-y-4">
-      {/* Target */}
-      <div className="space-y-1.5">
-        <Label>Send To</Label>
-        <Select name="target" defaultValue="all">
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Members</SelectItem>
-            <SelectItem value="active">Active Members Only</SelectItem>
-            <SelectItem value="member">Specific Member</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Member Selection (conditional) */}
-      <div className="space-y-1.5">
-        <Label>Select Member</Label>
-        <SearchableSelect
-          name="member_id"
-          placeholder="Choose a member"
-          searchPlaceholder="Search by name or code..."
-          options={members.map((m: any) => ({
-            value: m.id,
-            label: m.full_name,
-            sub: m.member_code,
-          }))}
-        />
-      </div>
-
-      {/* Title */}
-      <div className="space-y-1.5">
-        <Label htmlFor="title">Title *</Label>
-        <Input
-          id="title"
-          name="title"
-          placeholder="Notification title"
-          required
-        />
-      </div>
-
-      {/* Body */}
-      <div className="space-y-1.5">
-        <Label htmlFor="body">Message *</Label>
-        <textarea
-          id="body"
-          name="body"
-          rows={4}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          placeholder="Write your notification message..."
-          required
-        />
-      </div>
-
-      {/* Channel + Priority */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label>Channel</Label>
-          <Select name="channel" defaultValue="in_app">
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="in_app">In-App</SelectItem>
-              <SelectItem value="sms">SMS</SelectItem>
-            </SelectContent>
-          </Select>
+    <div className="max-w-md">
+      <form action={formAction} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Send To</Label>
+            <Select name="target" defaultValue="all">
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Members</SelectItem>
+                <SelectItem value="active">Active Only</SelectItem>
+                <SelectItem value="member">Specific Member</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Channel</Label>
+            <Select name="channel" defaultValue="in_app">
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="in_app">In-App</SelectItem>
+                <SelectItem value="sms">SMS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label>Priority</Label>
-          <Select name="priority" defaultValue="normal">
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="normal">Normal</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
-      <div className="flex gap-2 justify-end pt-2">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4 mr-2" />
-          )}
-          Send Notification
-        </Button>
-      </div>
-    </form>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Member</Label>
+          <SearchableSelect
+            name="member_id"
+            placeholder="Choose a member"
+            searchPlaceholder="Search by name or code..."
+            options={members.map((m: any) => ({
+              value: m.id,
+              label: m.full_name,
+              sub: m.member_code,
+            }))}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="title" className="text-xs">Title *</Label>
+          <Input id="title" name="title" placeholder="Notification title" required className="h-8 text-xs" />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="body" className="text-xs">Message *</Label>
+          <textarea
+            id="body"
+            name="body"
+            rows={3}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            placeholder="Write your message..."
+            required
+          />
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <div className="space-y-1.5 w-32">
+            <Label className="text-xs">Priority</Label>
+            <Select name="priority" defaultValue="normal">
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="submit" disabled={isPending} size="sm" className="mt-4">
+            {isPending
+              ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Sending…</>
+              : <><Send className="h-3.5 w-3.5 mr-1.5" />Send</>
+            }
+          </Button>
+        </div>
+      </form>
+    </div>
   )
 }

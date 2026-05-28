@@ -8,12 +8,17 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
   Table,
   TableBody,
@@ -59,15 +64,9 @@ import {
   XCircle,
   MessageSquare,
   Bell,
-  DollarSign,
-  CreditCard,
   LayoutDashboard,
   HandCoins,
-  Wallet,
-  Flag,
   Receipt,
-  LifeBuoy,
-  Megaphone,
   Settings,
 } from "lucide-react"
 import { formatUGX, formatDate } from "@/lib/utils/format"
@@ -227,6 +226,7 @@ export function ReportsClient({
   const [activeTab, setActiveTab] = useState("overview")
   const [dateFrom, setDateFrom] = useState<Date>()
   const [dateTo, setDateTo] = useState<Date>()
+  const [memberFilter, setMemberFilter] = useState("all")
 
   // Date filtering function
   const isInDateRange = (date: Date | string | null) => {
@@ -241,38 +241,48 @@ export function ReportsClient({
     return true
   }
 
-  // Filter data based on date range
+  // memberFilter holds the member_code (e.g. "MEM-001") or "all"
+  const matchesMember = (item: any) => {
+    if (memberFilter === "all") return true
+    return item.member_code === memberFilter
+  }
+
+  // Filter data based on date range + member
   const filteredLoans = useMemo(() => {
-    return loans.filter((loan) => isInDateRange(loan.createdAt))
-  }, [loans, dateFrom, dateTo])
+    return loans.filter((loan) => isInDateRange(loan.createdAt) && matchesMember(loan))
+  }, [loans, dateFrom, dateTo, memberFilter])
 
   const filteredSavings = useMemo(() => {
-    return savings.filter((saving) => isInDateRange(saving.createdAt))
-  }, [savings, dateFrom, dateTo])
+    return savings.filter((saving) => isInDateRange(saving.createdAt) && matchesMember(saving))
+  }, [savings, dateFrom, dateTo, memberFilter])
 
   const filteredMembers = useMemo(() => {
-    return members.filter((member) => isInDateRange(member.createdAt))
-  }, [members, dateFrom, dateTo])
+    return members.filter((member) => {
+      const inDate = isInDateRange(member.createdAt)
+      if (memberFilter === "all") return inDate
+      return inDate && member.memberCode === memberFilter
+    })
+  }, [members, dateFrom, dateTo, memberFilter])
 
   const filteredFines = useMemo(() => {
-    return fines.filter((fine) => isInDateRange(fine.createdAt))
-  }, [fines, dateFrom, dateTo])
+    return fines.filter((fine) => isInDateRange(fine.createdAt) && matchesMember(fine))
+  }, [fines, dateFrom, dateTo, memberFilter])
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((transaction) =>
-      isInDateRange(transaction.createdAt)
+      isInDateRange(transaction.createdAt) && matchesMember(transaction)
     )
-  }, [transactions, dateFrom, dateTo])
+  }, [transactions, dateFrom, dateTo, memberFilter])
 
   const filteredComplaints = useMemo(() => {
-    return complaints.filter((complaint) => isInDateRange(complaint.createdAt))
-  }, [complaints, dateFrom, dateTo])
+    return complaints.filter((complaint) => isInDateRange(complaint.createdAt) && matchesMember(complaint))
+  }, [complaints, dateFrom, dateTo, memberFilter])
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((notification) =>
-      isInDateRange(notification.createdAt)
+      isInDateRange(notification.createdAt) && matchesMember(notification)
     )
-  }, [notifications, dateFrom, dateTo])
+  }, [notifications, dateFrom, dateTo, memberFilter])
 
   // Monthly loans chart data
   const monthlyLoansData = useMemo(() => {
@@ -425,6 +435,20 @@ export function ReportsClient({
           </p>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row">
+          {/* Member Filter */}
+          <Select value={memberFilter} onValueChange={(v) => setMemberFilter(v ?? "all")}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All Members" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Members</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={m.memberCode ?? m.id}>
+                  {`${m.memberCode} — ${m.fullName}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {/* Date Filters */}
           <div className="flex gap-2">
             <Input
@@ -576,53 +600,39 @@ export function ReportsClient({
         ))}
       </div>
 
-      {/* Layout with Vertical Tabs */}
-      <div className="flex flex-col gap-6 lg:flex-row">
-        {/* Vertical Tabs Sidebar */}
-        <div className="shrink-0 lg:w-64">
-          <div className="sticky top-6">
-            <div className="rounded-lg border bg-card p-2">
-              <nav className="flex flex-col space-y-1">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon
-                  const isActive = activeTab === tab.id
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                        "hover:bg-muted hover:text-foreground",
-                        isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      <Icon className={cn("h-4 w-4", tab.color)} />
-                      <span>{tab.label}</span>
-                      {tab.id === "loans" && stats.pendingLoansCount > 0 && (
-                        <Badge variant="secondary" className="ml-auto text-xs">
-                          {stats.pendingLoansCount}
-                        </Badge>
-                      )}
-                      {tab.id === "complaints" && stats.openComplaints > 0 && (
-                        <Badge
-                          variant="destructive"
-                          className="ml-auto text-xs"
-                        >
-                          {stats.openComplaints}
-                        </Badge>
-                      )}
-                    </button>
-                  )
-                })}
-              </nav>
-            </div>
-          </div>
+      {/* Horizontal tab bar */}
+      <div className="space-y-0">
+        <div className="border-b">
+          <nav className="-mb-px flex gap-0 overflow-x-auto">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              const badgeCount =
+                tab.id === "loans"      ? (stats.pendingLoansCount > 0 ? stats.pendingLoansCount : 0) :
+                tab.id === "complaints" ? (stats.openComplaints > 0 ? stats.openComplaints : 0) : 0
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap",
+                    isActive
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                  )}
+                >
+                  <Icon className={cn("h-4 w-4", isActive ? tab.color : "")} />
+                  {tab.label}
+                  {badgeCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs">{badgeCount}</Badge>
+                  )}
+                </button>
+              )
+            })}
+          </nav>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1">
+        <div className="pt-6">
           {/* ── OVERVIEW TAB ── */}
           {activeTab === "overview" && (
             <div className="space-y-6">
@@ -876,51 +886,57 @@ export function ReportsClient({
           {/* ── LOANS TAB ── */}
           {activeTab === "loans" && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="relative w-full">
-                  <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search loans..."
-                    className="h-9 pl-9"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleExcelExport(
-                        "loans",
-                        filteredLoans.map((l) => ({
-                          loan_ref: l.loanRef,
-                          member_name: l.member_name,
-                          amount: l.amount,
-                          balance: l.balance,
-                          status: l.status,
-                          due_date: l.dueDate,
-                        })),
-                        {
-                          loan_ref: "Loan Ref",
-                          member_name: "Member",
-                          amount: "Amount",
-                          balance: "Balance",
-                          status: "Status",
-                          due_date: "Due Date",
-                        }
-                      )
-                    }
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Excel
-                  </Button>
-                  <ReportPdfButton
-                    type="loans"
-                    sacco={sacco}
-                    stats={stats}
-                    loans={filteredLoans}
-                    label="PDF"
-                  />
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <p className="shrink-0 text-sm text-muted-foreground">
+                  {filteredLoans.filter((l) => !search || l.loanRef?.toLowerCase().includes(search.toLowerCase()) || l.member_name?.toLowerCase().includes(search.toLowerCase())).length} loans
+                </p>
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search loans..."
+                      className="pl-9"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleExcelExport(
+                          "loans",
+                          filteredLoans.map((l) => ({
+                            loan_ref: l.loanRef,
+                            member_name: l.member_name,
+                            amount: l.amount,
+                            balance: l.balance,
+                            status: l.status,
+                            due_date: l.dueDate,
+                          })),
+                          {
+                            loan_ref: "Loan Ref",
+                            member_name: "Member",
+                            amount: "Amount",
+                            balance: "Balance",
+                            status: "Status",
+                            due_date: "Due Date",
+                          }
+                        )
+                      }
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Excel
+                    </Button>
+                    <ReportPdfButton
+                      type="loans"
+                      sacco={sacco}
+                      stats={stats}
+                      loans={filteredLoans}
+                      label="PDF"
+                    />
+                  </div>
                 </div>
               </div>
               <Card>
@@ -999,49 +1015,55 @@ export function ReportsClient({
           {/* ── SAVINGS TAB ── */}
           {activeTab === "savings" && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="relative w-full">
-                  <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search savings..."
-                    className="h-9 pl-9"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      handleExcelExport(
-                        "savings",
-                        filteredSavings.map((s) => ({
-                          member_name: s.member_name,
-                          account_number: s.accountNumber,
-                          balance: s.balance,
-                          account_type: s.accountType,
-                          is_locked: s.isLocked,
-                        })),
-                        {
-                          member_name: "Member",
-                          account_number: "Account No",
-                          balance: "Balance",
-                          account_type: "Type",
-                          is_locked: "Locked",
-                        }
-                      )
-                    }
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Excel
-                  </Button>
-                  <ReportPdfButton
-                    type="savings"
-                    sacco={sacco}
-                    stats={stats}
-                    savings={filteredSavings}
-                    label="PDF"
-                  />
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                <p className="shrink-0 text-sm text-muted-foreground">
+                  {filteredSavings.filter((s) => !search || s.member_name?.toLowerCase().includes(search.toLowerCase()) || s.accountNumber?.toLowerCase().includes(search.toLowerCase())).length} accounts
+                </p>
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search savings..."
+                      className="pl-9"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleExcelExport(
+                          "savings",
+                          filteredSavings.map((s) => ({
+                            member_name: s.member_name,
+                            account_number: s.accountNumber,
+                            balance: s.balance,
+                            account_type: s.accountType,
+                            is_locked: s.isLocked,
+                          })),
+                          {
+                            member_name: "Member",
+                            account_number: "Account No",
+                            balance: "Balance",
+                            account_type: "Type",
+                            is_locked: "Locked",
+                          }
+                        )
+                      }
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Excel
+                    </Button>
+                    <ReportPdfButton
+                      type="savings"
+                      sacco={sacco}
+                      stats={stats}
+                      savings={filteredSavings}
+                      label="PDF"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">

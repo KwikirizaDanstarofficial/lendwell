@@ -6,20 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Download,
   Upload,
   UserPlus,
   LayoutGrid,
   List,
   Search,
-  SlidersHorizontal,
 } from "lucide-react"
 import { MembersTable } from "./members-table"
 
@@ -42,6 +34,8 @@ type Member = {
   joinedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
+  totalSavings?: number
+  totalLoans?: number
 }
 import { MembersGrid } from "./members-grid"
 import { ImportExcel } from "./import-excel"
@@ -56,19 +50,15 @@ export function MembersClient({ members }: MembersClientProps) {
   const router = useRouter()
   const [view, setView] = useState<"table" | "grid">("table")
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [showImport, setShowImport] = useState(false)
 
   const filtered = useMemo(() => {
-    return members.filter((m) => {
-      const matchSearch =
-        m.fullName.toLowerCase().includes(search.toLowerCase()) ||
-        m.memberCode.toLowerCase().includes(search.toLowerCase()) ||
-        (m.phone ?? "").toLowerCase().includes(search.toLowerCase())
-      const matchStatus = statusFilter === "all" || m.status === statusFilter
-      return matchSearch && matchStatus
-    })
-  }, [members, search, statusFilter])
+    return members.filter((m) =>
+      m.fullName.toLowerCase().includes(search.toLowerCase()) ||
+      m.memberCode.toLowerCase().includes(search.toLowerCase()) ||
+      (m.phone ?? "").toLowerCase().includes(search.toLowerCase())
+    )
+  }, [members, search])
 
   const handleExport = async () => {
     const workbook = new ExcelJS.Workbook()
@@ -177,23 +167,6 @@ export function MembersClient({ members }: MembersClientProps) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value ?? "all")}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-                <SelectItem value="exited">Exited</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </div>

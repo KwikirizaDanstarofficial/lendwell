@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { enqueueSmsMany, processSmsBatch } from "@/lib/notification-queue"
-import { smsTemplates } from "@/lib/sms"
+import { getSmsTemplates } from "@/lib/sms"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -42,31 +42,50 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Failed to fetch loans" }, { status: 500 })
   }
 
+  // Fetch language settings for each unique sacco
+  const saccoIds = [...new Set((loans ?? []).map((l) => l.sacco_id))]
+  const saccoLanguageMap: Record<string, string> = {}
+  if (saccoIds.length > 0) {
+    const { data: saccos } = await supabaseAdmin
+      .from("saccos")
+      .select("id, settings")
+      .in("id", saccoIds)
+    for (const s of saccos ?? []) {
+      try {
+        const parsed = JSON.parse(s.settings ?? "{}")
+        saccoLanguageMap[s.id] = parsed?.sms?.language ?? "english"
+      } catch {
+        saccoLanguageMap[s.id] = "english"
+      }
+    }
+  }
+
   const jobs = []
 
   for (const loan of loans ?? []) {
     const member = (loan as any).members
     if (!member?.phone) continue
 
+    const templates = getSmsTemplates(saccoLanguageMap[loan.sacco_id])
     const balance = Number(loan.balance).toLocaleString()
     const dueDate = loan.due_date as string
     let body: string
     let priority: string
 
     if (dueDate === in3Days) {
-      body = smsTemplates.loanReminder3Days(member.full_name, loan.loan_ref, balance, dueDate)
+      body = templates.loanReminder3Days(member.full_name, loan.loan_ref, balance, dueDate)
       priority = "normal"
     } else if (dueDate === in1Day) {
-      body = smsTemplates.loanReminder1Day(member.full_name, loan.loan_ref, balance, dueDate)
+      body = templates.loanReminder1Day(member.full_name, loan.loan_ref, balance, dueDate)
       priority = "normal"
     } else if (dueDate === today) {
-      body = smsTemplates.loanReminderToday(member.full_name, loan.loan_ref, balance)
+      body = templates.loanReminderToday(member.full_name, loan.loan_ref, balance)
       priority = "high"
     } else {
       const daysOverdue = Math.floor(
         (Date.now() - new Date(dueDate).getTime()) / (1000 * 60 * 60 * 24)
       )
-      body = smsTemplates.loanOverdue(member.full_name, loan.loan_ref, balance, daysOverdue)
+      body = templates.loanOverdue(member.full_name, loan.loan_ref, balance, daysOverdue)
       priority = "high"
     }
 

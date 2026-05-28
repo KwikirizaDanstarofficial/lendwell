@@ -53,6 +53,7 @@ import {
   MoreHorizontal,
   Plus,
   Search,
+  SlidersHorizontal,
   Pencil,
   Trash2,
   UserX,
@@ -69,14 +70,14 @@ import {
   deleteUserAction,
   type UserFormState,
 } from "../actions"
+import type { Branch } from "@/db/queries/branches"
 
 // ─── Role meta ────────────────────────────────────────────────────────────────
 
-const ROLE_META = {
+const ROLE_META: Record<string, { label: string; badge: string; accent: string; perms: string[]; desc: string }> = {
   admin: {
     label: "Admin",
-    badge:
-      "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+    badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
     accent: "#a855f7",
     perms: ["View", "Add", "Edit", "Delete", "Users", "Settings"],
     desc: "Full access to all modules",
@@ -88,10 +89,16 @@ const ROLE_META = {
     perms: ["View", "Add"],
     desc: "View + add records, create Field Agents",
   },
+  branch_admin: {
+    label: "Branch Admin",
+    badge: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400",
+    accent: "#14b8a6",
+    perms: ["View", "Add", "Edit"],
+    desc: "Manages a single branch: members, loans, savings",
+  },
   field_agent: {
     label: "Field Agent",
-    badge:
-      "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
     accent: "#10b981",
     perms: ["View", "Add"],
     desc: "View + add records only",
@@ -106,16 +113,20 @@ function CreateUserDialog({
   open,
   onClose,
   currentRole,
+  branches,
 }: {
   open: boolean
   onClose: () => void
   currentRole: string
+  branches: Branch[]
 }) {
   const [state, action, pending] = useActionState(
     createUserAction,
     {} as UserFormState
   )
+  const [selectedRole, setSelectedRole] = useState("field_agent")
   const isCashier = currentRole === "cashier"
+  const needsBranch = selectedRole === "branch_admin"
 
   useEffect(() => {
     if (state.success) {
@@ -133,7 +144,7 @@ function CreateUserDialog({
             {isCashier ? "Add Field Agent" : "Add New User"}
           </DialogTitle>
           <DialogDescription>
-            Creates a staff account for the SACCO portal.
+            Login credentials will be auto-generated and sent to their phone via SMS.
           </DialogDescription>
         </DialogHeader>
         <form action={action} className="space-y-4">
@@ -147,30 +158,13 @@ function CreateUserDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label>Email Address *</Label>
-            <Input name="email" type="email" placeholder="james@mysacco.ug" />
-            {state.fieldErrors?.email && (
+            <Label>Phone Number *</Label>
+            <Input name="phone" type="tel" placeholder="0700 000 000" />
+            {state.fieldErrors?.phone && (
               <p className="text-xs text-destructive">
-                {state.fieldErrors.email[0]}
+                {state.fieldErrors.phone[0]}
               </p>
             )}
-          </div>
-          <div className="space-y-1.5">
-            <Label>Temporary Password *</Label>
-            <Input
-              name="password"
-              type="password"
-              placeholder="Min 8 characters"
-            />
-            {state.fieldErrors?.password && (
-              <p className="text-xs text-destructive">
-                {state.fieldErrors.password[0]}
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label>Phone</Label>
-            <Input name="phone" placeholder="+256 700 000 000" />
           </div>
           <div className="space-y-1.5">
             <Label>Role *</Label>
@@ -182,22 +176,34 @@ function CreateUserDialog({
                 </div>
               </>
             ) : (
-              <Select name="role" defaultValue="field_agent">
+              <Select name="role" defaultValue="field_agent" onValueChange={(v) => setSelectedRole(v ?? "field_agent")}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Admin — Full access</SelectItem>
-                  <SelectItem value="cashier">
-                    Cashier — View + add, creates field agents
-                  </SelectItem>
-                  <SelectItem value="field_agent">
-                    Field Agent — View + add only
-                  </SelectItem>
+                  <SelectItem value="cashier">Cashier — View + add, creates field agents</SelectItem>
+                  <SelectItem value="branch_admin">Branch Admin — Manages a branch</SelectItem>
+                  <SelectItem value="field_agent">Field Agent — View + add only</SelectItem>
                 </SelectContent>
               </Select>
             )}
           </div>
+          {needsBranch && branches.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Branch *</Label>
+              <Select name="branch_id">
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name} ({b.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Notes (optional)</Label>
             <Input name="notes" placeholder="e.g. Covers Kirumya area" />
@@ -228,15 +234,23 @@ function EditUserDialog({
   user,
   open,
   onClose,
+  branches,
 }: {
   user: any
   open: boolean
   onClose: () => void
+  branches: Branch[]
 }) {
   const [state, action, pending] = useActionState(
     updateUserAction,
     {} as UserFormState
   )
+  const [editRole, setEditRole] = useState(user?.role ?? "field_agent")
+  const needsBranch = editRole === "branch_admin"
+
+  useEffect(() => {
+    if (user) setEditRole(user.role)
+  }, [user])
 
   useEffect(() => {
     if (state.success) {
@@ -278,17 +292,33 @@ function EditUserDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
-            <Select name="role" defaultValue={user.role}>
+            <Select name="role" defaultValue={user.role} onValueChange={(v) => setEditRole(v ?? "field_agent")}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="cashier">Cashier</SelectItem>
+                <SelectItem value="branch_admin">Branch Admin</SelectItem>
                 <SelectItem value="field_agent">Field Agent</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {needsBranch && branches.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Branch</Label>
+              <Select name="branch_id" defaultValue={user.branchId ?? ""}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name} ({b.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Notes</Label>
             <Input name="notes" defaultValue={user.notes ?? ""} />
@@ -376,11 +406,13 @@ interface Props {
     saccoId: string
     email: string
     isLoggedIn: boolean
+    branchId?: string | null
   }
   canManageUsers: boolean
+  branches: Branch[]
 }
 
-export function UsersClient({ users, currentUser, canManageUsers }: Props) {
+export function UsersClient({ users, currentUser, canManageUsers, branches }: Props) {
   const isAdmin = currentUser.role === "admin"
   const isCashier = currentUser.role === "cashier"
 
@@ -391,6 +423,11 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [deleting, setDeleting] = useState(false)
+
+  const branchMap = useMemo(
+    () => Object.fromEntries(branches.map((b) => [b.id, b.name])),
+    [branches]
+  )
 
   const filtered = useMemo(
     () =>
@@ -410,6 +447,7 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
     total: users.length,
     admin: users.filter((u) => u.role === "admin").length,
     cashier: users.filter((u) => u.role === "cashier").length,
+    branch_admin: users.filter((u) => u.role === "branch_admin").length,
     field_agent: users.filter((u) => u.role === "field_agent").length,
     active: users.filter((u) => u.isActive).length,
   }
@@ -435,33 +473,29 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
             Manage staff access and roles for this SACCO
           </p>
         </div>
-        {isAdmin && (
+        {(isAdmin || isCashier) && (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add User
+            {isCashier ? "Add Field Agent" : "Add User"}
           </Button>
         )}
       </div>
 
       {/* Role cards with permission matrix */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {(["admin", "cashier", "field_agent"] as const).map((role) => {
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {(["admin", "cashier", "branch_admin", "field_agent"] as const).map((role) => {
           const meta = ROLE_META[role]
           return (
             <Card key={role} className="relative overflow-hidden">
               <div />
               <CardContent className="pt-4 pr-4 pb-3 pl-5">
                 <div className="mb-1.5 flex items-center justify-between">
-                  <span
-                    className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${meta.badge}`}
-                  >
+                  <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${meta.badge}`}>
                     {meta.label}
                   </span>
                   <span className="text-2xl font-bold">{stats[role]}</span>
                 </div>
-                <p className="mb-2 text-xs text-muted-foreground">
-                  {meta.desc}
-                </p>
+                <p className="mb-2 text-xs text-muted-foreground">{meta.desc}</p>
                 <div className="flex flex-wrap gap-1">
                   {ALL_PERMS.map((perm) => (
                     <span
@@ -513,30 +547,39 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search name, email, phone…"
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <p className="shrink-0 text-sm text-muted-foreground">
+          {filtered.length} of {users.length} users
+        </p>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="relative flex-1 sm:w-72">
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search name, email, phone…"
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Select
+              value={roleFilter}
+              onValueChange={(value) => setRoleFilter(value || "all")}
+            >
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="All Roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="cashier">Cashier</SelectItem>
+                <SelectItem value="branch_admin">Branch Admin</SelectItem>
+                <SelectItem value="field_agent">Field Agent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <Select
-          value={roleFilter}
-          onValueChange={(value) => setRoleFilter(value || "all")}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="All Roles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="cashier">Cashier</SelectItem>
-            <SelectItem value="field_agent">Field Agent</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Table */}
@@ -553,11 +596,10 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
               <TableRow className="bg-muted/50">
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead className="hidden md:table-cell">Branch</TableHead>
                 <TableHead className="hidden sm:table-cell">Phone</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden lg:table-cell">
-                  Permissions
-                </TableHead>
+                <TableHead className="hidden lg:table-cell">Permissions</TableHead>
                 <TableHead className="w-12">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -608,11 +650,12 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${meta?.badge ?? ""}`}
-                      >
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${meta?.badge ?? ""}`}>
                         {meta?.label ?? u.role}
                       </span>
+                    </TableCell>
+                    <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                      {u.branchId ? (branchMap[u.branchId] ?? "—") : "—"}
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
                       {u.phone ?? "—"}
@@ -732,12 +775,14 @@ export function UsersClient({ users, currentUser, canManageUsers }: Props) {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         currentRole={currentUser.role}
+        branches={branches}
       />
       {editUser && (
         <EditUserDialog
           user={editUser}
           open={!!editUser}
           onClose={() => setEditUser(null)}
+          branches={branches}
         />
       )}
       {resetUser && (

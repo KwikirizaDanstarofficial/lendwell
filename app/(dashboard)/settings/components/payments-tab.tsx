@@ -240,10 +240,21 @@ export function PaymentsTab({ sacco }: { sacco: any }) {
                 Max 11 characters. This appears as the sender name on SMS messages.
               </p>
             </div>
-            <div className="p-3 bg-muted/30 rounded-lg text-xs text-muted-foreground">
-              SMS credentials (API keys, passwords) are configured in your{" "}
-              <code className="bg-muted px-1 rounded">.env.local</code> file.
-              See <code>.env.example</code> for all required variables.
+            <div className="space-y-1.5">
+              <Label>SMS Language</Label>
+              <Select name="sms_language" defaultValue={settings?.sms?.language ?? "english"}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="english">English</SelectItem>
+                  <SelectItem value="luganda">Luganda</SelectItem>
+                  <SelectItem value="both">Both (Kingereza na Luganda)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Language used for automated SMS notifications sent to members.
+              </p>
             </div>
           </CardContent>
         </Card>

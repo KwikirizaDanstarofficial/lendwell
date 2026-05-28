@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Bell, Sun, Moon, Monitor } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/providers/theme-provider"
 import { usePathname } from "next/navigation"
 
 export default function DashboardLayout({

@@ -4,7 +4,10 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { requireAuth } from "@/lib/auth"
 import { getLoanById } from "@/db/queries/loans"
+import { getGuarantorsByLoan } from "@/db/queries/guarantors"
+import { getMembersForSelect } from "@/db/queries/members"
 import { supabaseAdmin } from "@/lib/supabase/server"
+import { GuarantorsSection } from "../components/guarantors-section"
 import {
   Table,
   TableBody,
@@ -185,11 +188,11 @@ async function LoanDetailContent({ id }: { id: string }) {
   if (!loan) notFound()
 
   const supabase = supabaseAdmin
-  const { data: member } = await supabase
-    .from('members')
-    .select('id, full_name, member_code, phone, email')
-    .eq('id', loan.memberId)
-    .single()
+  const [{ data: member }, guarantors, allMembers] = await Promise.all([
+    supabase.from('members').select('id, full_name, member_code, phone, email').eq('id', loan.memberId).single(),
+    getGuarantorsByLoan(id),
+    getMembersForSelect(user.saccoId),
+  ])
 
   const loanWithMember = {
     ...loan,
@@ -411,6 +414,15 @@ async function LoanDetailContent({ id }: { id: string }) {
           </div>
         )}
       </Section>
+
+      {/* ── Guarantors ── */}
+      <GuarantorsSection
+        loanId={id}
+        loanRef={loan.loanRef}
+        guarantors={guarantors as any}
+        members={allMembers ?? []}
+        borrowerMemberId={loan.memberId}
+      />
 
       {/* ── Notes ── */}
       {loan.notes && (

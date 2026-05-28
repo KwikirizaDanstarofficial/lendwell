@@ -3,7 +3,7 @@
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { sendSms, smsTemplates } from "@/lib/sms"
+import { sendSms, getSmsTemplates } from "@/lib/sms"
 import {
   processPayment,
   normalizePhone,
@@ -11,11 +11,13 @@ import {
   calculateFlutterwaveCharge,
 } from "@/lib/payments"
 import { z } from "zod"
+import type { ReceiptData } from "@/types/receipt"
 
 export type FineFormState = {
   success?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
+  receipt?: ReceiptData
 }
 
 const fineSchema = z.object({
@@ -111,18 +113,19 @@ export async function addFineAction(
       return { error: "Failed to add fine." }
     }
 
-    // Get member for SMS notification
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name')
-      .eq('id', parsed.data.member_id)
-      .single()
+    // Get member + sacco for SMS notification
+    const [{ data: member }, { data: saccoFine }] = await Promise.all([
+      supabaseAdmin.from('members').select('phone, full_name').eq('id', parsed.data.member_id).single(),
+      supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single(),
+    ])
 
     if (member?.phone) {
       try {
+        const saccoSettings = (() => { try { return JSON.parse(saccoFine?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: smsTemplates.fineIssued(
+          message: templates.fineIssued(
             member.full_name,
             `UGX ${(amountInCents / 100).toLocaleString()}`,
             parsed.data.reason
@@ -130,7 +133,6 @@ export async function addFineAction(
         })
       } catch (smsError) {
         console.error('SMS sending failed:', smsError)
-        // Don't fail the fine creation if SMS fails
       }
     }
 
@@ -149,7 +151,8 @@ export async function markFinePaidAction(
   formData: FormData
 ): Promise<FineFormState> {
   try {
-    
+    const user = await getCurrentUser()
+    if (!user) return { error: "Not authenticated." }
 
     const id = formData.get("fine_id") as string
     const payment_method = formData.get("payment_method") as string
@@ -166,12 +169,19 @@ export async function markFinePaidAction(
       return { error: "Fine not found." }
     }
 
-    // Get member for payment processing and SMS
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name, email')
-      .eq('id', fine.member_id)
-      .single()
+    // Get member + sacco for payment processing, SMS, and receipt
+    const [{ data: member }, { data: sacco }] = await Promise.all([
+      supabaseAdmin
+        .from('members')
+        .select('phone, full_name, email, member_code')
+        .eq('id', fine.member_id)
+        .single(),
+      supabaseAdmin
+        .from('saccos')
+        .select('name, settings')
+        .eq('id', user.saccoId)
+        .single(),
+    ])
 
     let finalReference = payment_reference
     let finalMethod = payment_method || "cash"
@@ -224,16 +234,29 @@ export async function markFinePaidAction(
       try {
         await sendSms({
           to: member.phone,
-          message: `Dear ${member.full_name}, your fine of UGX ${(fine.amount / 100).toLocaleString()} (Ref: ${fine.fine_ref}) has been paid. Thank you. - SACCO`,
+          message: `Dear ${member.full_name}, your fine of UGX ${(fine.amount / 100).toLocaleString()} (Ref: ${fine.fine_ref}) has been paid. Thank you.`,
         })
       } catch (smsError) {
         console.error('SMS sending failed:', smsError)
-        // Don't fail the payment update if SMS fails
       }
     }
 
     revalidatePath("/fines")
-    return { success: true }
+    return {
+      success: true,
+      receipt: {
+        receiptRef: finalReference || `FINE-${Date.now()}`,
+        type: "Fine Payment",
+        memberName: member?.full_name ?? "Unknown",
+        memberCode: member?.member_code ?? undefined,
+        amount: fine.amount / 100,
+        paymentMethod: finalMethod,
+        narration: `Fine payment — ${fine.fine_ref}`,
+        performedBy: user.fullName,
+        performedAt: new Date().toISOString(),
+        saccoName: sacco?.name ?? undefined,
+      },
+    }
   } catch (err) {
     console.error(err)
     return { error: "Failed to mark fine as paid." }
@@ -306,17 +329,27 @@ export async function waiveFineAction(
 
 export async function deleteFineAction(id: string): Promise<FineFormState> {
   try {
-    
+    const user = await getCurrentUser()
+    if (!user) return { error: "Unauthorized" }
+
+    const { data: fine } = await supabaseAdmin
+      .from('fines').select('fine_ref').eq('id', id).single()
 
     const { error } = await supabaseAdmin
       .from('fines')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
 
-    if (error) {
-      console.error('Supabase delete error:', error)
-      return { error: "Failed to delete fine." }
-    }
+    if (error) return { error: "Failed to delete fine." }
+
+    const { logActivity } = await import("@/lib/activity-log")
+    await logActivity({
+      saccoId: user.saccoId, actorId: user.userId,
+      actorName: user.fullName, actorRole: user.role,
+      action: "delete", entity: "fine",
+      entityId: id, entityRef: fine?.fine_ref,
+      description: `Moved fine ${fine?.fine_ref ?? id} to recycle bin`,
+    })
 
     revalidatePath("/fines")
     return { success: true }

@@ -3,14 +3,16 @@
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { sendSms, smsTemplates } from "@/lib/sms"
+import { sendSms, getSmsTemplates } from "@/lib/sms"
 import { initiateFlutterwaveTransfer } from "@/lib/payments/flutterwave"
 import { z } from "zod"
+import type { ReceiptData } from "@/types/receipt"
 
 export type SavingsFormState = {
   success?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
+  receipt?: ReceiptData
 }
 
 // ─── Create Savings Account ───────────────────────────────────────────────────
@@ -98,18 +100,19 @@ export async function createSavingsAccountAction(
         // Continue anyway
       }
 
-      // Get member for SMS
-      const { data: member } = await supabaseAdmin
-        .from('members')
-        .select('phone, full_name, member_code')
-        .eq('id', member_id)
-        .single()
+      // Get member + sacco for SMS
+      const [{ data: member }, { data: saccoForSms }] = await Promise.all([
+        supabaseAdmin.from('members').select('phone, full_name, member_code').eq('id', member_id).single(),
+        supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single(),
+      ])
 
       if (member?.phone) {
         try {
+          const saccoSettings = (() => { try { return JSON.parse(saccoForSms?.settings ?? "{}") } catch { return {} } })()
+          const templates = getSmsTemplates(saccoSettings?.sms?.language)
           await sendSms({
             to: member.phone,
-            message: smsTemplates.savingsDeposit(
+            message: templates.savingsDeposit(
               member.full_name,
               initial_deposit / 100,
               initial_deposit / 100,
@@ -209,18 +212,27 @@ export async function depositAction(
       return { error: "Failed to process deposit." }
     }
 
-    // Get member for SMS
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name, member_code')
-      .eq('id', account.member_id)
-      .single()
+    // Get member + sacco for SMS and receipt
+    const [{ data: member }, { data: sacco }] = await Promise.all([
+      supabaseAdmin
+        .from('members')
+        .select('phone, full_name, member_code')
+        .eq('id', account.member_id)
+        .single(),
+      supabaseAdmin
+        .from('saccos')
+        .select('name, settings')
+        .eq('id', user.saccoId)
+        .single(),
+    ])
 
     if (member?.phone) {
       try {
+        const saccoSettings = (() => { try { return JSON.parse(sacco?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: smsTemplates.savingsDeposit(
+          message: templates.savingsDeposit(
             member.full_name,
             amount / 100,
             newBalance / 100,
@@ -233,7 +245,22 @@ export async function depositAction(
     }
 
     revalidatePath("/savings")
-    return { success: true }
+    return {
+      success: true,
+      receipt: {
+        receiptRef: `DEP-${Date.now()}`,
+        type: "Savings Deposit",
+        memberName: member?.full_name ?? "Unknown",
+        memberCode: member?.member_code ?? undefined,
+        amount: amount / 100,
+        balanceAfter: newBalance / 100,
+        paymentMethod: payment_method || "cash",
+        narration: narration || "Savings deposit",
+        performedBy: user.fullName,
+        performedAt: new Date().toISOString(),
+        saccoName: sacco?.name ?? undefined,
+      },
+    }
   } catch (err) {
     console.error(err)
     return { error: "Failed to process deposit." }
@@ -323,12 +350,19 @@ export async function withdrawAction(
       return { error: "Failed to process withdrawal." }
     }
 
-    // Get member for transfer and SMS
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name')
-      .eq('id', account.member_id)
-      .single()
+    // Get member + sacco for transfer, SMS, and receipt
+    const [{ data: member }, { data: sacco }] = await Promise.all([
+      supabaseAdmin
+        .from('members')
+        .select('phone, full_name, member_code')
+        .eq('id', account.member_id)
+        .single(),
+      supabaseAdmin
+        .from('saccos')
+        .select('name, settings')
+        .eq('id', user.saccoId)
+        .single(),
+    ])
 
     // Initiate Flutterwave transfer to member's phone
     if (member?.phone) {
@@ -356,9 +390,16 @@ export async function withdrawAction(
       }
 
       try {
+        const saccoSettings = (() => { try { return JSON.parse(sacco?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: `Dear ${member.full_name}, withdrawal of UGX ${(amount / 100).toLocaleString()} processed. New balance: UGX ${(newBalance / 100).toLocaleString()}. - SACCO`,
+          message: templates.savingsDeposit(
+            member.full_name,
+            amount / 100,
+            newBalance / 100,
+            member.member_code
+          ),
         })
       } catch (smsError) {
         console.error("[Savings] SMS notification failed:", smsError)
@@ -366,7 +407,22 @@ export async function withdrawAction(
     }
 
     revalidatePath("/savings")
-    return { success: true }
+    return {
+      success: true,
+      receipt: {
+        receiptRef: `WD-${Date.now()}`,
+        type: "Savings Withdrawal",
+        memberName: member?.full_name ?? "Unknown",
+        memberCode: member?.member_code ?? undefined,
+        amount: amount / 100,
+        balanceAfter: newBalance / 100,
+        paymentMethod: payment_method || "cash",
+        narration: narration || "Savings withdrawal",
+        performedBy: user.fullName,
+        performedAt: new Date().toISOString(),
+        saccoName: sacco?.name ?? undefined,
+      },
+    }
   } catch (err) {
     console.error(err)
     return { error: "Failed to process withdrawal." }

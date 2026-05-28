@@ -166,6 +166,7 @@ type Transaction = {
 import { MemberIdCardDocument } from "@/lib/pdf/member-id-card"
 import { ApplicationFormDocument } from "@/lib/pdf/application-form"
 import { MemberTransactionsDocument } from "@/lib/pdf/member-transactions"
+import { MemberProfileDocument } from "@/lib/pdf/member-profile-document"
 
 interface MemberProfileProps {
   member: Member
@@ -196,6 +197,7 @@ export function MemberProfile({
   const [loadingId, setLoadingId] = useState(false)
   const [loadingForm, setLoadingForm] = useState(false)
   const [loadingTx, setLoadingTx] = useState(false)
+  const [loadingProfile, setLoadingProfile] = useState(false)
   const [showSmsDialog, setShowSmsDialog] = useState(false)
   const [showLoanDialog, setShowLoanDialog] = useState(false)
   const [showSavingsDialog, setShowSavingsDialog] = useState(false)
@@ -270,6 +272,45 @@ export function MemberProfile({
       toast.error("Failed to generate Application Form")
     } finally {
       setLoadingForm(false)
+    }
+  }
+
+  const downloadProfile = async () => {
+    setLoadingProfile(true)
+    try {
+      const saccoResponse = await fetch("/api/settings")
+      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
+      const doc = (
+        <MemberProfileDocument
+          member={member}
+          stats={stats}
+          loans={loans}
+          savings={savings}
+          fines={fines}
+          transactions={transactions}
+          sacco={{
+            name: rawSacco.name,
+            address: rawSacco.address,
+            contactPhone: rawSacco.contactPhone,
+            contactEmail: rawSacco.contactEmail,
+            logoUrl: rawSacco.logoUrl,
+            tagline: rawSacco.tagline,
+            primaryColor: rawSacco.primaryColor,
+          }}
+        />
+      )
+      const blob = await pdf(doc).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${member.memberCode}-Profile.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success("Member profile downloaded")
+    } catch {
+      toast.error("Failed to generate profile PDF")
+    } finally {
+      setLoadingProfile(false)
     }
   }
 
@@ -611,15 +652,15 @@ export function MemberProfile({
           <Button
             variant="outline"
             size="sm"
-            onClick={downloadTransactions}
-            disabled={loadingTx || transactions.length === 0}
+            onClick={downloadProfile}
+            disabled={loadingProfile}
           >
-            {loadingTx ? (
+            {loadingProfile ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Receipt className="mr-2 h-4 w-4" />
+              <FileText className="mr-2 h-4 w-4" />
             )}
-            {loadingTx ? "Generating…" : "Print Transactions"}
+            {loadingProfile ? "Generating…" : "Print Profile"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Camera, Loader2, ArrowLeft, User, Upload } from "lucide-react"
+import type { Branch } from "@/db/queries/branches"
 
 const initialState: MemberFormState = {}
 
@@ -95,7 +96,7 @@ function Field({
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
 
-export function AddMemberForm() {
+export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     addMemberAction,
@@ -342,7 +343,7 @@ export function AddMemberForm() {
             />
           </Field>
 
-          <Field id="status" label="Membership Status" span>
+          <Field id="status" label="Membership Status">
             <Select name="status" defaultValue="active">
               <SelectTrigger className={`${inputClass} flex w-full`}>
                 <SelectValue />
@@ -369,6 +370,21 @@ export function AddMemberForm() {
               </SelectContent>
             </Select>
           </Field>
+
+          {branches.length > 0 && (
+            <Field id="branch_id" label="Branch">
+              <Select name="branch_id">
+                <SelectTrigger className={`${inputClass} flex w-full`}>
+                  <SelectValue placeholder="Select branch (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name} ({b.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
         </FieldGroup>
       </div>
 

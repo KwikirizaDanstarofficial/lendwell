@@ -2,8 +2,10 @@
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
-import { SupabaseStorage, STORAGE_BUCKETS } from "@/lib/supabase/storage"
+import { STORAGE_BUCKETS } from "@/lib/supabase/storage"
 import { revalidatePath } from "next/cache"
+import { createBranch, updateBranch, deleteBranch } from "@/db/queries/branches"
+import { logActivity } from "@/lib/activity-log"
 
 export type SettingsState = {
   success?: boolean
@@ -62,8 +64,28 @@ export async function uploadLogoAction(
     const ext = file.name.split('.').pop()
     const filename = `${user.saccoId}-logo.${ext}`
 
-    await SupabaseStorage.uploadFile(STORAGE_BUCKETS.LOGOS, file, filename, { upsert: true })
-    const publicUrl = await SupabaseStorage.getPublicUrl(STORAGE_BUCKETS.LOGOS, filename)
+    // Ensure logos bucket exists (auto-create if missing)
+    const { data: buckets } = await supabaseAdmin.storage.listBuckets()
+    const bucketExists = buckets?.some((b) => b.name === STORAGE_BUCKETS.LOGOS)
+    if (!bucketExists) {
+      await supabaseAdmin.storage.createBucket(STORAGE_BUCKETS.LOGOS, {
+        public: true,
+        allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/svg+xml"],
+        fileSizeLimit: 2 * 1024 * 1024,
+      })
+    }
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKETS.LOGOS)
+      .upload(filename, file, { upsert: true, contentType: file.type })
+
+    if (uploadError) throw new Error(uploadError.message)
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from(STORAGE_BUCKETS.LOGOS)
+      .getPublicUrl(filename)
+
+    const publicUrl = urlData.publicUrl
 
     
     const { error } = await supabaseAdmin
@@ -293,6 +315,7 @@ export async function updatePaymentSettingsAction(
       sms: {
         provider: formData.get("sms_provider") as string,
         sender_id: formData.get("sender_id") as string,
+        language: (formData.get("sms_language") as string) || "english",
       },
     }
 
@@ -378,5 +401,100 @@ export async function testFlutterwaveTransferAction(
   } catch (err) {
     console.error("Test transfer failed:", err)
     return { error: err instanceof Error ? err.message : "Test transfer failed" }
+  }
+}
+
+// ─── Branch Actions ───────────────────────────────────────────────────────────
+
+function generateBranchCode(name: string, existingCodes: string[]): string {
+  const prefix = name.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3).padEnd(3, "X")
+  let n = 1
+  let code: string
+  do { code = `${prefix}${String(n).padStart(2, "0")}` } while (existingCodes.includes(code) && ++n)
+  return code
+}
+
+export async function createBranchAction(payload: {
+  name: string
+  address?: string
+  phone?: string
+  email?: string
+  managerId?: string
+}): Promise<SettingsState> {
+  const user = await getCurrentUser()
+  if (!user) return { error: "Unauthorized" }
+  if (user.role !== "admin") return { error: "Only admins can manage branches" }
+
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from("branches")
+      .select("code")
+      .eq("sacco_id", user.saccoId)
+
+    const existingCodes = (existing ?? []).map((b) => b.code)
+    const code = generateBranchCode(payload.name, existingCodes)
+
+    const branch = await createBranch({ saccoId: user.saccoId, code, ...payload })
+    await logActivity({
+      saccoId: user.saccoId, actorId: user.userId, actorName: user.fullName, actorRole: user.role,
+      action: "create", entity: "branches" as any,
+      entityId: branch.id, entityRef: branch.code,
+      description: `Created branch "${branch.name}" (${branch.code})`,
+    })
+    revalidatePath("/settings")
+    return { success: true }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function updateBranchAction(
+  id: string,
+  payload: {
+    name?: string
+    code?: string
+    address?: string | null
+    phone?: string | null
+    email?: string | null
+    managerId?: string | null
+    isActive?: boolean
+  }
+): Promise<SettingsState> {
+  const user = await getCurrentUser()
+  if (!user) return { error: "Unauthorized" }
+  if (user.role !== "admin") return { error: "Only admins can manage branches" }
+
+  try {
+    await updateBranch(id, payload)
+    await logActivity({
+      saccoId: user.saccoId, actorId: user.userId, actorName: user.fullName, actorRole: user.role,
+      action: "update", entity: "branches" as any,
+      entityId: id, entityRef: payload.code ?? "",
+      description: `Updated branch "${payload.name ?? id}"`,
+    })
+    revalidatePath("/settings")
+    return { success: true }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+export async function deleteBranchAction(id: string): Promise<SettingsState> {
+  const user = await getCurrentUser()
+  if (!user) return { error: "Unauthorized" }
+  if (user.role !== "admin") return { error: "Only admins can delete branches" }
+
+  try {
+    await deleteBranch(id)
+    await logActivity({
+      saccoId: user.saccoId, actorId: user.userId, actorName: user.fullName, actorRole: user.role,
+      action: "delete", entity: "branches" as any,
+      entityId: id, entityRef: "",
+      description: `Deleted branch ${id}`,
+    })
+    revalidatePath("/settings")
+    return { success: true }
+  } catch (e: any) {
+    return { error: e.message }
   }
 }

@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       success: true,
       role: meta?.role,
       fullName: meta?.full_name,
+      branchCode: meta?.branch_code ?? null,
     })
   } catch (err) {
     console.error("[LOGIN]", err)

@@ -4,7 +4,7 @@
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { sendSms, smsTemplates } from "@/lib/sms"
+import { sendSms, getSmsTemplates } from "@/lib/sms"
 import {
   calculateLoan,
   getInterestRateForAmount,
@@ -14,10 +14,12 @@ import {
   initiateFlutterwaveCharge,
 } from "@/lib/payments/flutterwave"
 import { z } from "zod"
+import type { ReceiptData } from "@/types/receipt"
 
 export type LoanFormState = {
   success?: boolean
   error?: string
+  receipt?: ReceiptData
   fieldErrors?: Record<string, string[]>
 }
 
@@ -221,12 +223,11 @@ export async function declineLoanAction(
       return { error: "Loan not found." }
     }
 
-    // Get member for SMS
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name')
-      .eq('id', loan.member_id)
-      .single()
+    // Get member + sacco for SMS
+    const [{ data: member }, { data: saccoLang }] = await Promise.all([
+      supabaseAdmin.from('members').select('phone, full_name').eq('id', loan.member_id).single(),
+      supabaseAdmin.from('saccos').select('settings').eq('id', loan.sacco_id).single(),
+    ])
 
     // Update loan status
     const { error: updateError } = await supabaseAdmin
@@ -245,9 +246,11 @@ export async function declineLoanAction(
 
     if (member?.phone) {
       try {
+        const saccoSettings = (() => { try { return JSON.parse(saccoLang?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: smsTemplates.loanDeclined(member.full_name, reason),
+          message: templates.loanDeclined(member.full_name, reason),
         })
       } catch (smsError) {
         console.error("[Loan] SMS notification failed:", smsError)
@@ -285,12 +288,11 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
       return { error: "Loan must be approved first." }
     }
 
-    // Get member for transfer and SMS
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name')
-      .eq('id', loan.member_id)
-      .single()
+    // Get member + sacco for transfer and SMS
+    const [{ data: member }, { data: saccoLangDisb }] = await Promise.all([
+      supabaseAdmin.from('members').select('phone, full_name').eq('id', loan.member_id).single(),
+      supabaseAdmin.from('saccos').select('settings').eq('id', loan.sacco_id).single(),
+    ])
 
     // Update loan status
     const { error: updateError } = await supabaseAdmin
@@ -352,9 +354,11 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
       }
 
       try {
+        const saccoSettings = (() => { try { return JSON.parse(saccoLangDisb?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: smsTemplates.loanDisbursed(
+          message: templates.loanDisbursed(
             member.full_name,
             `UGX ${(loan.amount / 100).toLocaleString()}`,
             loan.loan_ref
@@ -407,12 +411,19 @@ export async function repayLoanAction(
       return { error: "Loan must be disbursed to record repayments." }
     }
 
-    // Get member for payment processing and SMS
-    const { data: member } = await supabaseAdmin
-      .from('members')
-      .select('phone, full_name')
-      .eq('id', loan.member_id)
-      .single()
+    // Get member + sacco for payment processing, SMS, and receipt
+    const [{ data: member }, { data: sacco }] = await Promise.all([
+      supabaseAdmin
+        .from('members')
+        .select('phone, full_name, member_code')
+        .eq('id', loan.member_id)
+        .single(),
+      supabaseAdmin
+        .from('saccos')
+        .select('name, settings')
+        .eq('id', user.saccoId)
+        .single(),
+    ])
 
     // Process payment if mobile money
     if (payment_method === "mobile_money" && member?.phone) {
@@ -477,9 +488,11 @@ export async function repayLoanAction(
 
     if (member?.phone) {
       try {
+        const saccoSettings = (() => { try { return JSON.parse(sacco?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: smsTemplates.loanRepayment(
+          message: templates.loanRepayment(
             member.full_name,
             `UGX ${(amount / 100).toLocaleString()}`,
             `UGX ${(newBalance / 100).toLocaleString()}`
@@ -492,7 +505,22 @@ export async function repayLoanAction(
 
     revalidatePath("/loans")
     revalidatePath(`/members/${loan.member_id}`)
-    return { success: true }
+    return {
+      success: true,
+      receipt: {
+        receiptRef: `REPAY-${Date.now()}`,
+        type: "Loan Repayment",
+        memberName: member?.full_name ?? "Unknown",
+        memberCode: member?.member_code ?? undefined,
+        amount: amount / 100,
+        balanceAfter: newBalance / 100,
+        paymentMethod: payment_method,
+        narration: `Loan repayment — ${loan.loan_ref}`,
+        performedBy: user.fullName,
+        performedAt: new Date().toISOString(),
+        saccoName: sacco?.name ?? undefined,
+      },
+    }
   } catch (err) {
     console.error(err)
     return { error: "Failed to record repayment." }
@@ -622,17 +650,27 @@ export async function topUpLoanAction(
 
 export async function deleteLoanAction(id: string): Promise<LoanFormState> {
   try {
-    
+    const user = await getCurrentUser()
+    if (!user) return { error: "Unauthorized" }
+
+    const { data: loan } = await supabaseAdmin
+      .from('loans').select('loan_ref').eq('id', id).single()
 
     const { error } = await supabaseAdmin
       .from('loans')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
 
-    if (error) {
-      console.error('Supabase delete error:', error)
-      return { error: "Failed to delete loan." }
-    }
+    if (error) return { error: "Failed to delete loan." }
+
+    const { logActivity } = await import("@/lib/activity-log")
+    await logActivity({
+      saccoId: user.saccoId, actorId: user.userId,
+      actorName: user.fullName, actorRole: user.role,
+      action: "delete", entity: "loan",
+      entityId: id, entityRef: loan?.loan_ref,
+      description: `Moved loan ${loan?.loan_ref ?? id} to recycle bin`,
+    })
 
     revalidatePath("/loans")
     return { success: true }

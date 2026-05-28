@@ -30,12 +30,13 @@ export function GeneralTab({ sacco }: { sacco: any }) {
     initialState
   )
   const [name, setName] = useState(sacco?.name ?? "")
-  const [contactEmail, setContactEmail] = useState(sacco?.contact_email ?? "")
-  const [contactPhone, setContactPhone] = useState(sacco?.contact_phone ?? "")
+  const [contactEmail, setContactEmail] = useState(sacco?.contactEmail ?? "")
+  const [contactPhone, setContactPhone] = useState(sacco?.contactPhone ?? "")
   const [address, setAddress] = useState(sacco?.address ?? "")
   const [tagline, setTagline] = useState(sacco?.tagline ?? "")
-  const [color, setColor] = useState(sacco?.primary_color ?? "#16a34a")
-  const [logoUrl, setLogoUrl] = useState(sacco?.logo_url ?? "")
+  const [color, setColor] = useState(sacco?.primaryColor ?? "#16a34a")
+  const [logoUrl, setLogoUrl] = useState(sacco?.logoUrl ?? "")
+  const [localPreview, setLocalPreview] = useState("")
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [logoError, setLogoError] = useState(false)
@@ -47,12 +48,12 @@ export function GeneralTab({ sacco }: { sacco: any }) {
 
   useEffect(() => {
     setName(sacco?.name ?? "")
-    setContactEmail(sacco?.contact_email ?? "")
-    setContactPhone(sacco?.contact_phone ?? "")
+    setContactEmail(sacco?.contactEmail ?? "")
+    setContactPhone(sacco?.contactPhone ?? "")
     setAddress(sacco?.address ?? "")
     setTagline(sacco?.tagline ?? "")
-    setColor(sacco?.primary_color ?? "#16a34a")
-    setLogoUrl(sacco?.logo_url ?? "")
+    setColor(sacco?.primaryColor ?? "#16a34a")
+    setLogoUrl(sacco?.logoUrl ?? "")
   }, [sacco])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -83,12 +84,14 @@ export function GeneralTab({ sacco }: { sacco: any }) {
       const file = files[0]
       if (!file) return
 
+      // Show local preview immediately
+      const preview = URL.createObjectURL(file)
+      setLocalPreview(preview)
+      setLogoError(false)
       setUploading(true)
       setUploadProgress(0)
-      setLogoError(false)
 
       try {
-        // Simulate progress for better UX
         const progressInterval = setInterval(() => {
           setUploadProgress((prev) => Math.min(prev + 10, 90))
         }, 100)
@@ -102,11 +105,17 @@ export function GeneralTab({ sacco }: { sacco: any }) {
 
         if (res.success && res.url) {
           setLogoUrl(res.url)
+          setLocalPreview("")
+          URL.revokeObjectURL(preview)
           toast.success("Logo uploaded successfully!")
         } else {
+          setLocalPreview("")
+          URL.revokeObjectURL(preview)
           toast.error(res.error ?? "Upload failed")
         }
       } catch (error) {
+        setLocalPreview("")
+        URL.revokeObjectURL(preview)
         toast.error("Upload failed. Please try again.")
       } finally {
         setTimeout(() => {
@@ -131,14 +140,15 @@ export function GeneralTab({ sacco }: { sacco: any }) {
         <CardContent>
           <div className="flex items-center gap-6">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-muted bg-muted">
-              {logoUrl && !logoError ? (
-                <Image
-                  src={logoUrl}
+              {(localPreview || (logoUrl && !logoError)) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={localPreview || logoUrl}
                   alt="Logo"
                   width={80}
                   height={80}
                   className="h-full w-full object-cover"
-                  onError={() => setLogoError(true)}
+                  onError={() => { if (!localPreview) setLogoError(true) }}
                 />
               ) : (
                 <span className="text-2xl font-bold text-primary">

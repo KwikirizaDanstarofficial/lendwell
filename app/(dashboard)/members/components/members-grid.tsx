@@ -13,8 +13,9 @@ import {
   ChevronsRight,
   Eye,
   Banknote,
+  PiggyBank,
 } from "lucide-react"
-import { formatDate } from "@/lib/utils/format"
+import { formatDate, formatUGX } from "@/lib/utils/format"
 
 type Member = {
   id: string
@@ -35,6 +36,8 @@ type Member = {
   joinedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
+  totalSavings?: number
+  totalLoans?: number
 }
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
@@ -98,6 +101,18 @@ export function MembersGrid({ members }: { members: Member[] }) {
                 <div className="w-full space-y-1 border-t pt-3 text-xs text-muted-foreground">
                   <p>{member.phone ?? "No phone"}</p>
                   <p>Joined {formatDate(member.joinedAt)}</p>
+                </div>
+                <div className="grid w-full grid-cols-2 gap-2">
+                  <div className="flex flex-col items-center gap-0.5 rounded-md bg-green-500/10 px-2 py-2">
+                    <PiggyBank className="h-3.5 w-3.5 text-green-600" />
+                    <p className="text-[10px] font-medium text-green-700 dark:text-green-400">Savings</p>
+                    <p className="text-xs font-bold text-green-600">{formatUGX(member.totalSavings ?? 0)}</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5 rounded-md bg-blue-500/10 px-2 py-2">
+                    <Banknote className="h-3.5 w-3.5 text-blue-600" />
+                    <p className="text-[10px] font-medium text-blue-700 dark:text-blue-400">Loans</p>
+                    <p className="text-xs font-bold text-blue-600">{formatUGX(member.totalLoans ?? 0)}</p>
+                  </div>
                 </div>
                 <div className="flex w-full gap-2">
                   <Button

@@ -1,6 +1,11 @@
+import { requireAuth } from "@/lib/auth"
+import { getBranches } from "@/db/queries/branches"
 import { AddMemberForm } from "./add-member-form"
 
-export default function AddMemberPage() {
+export default async function AddMemberPage() {
+  const user = await requireAuth()
+  const branches = await getBranches(user.saccoId)
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
@@ -9,7 +14,7 @@ export default function AddMemberPage() {
           Fill in the details to register a new member
         </p>
       </div>
-      <AddMemberForm />
+      <AddMemberForm branches={branches} />
     </div>
   )
 }

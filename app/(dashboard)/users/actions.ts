@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
+import { sendSms } from "@/lib/sms"
+import { generateEmail, generatePassword } from "@/lib/credentials"
 import { z } from "zod"
 
 export type UserFormState = {
@@ -13,10 +15,9 @@ export type UserFormState = {
 
 const createSchema = z.object({
   full_name: z.string().min(2, "Full name required"),
-  email: z.string().email("Valid email required"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  phone: z.string().optional(),
-  role: z.enum(["admin", "cashier", "field_agent"]),
+  phone: z.string().min(9, "Valid phone number required"),
+  role: z.enum(["admin", "cashier", "field_agent", "branch_admin"]),
+  branch_id: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -40,42 +41,56 @@ export async function createUserAction(
 
   const raw = {
     full_name: formData.get("full_name") as string,
-    email: ((formData.get("email") as string) ?? "").trim().toLowerCase(),
-    password: formData.get("password") as string,
-    phone: (formData.get("phone") as string) || undefined,
+    phone: (formData.get("phone") as string)?.trim(),
     role: roleToCreate,
+    branch_id: (formData.get("branch_id") as string) || undefined,
     notes: (formData.get("notes") as string) || undefined,
   }
 
   const parsed = createSchema.safeParse(raw)
   if (!parsed.success) {
-    return {
-      error: "Validation failed.",
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    }
+    return { error: "Validation failed.", fieldErrors: parsed.error.flatten().fieldErrors }
+  }
+
+  const email = generateEmail(parsed.data.full_name)
+  const tempPassword = generatePassword()
+
+  // For branch_admin, look up the branch code to embed in metadata (for URL routing)
+  let branchCode: string | null = null
+  if (parsed.data.role === "branch_admin" && parsed.data.branch_id) {
+    const { data: br } = await supabaseAdmin
+      .from("branches")
+      .select("code")
+      .eq("id", parsed.data.branch_id)
+      .single()
+    branchCode = br?.code ?? null
   }
 
   const { error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email: parsed.data.email,
-    password: parsed.data.password,
+    email,
+    password: tempPassword,
     email_confirm: true,
     user_metadata: {
       full_name: parsed.data.full_name,
       role: parsed.data.role,
       sacco_id: actor.saccoId,
-      phone: parsed.data.phone ?? null,
+      branch_id: parsed.data.branch_id ?? null,
+      branch_code: branchCode,
+      phone: parsed.data.phone,
       notes: parsed.data.notes ?? null,
-      must_change_password: true,
+      has_temp_password: true,
       created_by: actor.userId,
     },
   })
 
-  if (authError) {
-    if (authError.message.toLowerCase().includes("already been registered")) {
-      return { error: "A user with this email already exists." }
-    }
-    return { error: authError.message }
-  }
+  if (authError) return { error: authError.message }
+
+  // Send credentials via SMS (non-blocking)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "the portal"
+  sendSms({
+    to: parsed.data.phone,
+    message: `Your SACCO staff account has been created.\nEmail: ${email}\nPassword: ${tempPassword}\nLogin at: ${appUrl}\nChange your password after signing in.`,
+  }).catch((err) => console.error("[CREATE USER] SMS error:", err))
 
   revalidatePath("/users")
   return { success: true }
@@ -97,6 +112,7 @@ export async function updateUserAction(
     user_metadata: {
       full_name: formData.get("full_name") as string,
       role: formData.get("role") as string,
+      branch_id: (formData.get("branch_id") as string) || null,
       phone: (formData.get("phone") as string) || null,
       notes: (formData.get("notes") as string) || null,
       sacco_id: actor.saccoId,

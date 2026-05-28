@@ -12,6 +12,7 @@ export async function getAllLoans(saccoId: string) {
       members:member_id ( full_name, member_code, phone, national_id, address )
     `)
     .eq('sacco_id', saccoId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1000)
 

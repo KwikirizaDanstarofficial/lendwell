@@ -4,10 +4,9 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Loader2, Mail, CheckCircle2 } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { Copy, Check, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react"
 
-type Step = "register" | "verify" | "done"
+type Step = "register" | "verify" | "credentials"
 
 function ErrorAlert({ message }: { message: string }) {
   return (
@@ -22,16 +21,63 @@ function ErrorAlert({ message }: { message: string }) {
   )
 }
 
-export function SignupForm({ className, ...props }: React.ComponentPropsWithoutRef<"form">) {
+function CopyField({ label, value, secret }: { label: string; value: string; secret?: boolean }) {
+  const [copied, setCopied] = useState(false)
+  const [visible, setVisible] = useState(!secret)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(value)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="grid gap-1.5">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2.5">
+        <span className="flex-1 font-mono text-sm break-all select-all">
+          {secret && !visible ? "••••••••••••" : value}
+        </span>
+        {secret && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {copied
+            ? <Check className="h-4 w-4 text-green-500" />
+            : <Copy className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function maskPhone(phone: string) {
+  if (phone.length < 6) return phone
+  return phone.slice(0, 4) + "***" + phone.slice(-3)
+}
+
+export function SignupForm({ className }: { className?: string }) {
   const [step, setStep] = useState<Step>("register")
   const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPw, setShowPw] = useState(false)
+  const [phone, setPhone] = useState("")
+  const [otp, setOtp] = useState("")
+  const [credentials, setCredentials] = useState<{ email: string; tempPassword: string } | null>(null)
   const [error, setError] = useState("")
+  const [resent, setResent] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
+  // ── Step 1: Register ───────────────────────────────────────────────────────
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     startTransition(async () => {
@@ -39,14 +85,32 @@ export function SignupForm({ className, ...props }: React.ComponentPropsWithoutR
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fullName, email: email.trim().toLowerCase(), password }),
+          body: JSON.stringify({ fullName: fullName.trim(), phone: phone.trim() }),
         })
         const data = await res.json()
-        if (!res.ok) {
-          setError(data.error ?? "Sign up failed.")
-          return
-        }
+        if (!res.ok) { setError(data.error ?? "Sign up failed."); return }
         setStep("verify")
+      } catch {
+        setError("Something went wrong. Please try again.")
+      }
+    })
+  }
+
+  // ── Step 2: Verify OTP ─────────────────────────────────────────────────────
+  const handleVerify = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ otp }),
+        })
+        const data = await res.json()
+        if (!res.ok) { setError(data.error ?? "Verification failed."); return }
+        setCredentials({ email: data.email, tempPassword: data.tempPassword })
+        setStep("credentials")
       } catch {
         setError("Something went wrong. Please try again.")
       }
@@ -55,84 +119,124 @@ export function SignupForm({ className, ...props }: React.ComponentPropsWithoutR
 
   const handleResend = () => {
     setError("")
+    setResent(false)
     startTransition(async () => {
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email: email.trim().toLowerCase(),
-      })
-      if (resendError) setError("Could not resend. Please wait a moment and try again.")
+      try {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fullName: fullName.trim(), phone: phone.trim() }),
+        })
+        const data = await res.json()
+        if (!res.ok) { setError(data.error ?? "Could not resend."); return }
+        setResent(true)
+        setOtp("")
+      } catch {
+        setError("Could not resend. Please wait and try again.")
+      }
     })
   }
 
-  // ── Step: confirmed ──────────────────────────────────────────────────────────
-  if (step === "done") {
+  // ── Step 3: Credentials ────────────────────────────────────────────────────
+  if (step === "credentials" && credentials) {
     return (
-      <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-          <CheckCircle2 className="h-7 w-7 text-green-600 dark:text-green-400" />
+      <div className={cn("flex flex-col gap-6", className)}>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+            <ShieldCheck className="h-7 w-7 text-green-600 dark:text-green-400" />
+          </div>
+          <h1 className="text-2xl font-bold">Account created!</h1>
+          <p className="text-sm text-muted-foreground">
+            Your login details are shown below and were sent to{" "}
+            <span className="font-medium text-foreground">{maskPhone(phone)}</span>.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold">Email confirmed!</h1>
-        <p className="text-sm text-muted-foreground">
-          Your account is ready. Sign in to set up your SACCO.
-        </p>
-        <Button className="w-full max-w-xs mt-2" onClick={() => { window.location.href = "/auth/login" }}>
+
+        <div className="grid gap-3">
+          <CopyField label="Your email address" value={credentials.email} />
+          <CopyField label="Temporary password" value={credentials.tempPassword} secret />
+        </div>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          Save these credentials before continuing. You will be prompted to change your password after signing in.
+        </div>
+
+        <Button className="w-full" onClick={() => { window.location.href = "/auth/login" }}>
           Sign in now
         </Button>
       </div>
     )
   }
 
-  // ── Step: email link verify ──────────────────────────────────────────────────
+  // ── Step 2: Verify OTP ─────────────────────────────────────────────────────
   if (step === "verify") {
     return (
-      <div className={cn("flex flex-col gap-6", className)}>
+      <form className={cn("flex flex-col gap-6", className)} onSubmit={handleVerify}>
         <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <Mail className="h-7 w-7 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold">Check your email</h1>
+          <h1 className="text-2xl font-bold">Verify your phone</h1>
           <p className="text-sm text-muted-foreground">
-            We sent a confirmation link to{" "}
-            <span className="font-medium text-foreground">{email}</span>.
-            Click the link in the email to activate your account.
+            We sent a 6-digit code to{" "}
+            <span className="font-medium text-foreground">{maskPhone(phone)}</span>
           </p>
         </div>
 
-        {error && <ErrorAlert message={error} />}
+        <div className="grid gap-4">
+          {error && <ErrorAlert message={error} />}
+          {resent && (
+            <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/50 px-3 py-2.5 text-sm text-green-700 dark:text-green-300">
+              Previous code expired. A new code was sent to your phone.
+            </div>
+          )}
+
+          <div className="grid gap-2">
+            <Label htmlFor="otp">Verification code</Label>
+            <Input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              placeholder="000000"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+              disabled={isPending}
+              autoFocus
+              className="text-center text-xl tracking-[0.5em] font-mono"
+              required
+            />
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isPending || otp.length !== 6}>
+            {isPending
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying…</>
+              : "Verify"}
+          </Button>
+
+          <Button type="button" variant="outline" className="w-full" onClick={handleResend} disabled={isPending}>
+            {isPending ? "Sending…" : resent ? "Code sent" : "Resend code"}
+          </Button>
+        </div>
 
         <p className="text-center text-sm text-muted-foreground">
-          Didn&apos;t receive the email?{" "}
-          <button
-            type="button"
-            className="text-foreground underline underline-offset-4 hover:text-primary disabled:opacity-50"
-            onClick={handleResend}
-            disabled={isPending}
-          >
-            {isPending ? "Sending…" : "Resend email"}
-          </button>
-        </p>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Wrong address?{" "}
+          Wrong number?{" "}
           <button
             type="button"
             className="text-foreground underline underline-offset-4 hover:text-primary"
-            onClick={() => { setStep("register"); setError("") }}
+            onClick={() => { setStep("register"); setError(""); setOtp("") }}
           >
             Go back
           </button>
         </p>
-      </div>
+      </form>
     )
   }
 
-  // ── Step: register ───────────────────────────────────────────────────────────
+  // ── Step 1: Register ───────────────────────────────────────────────────────
   return (
-    <form className={cn("flex flex-col gap-6", className)} onSubmit={handleSignup} {...props}>
+    <form className={cn("flex flex-col gap-6", className)} onSubmit={handleRegister}>
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl font-bold">Create your SACCO account</h1>
         <p className="text-sm text-balance text-muted-foreground">
-          Set up your admin account, then configure your SACCO details
+          Enter your name and phone number to get started
         </p>
       </div>
 
@@ -153,57 +257,25 @@ export function SignupForm({ className, ...props }: React.ComponentPropsWithoutR
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="email">Email address</Label>
+          <Label htmlFor="phone">Phone number</Label>
           <Input
-            id="email"
-            type="email"
-            placeholder="admin@mysacco.ug"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            id="phone"
+            type="tel"
+            placeholder="0700 000 000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             disabled={isPending}
             required
           />
+          <p className="text-xs text-muted-foreground">
+            A 6-digit verification code will be sent to this number.
+          </p>
         </div>
 
-        <div className="grid gap-2">
-          <Label htmlFor="password">Password</Label>
-          <div className="relative">
-            <Input
-              id="password"
-              type={showPw ? "text" : "password"}
-              placeholder="Min. 8 characters"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isPending}
-              required
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPw((v) => !v)}
-              className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              tabIndex={-1}
-            >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
-
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={isPending}
-        >
-          {isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating account…
-            </>
-          ) : (
-            "Create account"
-          )}
+        <Button type="submit" className="w-full" disabled={isPending}>
+          {isPending
+            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending code…</>
+            : "Continue"}
         </Button>
       </div>
 

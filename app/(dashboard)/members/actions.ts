@@ -4,8 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase/server"
 import { STORAGE_BUCKETS } from "@/lib/supabase/storage"
 import { revalidatePath } from "next/cache"
 import { generateMemberCode, generateMemberCodes } from "@/lib/member-code"
-import { sendSms, smsTemplates } from "@/lib/sms"
+import { sendSms, getSmsTemplates } from "@/lib/sms"
 import { getCurrentUser } from "@/lib/auth"
+import { generateEmail, generatePassword } from "@/lib/credentials"
 import { z } from "zod"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 
@@ -119,8 +120,8 @@ export async function addMemberAction(
       return { error: "Unauthorized" }
     }
 
-    // Admin, cashier, and field agent can add members
-    if (!["admin", "cashier", "field_agent"].includes(user.role)) {
+    // Admin, cashier, branch_admin, and field agent can add members
+    if (!["admin", "cashier", "field_agent", "branch_admin"].includes(user.role)) {
       console.log(
         `Permission denied: User ${user.email} (role: ${user.role}) attempted to add a member`
       )
@@ -135,6 +136,8 @@ export async function addMemberAction(
     if (photoFile && photoFile instanceof File && photoFile.size > 0) {
       photo_url = await uploadMemberPhoto(photoFile, user.saccoId, member_code)
     }
+
+    const branchId = (formData.get("branch_id") as string) || null
 
     const raw = {
       full_name: formData.get("full_name") as string,
@@ -178,6 +181,7 @@ export async function addMemberAction(
         next_of_kin_address: parsed.data.next_of_kin_address || null,
         status: parsed.data.status,
         photo_url: parsed.data.photo_url || null,
+        branch_id: branchId,
       })
 
     if (insertError) {
@@ -185,11 +189,44 @@ export async function addMemberAction(
       return { error: insertError.message || "Failed to add member. Please try again." }
     }
 
+    // Auto-create portal login credentials for the member
+    const memberEmail = generateEmail(parsed.data.full_name)
+    const memberPassword = generatePassword()
+
+    const { error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: memberEmail,
+      password: memberPassword,
+      email_confirm: true,
+      user_metadata: {
+        full_name: parsed.data.full_name,
+        phone: parsed.data.phone,
+        role: "member",
+        sacco_id: user.saccoId,
+        member_code,
+        has_temp_password: true,
+      },
+    })
+
+    if (authError) {
+      console.error("[Member] Auth user creation failed:", authError)
+    }
+
     if (parsed.data.phone) {
-      await sendSms({
-        to: parsed.data.phone,
-        message: smsTemplates.welcome(parsed.data.full_name, member_code),
-      })
+      try {
+        const { data: saccoForWelcome } = await supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single()
+        const saccoSettings = (() => { try { return JSON.parse(saccoForWelcome?.settings ?? "{}") } catch { return {} } })()
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
+        const welcomeMsg = getSmsTemplates(saccoSettings?.sms?.language).welcome(parsed.data.full_name, member_code)
+        const credMsg = !authError
+          ? `\nPortal login:\nEmail: ${memberEmail}\nPassword: ${memberPassword}\n${appUrl}`
+          : ""
+        sendSms({
+          to: parsed.data.phone,
+          message: welcomeMsg + credMsg,
+        }).catch((err) => console.error("[Member] SMS error:", err))
+      } catch (smsError) {
+        console.error("[Member] SMS failed:", smsError)
+      }
     }
 
     revalidatePath("/members")
@@ -387,16 +424,29 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       }
     }
 
-    // Delete the member
+    // Fetch member name for the log
+    const { data: memberData } = await supabaseAdmin
+      .from('members').select('full_name, member_code').eq('id', id).single()
+
+    // Soft-delete the member
     const { error: deleteError } = await supabaseAdmin
       .from('members')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
 
     if (deleteError) {
       console.error('Error deleting member:', deleteError)
       return { error: "Failed to delete member." }
     }
+
+    const { logActivity } = await import("@/lib/activity-log")
+    await logActivity({
+      saccoId: user.saccoId, actorId: user.userId,
+      actorName: user.fullName, actorRole: user.role,
+      action: "delete", entity: "member",
+      entityId: id, entityRef: memberData?.member_code,
+      description: `Moved member ${memberData?.full_name ?? id} to recycle bin`,
+    })
 
     revalidatePath("/members")
     return { success: true }
@@ -607,7 +657,7 @@ export async function getMemberStatsAction(id: string) {
       0
     ) || 0
 
-    const activeLoans = memberLoans?.filter((l) => l.status === "active") || []
+    const activeLoans = memberLoans?.filter((l) => l.status === "active" || l.status === "disbursed") || []
     const outstandingBalance = activeLoans.reduce(
       (sum: number, l) => sum + l.balance,
       0
@@ -905,9 +955,12 @@ export async function addSavingsAction(
 
     if (member.phone) {
       try {
+        const { data: saccoForSms } = await supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single()
+        const saccoSettings = (() => { try { return JSON.parse(saccoForSms?.settings ?? "{}") } catch { return {} } })()
+        const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
-          message: smsTemplates.savingsDeposit(
+          message: templates.savingsDeposit(
             member.full_name,
             amount / 100,
             newBalance / 100,
@@ -916,7 +969,6 @@ export async function addSavingsAction(
         })
       } catch (smsError) {
         console.error('SMS sending failed:', smsError)
-        // Don't fail the savings deposit if SMS fails
       }
     }
 

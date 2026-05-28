@@ -35,6 +35,11 @@ const nextConfig = withOffline({
         protocol: "https",
         hostname: "**.blob.vercel-storage.com",
       },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
 
@@ -82,8 +87,5 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   widenClientFileUpload: true,
   hideSourceMaps: true,
-  webpack: {
-    treeshake: { removeDebugLogging: true },
-    automaticVercelMonitors: true,
-  },
+  automaticVercelMonitors: true,
 })

@@ -1,10 +1,19 @@
 import type { Metadata } from "next"
 import { LoginForm } from "./login-form"
 import { LogoMark } from "@/components/logo"
+import { supabaseAdmin } from "@/lib/supabase/server"
 
 export const metadata: Metadata = { title: "Sign In — SaccoOS" }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const { data } = await supabaseAdmin
+    .from("branches")
+    .select("id, name, code, address, phone")
+    .eq("is_active", true)
+    .order("name", { ascending: true })
+
+  const branches = (data ?? []) as { id: string; name: string; code: string; address: string | null; phone: string | null }[]
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       {/* ── Left: form ── */}
@@ -16,8 +25,8 @@ export default function LoginPage() {
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-xs">
-            <LoginForm />
+          <div className="w-full max-w-sm">
+            <LoginForm branches={branches} />
           </div>
         </div>
       </div>

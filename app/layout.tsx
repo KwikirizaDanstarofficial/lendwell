@@ -2,12 +2,9 @@ import { Suspense } from "react"
 import type { Metadata, Viewport } from "next"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/providers/theme-provider"
-import { QueryProvider } from "@/components/providers/query-provider"
 import { getCurrentUser } from "@/lib/auth"
-import { redirect } from "next/navigation"
-import { AppSidebar } from "@/components/layout/app-sidebar"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { ClientHeader } from "@/components/ui/client-header"
+import { TopNav } from "@/components/layout/top-nav"
+import { TempPasswordBanner } from "@/components/layout/temp-password-banner"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -38,38 +35,30 @@ export default async function RootLayout({
 
   if (user) {
     body = (
-      <SidebarProvider>
-        <AppSidebar user={user} />
-        <SidebarInset>
-          <ClientHeader user={user} />
-          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
-        </SidebarInset>
-      </SidebarProvider>
+      <div className="min-h-screen flex flex-col">
+        <TopNav user={user} />
+        {user.hasTempPassword && <TempPasswordBanner />}
+        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+      </div>
     )
   }
 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}` }} />
         <link
           href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;600;700;800;900&display=swap"
           rel="stylesheet"
         />
       </head>
       <body className="font-sans" suppressHydrationWarning>
-        <QueryProvider>
-          <Suspense fallback={null}>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {body}
-              <Toaster richColors position="top-right" />
-            </ThemeProvider>
-          </Suspense>
-        </QueryProvider>
+        <Suspense fallback={null}>
+          <ThemeProvider>
+            {body}
+            <Toaster richColors position="top-right" />
+          </ThemeProvider>
+        </Suspense>
       </body>
     </html>
   )

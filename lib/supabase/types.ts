@@ -384,6 +384,46 @@ export type Database = {
           created_at?: string
         }
       }
+      next_of_kin: {
+        Row: {
+          id: string
+          member_id: string
+          sacco_id: string
+          full_name: string
+          relationship: string | null
+          phone: string | null
+          email: string | null
+          address: string | null
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          member_id: string
+          sacco_id: string
+          full_name: string
+          relationship?: string | null
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          member_id?: string
+          sacco_id?: string
+          full_name?: string
+          relationship?: string | null
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          is_primary?: boolean
+          updated_at?: string
+        }
+      }
       loan_top_ups: {
         Row: {
           id: string
@@ -510,6 +550,7 @@ export type Database = {
           next_of_kin_relationship: string | null
           next_of_kin_address: string | null
           status: 'active' | 'suspended' | 'exited'
+          branch_id: string | null
           joined_at: string
           created_at: string
           updated_at: string
@@ -679,6 +720,46 @@ export type Database = {
           computed_at?: string
         }
       }
+      branches: {
+        Row: {
+          id: string
+          sacco_id: string
+          name: string
+          code: string
+          address: string | null
+          phone: string | null
+          email: string | null
+          manager_id: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          sacco_id: string
+          name: string
+          code: string
+          address?: string | null
+          phone?: string | null
+          email?: string | null
+          manager_id?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          sacco_id?: string
+          name?: string
+          code?: string
+          address?: string | null
+          phone?: string | null
+          email?: string | null
+          manager_id?: string | null
+          is_active?: boolean
+          updated_at?: string
+        }
+      }
       sacco_users: {
         Row: {
           id: string
@@ -686,7 +767,8 @@ export type Database = {
           full_name: string
           email: string
           phone: string | null
-          role: 'admin' | 'cashier' | 'field_agent'
+          role: 'admin' | 'cashier' | 'field_agent' | 'branch_admin' | 'branch_admin'
+          branch_id: string | null
           avatar_url: string | null
           is_active: boolean
           last_login_at: string | null
@@ -703,7 +785,8 @@ export type Database = {
           full_name: string
           email: string
           phone?: string | null
-          role?: 'admin' | 'cashier' | 'field_agent'
+          role?: 'admin' | 'cashier' | 'field_agent' | 'branch_admin' | 'branch_admin'
+          branch_id?: string | null
           avatar_url?: string | null
           is_active?: boolean
           last_login_at?: string | null
@@ -720,7 +803,8 @@ export type Database = {
           full_name?: string
           email?: string
           phone?: string | null
-          role?: 'admin' | 'cashier' | 'field_agent'
+          role?: 'admin' | 'cashier' | 'field_agent' | 'branch_admin' | 'branch_admin'
+          branch_id?: string | null
           avatar_url?: string | null
           is_active?: boolean
           last_login_at?: string | null
@@ -991,11 +1075,11 @@ export type Database = {
       notification_type: 'sms' | 'in_app'
       payment_method: 'cash' | 'mobile_money' | 'bank' | 'flutterwave' | 'mtn' | 'airtel'
       sacco_status: 'active' | 'suspended' | 'trial' | 'cancelled'
-      sacco_user_role: 'admin' | 'cashier' | 'field_agent'
+      sacco_user_role: 'admin' | 'cashier' | 'field_agent' | 'branch_admin'
       savings_account_type: 'regular' | 'fixed'
       superadmin_role: 'superadmin' | 'support'
       transaction_type: 'loan_disbursement' | 'loan_repayment' | 'savings_deposit' | 'savings_withdrawal' | 'fine_payment'
-      user_role: 'admin' | 'cashier' | 'field_agent'
+      user_role: 'admin' | 'cashier' | 'field_agent' | 'branch_admin'
     }
     CompositeTypes: {
       [_ in never]: never

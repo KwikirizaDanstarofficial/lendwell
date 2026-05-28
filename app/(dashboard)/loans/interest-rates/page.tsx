@@ -24,6 +24,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Plus,
   Trash2,
   Edit2,
@@ -47,6 +57,7 @@ export default function InterestRatesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; minAmount: number; maxAmount: number } | null>(null)
   const [formData, setFormData] = useState({
     min_amount: "",
     max_amount: "",
@@ -201,29 +212,15 @@ export default function InterestRatesPage() {
   }
 
   // Handle delete interest rate
-  const handleDelete = async (
-    id: string,
-    minAmount: number,
-    maxAmount: number
-  ) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete the interest rate for UGX ${(
-          minAmount / 100
-        ).toLocaleString()} - UGX ${(maxAmount / 100).toLocaleString()}?`
-      )
-    )
-      return
-
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     setLoading(true)
     try {
-      const result = await deleteInterestRateAction(id)
-
+      const result = await deleteInterestRateAction(deleteTarget.id)
       if (result.error) {
         toast.error(result.error)
         return
       }
-
       toast.success("Interest rate deleted successfully")
       await refreshRates()
     } catch (error) {
@@ -231,6 +228,7 @@ export default function InterestRatesPage() {
       console.error(error)
     } finally {
       setLoading(false)
+      setDeleteTarget(null)
     }
   }
 
@@ -282,6 +280,29 @@ export default function InterestRatesPage() {
 
   return (
     <div className="space-y-6">
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Interest Rate?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the interest rate for{" "}
+              {deleteTarget ? `${formatCurrency(deleteTarget.minAmount)} – ${formatCurrency(deleteTarget.maxAmount)}` : ""}.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={loading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting…</> : "Yes, Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -552,13 +573,7 @@ export default function InterestRatesPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() =>
-                              handleDelete(
-                                rate.id,
-                                rate.minAmount,
-                                rate.maxAmount
-                              )
-                            }
+                            onClick={() => setDeleteTarget({ id: rate.id, minAmount: rate.minAmount, maxAmount: rate.maxAmount })}
                             disabled={loading}
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
                           >
