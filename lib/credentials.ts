@@ -6,7 +6,7 @@ export function generateEmail(fullName: string): string {
   const last = (parts[1] ?? parts[0]).replace(/[^a-z0-9]/g, "")
   const digits = String(Math.floor(10 + Math.random() * 90))
   const domain = process.env.SACCO_EMAIL_DOMAIN ?? "mysacco.app"
-  return `${first}+${last}${digits}@${domain}`
+  return `${first}.${last}${digits}@${domain}`
 }
 
 export function generatePassword(length = 12): string {
