@@ -1,3 +1,6 @@
+// app/(dashboard)/members/add/add-member-form.tsx
+// 3-step form for creating a new member: photo upload → personal info → next of kin.
+// On success the member gets a welcome SMS and portal login credentials.
 "use client"
 
 import { useActionState, useState, useRef, useEffect } from "react"
@@ -21,8 +24,14 @@ import {
 } from "@/components/ui/select"
 import { Camera, Loader2, ArrowLeft, User, Upload } from "lucide-react"
 import type { Branch } from "@/db/queries/branches"
+import { PHOTO_MAX_SIZE_BYTES, PHOTO_ACCEPTED_TYPES } from "@/lib/ui-styles"
 
-const initialState: MemberFormState = {}
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Upload progress simulation interval in ms. */
+const PROGRESS_INTERVAL_MS = 200
+
+const INITIAL_FORM_STATE: MemberFormState = {}
 
 function SectionHeader({
   step,
@@ -93,14 +102,11 @@ function Field({
   )
 }
 
-const inputClass =
-  "h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
-
 export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     addMemberAction,
-    initialState
+    INITIAL_FORM_STATE
   )
   const [photoUrl, setPhotoUrl] = useState("")
   const [photoPreview, setPhotoPreview] = useState("")
@@ -117,7 +123,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
           if (prev >= 90) return prev
           return prev + Math.random() * 10
         })
-      }, 200)
+      }, PROGRESS_INTERVAL_MS)
 
       return () => clearInterval(interval)
     } else {
@@ -150,13 +156,9 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
   }, [photoFile])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: {
-      "image/jpeg": [".jpg", ".jpeg"],
-      "image/png": [".png"],
-      "image/webp": [".webp"],
-    },
+    accept:   PHOTO_ACCEPTED_TYPES,
     maxFiles: 1,
-    maxSize: 5 * 1024 * 1024, // 5MB
+    maxSize:  PHOTO_MAX_SIZE_BYTES,
     onDrop: (files, rejectedFiles) => {
       // Handle rejected files
       if (rejectedFiles.length > 0) {
@@ -241,11 +243,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
           {/* Dropzone */}
           <div
             {...getRootProps()}
-            className={`flex-1 cursor-pointer rounded-xl border-2 border-dashed px-5 py-4 transition-all ${
-              isDragActive
-                ? "border-ring bg-accent"
-                : "border-border hover:border-ring/50 hover:bg-accent/50"
-            }`}
+            className={`flex-1 cursor-pointer rounded-xl border-2 border-dashed px-5 py-4 transition-all ${isDragActive ? "border-ring bg-accent" : "border-border hover:border-ring/50 hover:bg-accent/50"}`}
           >
             <input {...getInputProps()} />
             <div className="flex flex-col items-center gap-1.5 text-center">
@@ -283,7 +281,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="full_name"
               name="full_name"
               placeholder="Enter full name"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -297,7 +295,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="phone"
               name="phone"
               placeholder="07XX XXX XXX"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -307,7 +305,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               name="email"
               type="email"
               placeholder="email@example.com"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -321,7 +319,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="national_id"
               name="national_id"
               placeholder="CM XXXXXXXXXX"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -330,7 +328,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="date_of_birth"
               name="date_of_birth"
               type="date"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -339,13 +337,13 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="address"
               name="address"
               placeholder="Street, area or town"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
           <Field id="status" label="Membership Status">
             <Select name="status" defaultValue="active">
-              <SelectTrigger className={`${inputClass} flex w-full`}>
+              <SelectTrigger className={`${"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"} flex w-full`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -374,7 +372,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
           {branches.length > 0 && (
             <Field id="branch_id" label="Branch">
               <Select name="branch_id">
-                <SelectTrigger className={`${inputClass} flex w-full`}>
+                <SelectTrigger className={`${"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"} flex w-full`}>
                   <SelectValue placeholder="Select branch (optional)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -402,7 +400,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="next_of_kin"
               name="next_of_kin"
               placeholder="Next of kin name"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
           <Field id="next_of_kin_relationship" label="Relationship">
@@ -410,7 +408,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="next_of_kin_relationship"
               name="next_of_kin_relationship"
               placeholder="e.g. Spouse, Parent, Sibling"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -419,7 +417,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="next_of_kin_phone"
               name="next_of_kin_phone"
               placeholder="07XX XXX XXX"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
           <Field id="next_of_kin_address" label="Address">
@@ -427,7 +425,7 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
               id="next_of_kin_address"
               name="next_of_kin_address"
               placeholder="Next of kin address"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
         </FieldGroup>
@@ -462,3 +460,25 @@ export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
     </form>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   AddMemberForm({ branches? })
+//     – 3-step member creation form: photo → personal info → next of kin
+//     – on success: welcome SMS sent, portal login auto-created
+//
+// KEY CONSTANTS:
+//   PHOTO_MAX_SIZE_BYTES   = 5 242 880 (5 MB)
+//   PHOTO_ACCEPTED_TYPES   – jpeg, png, webp
+//   "h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"            – shared Tailwind class for all text inputs
+//   PROGRESS_INTERVAL_MS   = 200
+//
+// SUB-COMPONENTS (file-local):
+//   SectionHeader  – numbered step header
+//   FieldGroup     – responsive 2-column grid wrapper
+//   Field          – labelled input wrapper with error message
+//
+// RELATED FILES:
+//   app/(dashboard)/members/actions.ts  – addMemberAction server action
+//   db/queries/branches.ts              – Branch type

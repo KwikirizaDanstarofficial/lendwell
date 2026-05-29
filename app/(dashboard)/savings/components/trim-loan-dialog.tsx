@@ -35,7 +35,7 @@ export function TrimLoanDialog({
   open: boolean
   onClose: () => void
 }) {
-  const [state, formAction, isPending] = useActionState(trimToLoanAction, {})
+  const [state, formAction, isPending] = useActionState(trimToLoanAction, {} as { success?: boolean; error?: string })
   const [selectedLoan, setSelectedLoan] = useState<any>(null)
 
   useEffect(() => {

@@ -116,26 +116,24 @@ export function ClientHeader({ user }: ClientHeaderProps) {
 
         {/* User profile dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              id="tour-user-menu"
-              className="flex items-center gap-2 rounded-full border border-border bg-card pl-1 pr-2.5 py-1 hover:bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Avatar className="h-7 w-7 rounded-full">
-                <AvatarFallback className="rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="hidden sm:flex flex-col text-left leading-none">
-                <span className="truncate text-xs font-semibold max-w-[100px] text-foreground">
-                  {user.fullName}
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground max-w-[100px]">
-                  {ROLE_LABELS[user.role] ?? user.role}
-                </span>
-              </div>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:block" />
-            </button>
+          <DropdownMenuTrigger
+            id="tour-user-menu"
+            className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-2.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Avatar className="h-7 w-7 rounded-full">
+              <AvatarFallback className="rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="hidden flex-col text-left leading-none sm:flex">
+              <span className="max-w-[100px] truncate text-xs font-semibold text-foreground">
+                {user.fullName}
+              </span>
+              <span className="max-w-[100px] truncate text-[10px] text-muted-foreground">
+                {ROLE_LABELS[user.role] ?? user.role}
+              </span>
+            </div>
+            <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60" sideOffset={8}>
             {/* Identity block */}

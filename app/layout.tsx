@@ -6,6 +6,11 @@ import { getCurrentUser } from "@/lib/auth"
 import { TopNav } from "@/components/layout/top-nav"
 import { TempPasswordBanner } from "@/components/layout/temp-password-banner"
 import "./globals.css"
+import { Geist, JetBrains_Mono } from "next/font/google"
+import { cn } from "@/lib/utils"
+
+const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const fontMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
   title: { default: "SaccoOS", template: "%s — SaccoOS" },
@@ -44,13 +49,9 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={cn("antialiased", fontSans.variable, fontMono.variable)}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}` }} />
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body className="font-sans" suppressHydrationWarning>
         <Suspense fallback={null}>

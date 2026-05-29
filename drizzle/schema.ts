@@ -70,11 +70,6 @@ export const saccoStatus = pgEnum("sacco_status", [
   "trial",
   "cancelled",
 ])
-export const saccoUserRole = pgEnum("sacco_user_role", [
-  "admin",
-  "cashier",
-  "field_agent",
-])
 export const savingsAccountType = pgEnum("savings_account_type", [
   "regular",
   "fixed",

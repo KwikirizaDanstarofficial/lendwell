@@ -1,4 +1,6 @@
 // app/(dashboard)/loans/components/decline-dialog.tsx
+// Dialog for declining a pending loan application with a mandatory reason.
+// Calls declineLoanAction and notifies the member via SMS (server-side).
 "use client"
 
 import { useState } from "react"
@@ -12,21 +14,31 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
+import { formatUGX } from "@/lib/utils/format"
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Divisor to convert stored cent amounts to UGX for display. */
+const CENTS_PER_UNIT = 100
+
+/** Number of visible rows in the reason textarea. */
+const REASON_TEXTAREA_ROWS = 3
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function DeclineDialog({
   loan,
   open,
   onClose,
 }: {
-  loan: any
-  open: boolean
+  loan:    any
+  open:    boolean
   onClose: () => void
 }) {
-  const [reason, setReason] = useState("")
+  const [reason,  setReason]  = useState("")
   const [loading, setLoading] = useState(false)
 
   const handleDecline = async () => {
@@ -34,14 +46,16 @@ export function DeclineDialog({
       toast.error("Please provide a reason for declining")
       return
     }
+
     setLoading(true)
-    const res = await declineLoanAction(loan.id, reason)
+    const result = await declineLoanAction(loan.id, reason)
     setLoading(false)
-    if (res.success) {
+
+    if (result.success) {
       toast.success("Loan declined")
       onClose()
     } else {
-      toast.error(res.error)
+      toast.error(result.error)
     }
   }
 
@@ -51,7 +65,8 @@ export function DeclineDialog({
         <DialogHeader>
           <DialogTitle>Decline Loan Application</DialogTitle>
           <DialogDescription>
-            Loan: {loan.loanRef} · Member: {loan.member_name} · Amount: {formatUGX(loan.amount)}
+            Loan: {loan.loanRef} · Member: {loan.member_name} · Amount:{" "}
+            {formatUGX(loan.amount / CENTS_PER_UNIT)}
           </DialogDescription>
         </DialogHeader>
 
@@ -60,23 +75,19 @@ export function DeclineDialog({
             <Label htmlFor="reason">Reason for Declining *</Label>
             <Textarea
               id="reason"
-              placeholder="e.g., Insufficient collateral, Poor credit history, etc."
+              placeholder="e.g. Insufficient collateral, Poor credit history, etc."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              rows={3}
+              rows={REASON_TEXTAREA_ROWS}
             />
           </div>
 
-          <div className="flex gap-2 justify-end">
+          <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDecline}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button variant="destructive" onClick={handleDecline} disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Decline Loan
             </Button>
           </div>
@@ -86,5 +97,17 @@ export function DeclineDialog({
   )
 }
 
-// Add import for formatUGX
-import { formatUGX } from "@/lib/utils/format"
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   DeclineDialog({ loan, open, onClose })
+//     – modal for declining a pending loan with a mandatory reason
+//     – the server action sends an SMS to the member
+//
+// KEY CONSTANTS:
+//   CENTS_PER_UNIT         = 100
+//   REASON_TEXTAREA_ROWS   = 3
+//
+// RELATED FILES:
+//   ../actions.ts        – declineLoanAction server action
+//   lib/utils/format.ts  – formatUGX()

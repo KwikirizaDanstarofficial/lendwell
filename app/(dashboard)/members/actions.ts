@@ -1,3 +1,17 @@
+/**
+ * app/(dashboard)/members/actions.ts
+ *
+ * Server actions for member CRUD operations in the SACCO application.
+ * Each action runs on the server and orchestrates:
+ *   – Authentication and role-based authorisation
+ *   – Input validation via Zod
+ *   – Database writes via the Supabase admin client
+ *   – Photo uploads to Supabase Storage
+ *   – Portal login credential creation via Supabase Auth
+ *   – SMS notifications to members
+ *   – Audit log entries
+ *   – Next.js cache revalidation
+ */
 "use server"
 
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -10,8 +24,48 @@ import { generateEmail, generatePassword } from "@/lib/credentials"
 import { z } from "zod"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
+/** Multiplier to convert major currency units (UGX) to stored minor units. */
+const CENTS_PER_UNIT = 100
+
+/** Maximum file size allowed for member photo uploads (5 MB). */
+const PHOTO_MAX_SIZE_BYTES = 5 * 1024 * 1024
+
+/** MIME types accepted for member photo uploads. */
+const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const
+
+/** Roles allowed to create and edit member records. */
+const MEMBER_MANAGEMENT_ROLES = ["admin", "cashier", "field_agent", "branch_admin"] as const
+
+/** Number of recent transactions shown on the member detail page. */
+const RECENT_TRANSACTIONS_LIMIT = 20
+
+/** Loan reference prefix for quick-assign loans created from the member page. */
+const LOAN_REF_PREFIX = "LN"
+
+/** Savings account number prefix for auto-created accounts. */
+const SAVINGS_ACCOUNT_PREFIX = "SAV"
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Safely parse the SACCO settings JSON column.
+ * Returns an empty object when the value is null or malformed JSON.
+ */
+function parseSaccoSettings(raw: string | null | undefined): Record<string, any> {
+  try {
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Zod schema for validating member create/update form input.
+ * Empty string values for optional fields are transformed to undefined/null
+ * so they are stored as NULL in the database.
+ */
 const memberSchema = z.object({
   full_name: z.string().min(2, "Full name is required"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
@@ -49,16 +103,17 @@ const memberSchema = z.object({
     .transform((v) => (!v || v === "" ? null : v)),
 })
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
+/** Standard return type for member server actions. */
 export type MemberFormState = {
   success?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
 }
 
-// ─── Photo Upload Helper ───────────────────────────────────────────────────────
-
+/**
+ * Ensures the avatars storage bucket exists in Supabase.
+ * Creates it on first use with appopriate constraints (public, image-only, 5MB max).
+ */
 async function ensureAvatarsBucket() {
   const { data: buckets } = await supabaseAdmin.storage.listBuckets()
   const exists = buckets?.some((b) => b.name === STORAGE_BUCKETS.AVATARS)
@@ -71,6 +126,11 @@ async function ensureAvatarsBucket() {
   }
 }
 
+/**
+ * Uploads a member photo to Supabase Storage and returns the public URL.
+ * Validates file type and size before uploading.
+ * Returns null if the upload fails (caller handles gracefully).
+ */
 async function uploadMemberPhoto(
   photoFile: File,
   saccoId: string,
@@ -78,11 +138,11 @@ async function uploadMemberPhoto(
 ): Promise<string | null> {
   try {
     const allowedTypes = ["image/jpeg", "image/png", "image/webp"]
-    if (!allowedTypes.includes(photoFile.type)) {
+    if (!(ALLOWED_PHOTO_TYPES as readonly string[]).includes(photoFile.type)) {
       throw new Error("Only JPG, PNG, and WEBP images are allowed")
     }
 
-    if (photoFile.size > 5 * 1024 * 1024) {
+    if (photoFile.size > PHOTO_MAX_SIZE_BYTES) {
       throw new Error("Image must be less than 5MB")
     }
 
@@ -108,8 +168,14 @@ async function uploadMemberPhoto(
   }
 }
 
-// ─── Add Member ───────────────────────────────────────────────────────────────
-
+/**
+ * Creates a new member record, uploads their photo (if provided), auto-creates
+ * portal login credentials, and sends a welcome SMS with the portal URL and
+ * member code. The password is NOT sent via SMS for security — instead the
+ * member is directed to use the "forgot password" flow.
+ *
+ * Allowed roles: admin, cashier, field_agent, branch_admin.
+ */
 export async function addMemberAction(
   prevState: MemberFormState,
   formData: FormData
@@ -120,17 +186,17 @@ export async function addMemberAction(
       return { error: "Unauthorized" }
     }
 
-    // Admin, cashier, branch_admin, and field agent can add members
-    if (!["admin", "cashier", "field_agent", "branch_admin"].includes(user.role)) {
+    if (!(MEMBER_MANAGEMENT_ROLES as readonly string[]).includes(user.role)) {
       console.log(
         `Permission denied: User ${user.email} (role: ${user.role}) attempted to add a member`
       )
       return { error: "You don't have permission to add members" }
     }
 
+    // Generate a unique member code using the SACCO-specific prefix and sequence
     const member_code = await generateMemberCode(user.saccoId)
 
-    // Handle photo upload
+    // Upload photo if one was provided in the form
     let photo_url = null
     const photoFile = formData.get("photo") as File | null
     if (photoFile && photoFile instanceof File && photoFile.size > 0) {
@@ -139,6 +205,7 @@ export async function addMemberAction(
 
     const branchId = (formData.get("branch_id") as string) || null
 
+    // Collect raw form data for validation
     const raw = {
       full_name: formData.get("full_name") as string,
       email: formData.get("email") as string,
@@ -164,6 +231,7 @@ export async function addMemberAction(
       }
     }
 
+    // Insert the member record
     const { error: insertError } = await supabaseAdmin
       .from('members')
       .insert({
@@ -190,6 +258,7 @@ export async function addMemberAction(
     }
 
     // Auto-create portal login credentials for the member
+    // Password is NOT sent via SMS — member must use "forgot password" flow
     const memberEmail = generateEmail(parsed.data.full_name)
     const memberPassword = generatePassword()
 
@@ -211,18 +280,18 @@ export async function addMemberAction(
       console.error("[Member] Auth user creation failed:", authError)
     }
 
+    // Send welcome SMS with portal URL and member code only.
+    // The password is excluded for security — members use the forgot-password flow.
     if (parsed.data.phone) {
       try {
         const { data: saccoForWelcome } = await supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single()
-        const saccoSettings = (() => { try { return JSON.parse(saccoForWelcome?.settings ?? "{}") } catch { return {} } })()
+        const saccoSettings = parseSaccoSettings(saccoForWelcome?.settings)
         const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
         const welcomeMsg = getSmsTemplates(saccoSettings?.sms?.language).welcome(parsed.data.full_name, member_code)
-        const credMsg = !authError
-          ? `\nPortal login:\nEmail: ${memberEmail}\nPassword: ${memberPassword}\n${appUrl}`
-          : ""
+        const portalInfo = `\nPortal: ${appUrl}/portal\nUse your email and the forgot-password link to set your password.`
         sendSms({
           to: parsed.data.phone,
-          message: welcomeMsg + credMsg,
+          message: welcomeMsg + portalInfo,
         }).catch((err) => console.error("[Member] SMS error:", err))
       } catch (smsError) {
         console.error("[Member] SMS failed:", smsError)
@@ -237,8 +306,12 @@ export async function addMemberAction(
   }
 }
 
-// ─── Edit Member ──────────────────────────────────────────────────────────────
-
+/**
+ * Updates an existing member's profile.
+ * Only admins can edit members.
+ * If the phone number changes and the new number is provided, an SMS notification
+ * is sent to the new number. Photo replacement is handled separately.
+ */
 export async function editMemberAction(
   id: string,
   prevState: MemberFormState,
@@ -250,14 +323,11 @@ export async function editMemberAction(
       return { error: "Unauthorized" }
     }
 
-    // Only admin can edit members
     if (user.role !== "admin") {
       return { error: "You don't have permission to edit members" }
     }
 
-    
-
-    // Get existing member to check current photo
+    // Fetch the existing member to compare values and preserve the photo if not replaced
     const { data: existingMember, error: memberError } = await supabaseAdmin
       .from('members')
       .select('*')
@@ -268,7 +338,7 @@ export async function editMemberAction(
       return { error: "Member not found" }
     }
 
-    // Handle photo upload
+    // Handle photo replacement — keep the old one unless a new file is uploaded
     let photo_url = existingMember.photo_url
     const photoFile = formData.get("photo") as File | null
     if (photoFile && photoFile instanceof File && photoFile.size > 0) {
@@ -304,6 +374,7 @@ export async function editMemberAction(
       }
     }
 
+    // Perform the update
     const { error: updateError } = await supabaseAdmin
       .from('members')
       .update({
@@ -328,6 +399,7 @@ export async function editMemberAction(
       return { error: "Failed to update member. Please try again." }
     }
 
+    // Notify the member if their phone number changed — non-fatal
     if (parsed.data.phone && parsed.data.phone !== existingMember.phone) {
       try {
         await sendSms({
@@ -336,7 +408,6 @@ export async function editMemberAction(
         })
       } catch (smsError) {
         console.error('SMS sending failed:', smsError)
-        // Don't fail the update if SMS fails
       }
     }
 
@@ -349,8 +420,13 @@ export async function editMemberAction(
   }
 }
 
-// ─── Delete Member ────────────────────────────────────────────────────────────
-
+/**
+ * Soft-deletes a member by setting deleted_at, but only after checking
+ * that the member has no active loans, savings balances, or pending fines.
+ * Only admins can delete members. The action is logged to the audit trail.
+ *
+ * Member is moved to the recycle bin — not hard-deleted.
+ */
 export async function deleteMemberAction(id: string): Promise<MemberFormState> {
   try {
     const user = await getCurrentUser()
@@ -358,14 +434,11 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       return { error: "Unauthorized" }
     }
 
-    // Only admin can delete members
     if (user.role !== "admin") {
       return { error: "You don't have permission to delete members" }
     }
 
-    
-
-    // Check if member exists
+    // Verify the member exists
     const { data: existing, error: memberError } = await supabaseAdmin
       .from('members')
       .select('id')
@@ -376,7 +449,7 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       return { error: "Member not found." }
     }
 
-    // Check loans, savings, and fines in parallel
+    // Check for active loans, savings, and pending fines in parallel
     const [
       { data: memberLoans, error: loansError },
       { data: memberSavings, error: savingsError },
@@ -400,6 +473,7 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       return { error: "Failed to check member fines." }
     }
 
+    // Guard: prevent deletion if the member has financial exposure
     const hasActiveLoans = memberLoans?.some((l) =>
       ["active", "disbursed", "pending"].includes(l.status)
     )
@@ -424,11 +498,11 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       }
     }
 
-    // Fetch member name for the log
+    // Fetch member info for the audit log before deleting
     const { data: memberData } = await supabaseAdmin
       .from('members').select('full_name, member_code').eq('id', id).single()
 
-    // Soft-delete the member
+    // Soft-delete by setting deleted_at timestamp
     const { error: deleteError } = await supabaseAdmin
       .from('members')
       .update({ deleted_at: new Date().toISOString() })
@@ -439,6 +513,7 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
       return { error: "Failed to delete member." }
     }
 
+    // Record the action in the audit log
     const { logActivity } = await import("@/lib/activity-log")
     await logActivity({
       saccoId: user.saccoId, actorId: user.userId,
@@ -456,8 +531,11 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
   }
 }
 
-// ─── Update Member Status ─────────────────────────────────────────────────────
-
+/**
+ * Updates a member's status (active/suspended/exited).
+ * Only admins can change member status.
+ * The member is notified via SMS when their status changes.
+ */
 export async function updateMemberStatusAction(
   id: string,
   status: "active" | "suspended" | "exited"
@@ -468,14 +546,11 @@ export async function updateMemberStatusAction(
       return { error: "Unauthorized" }
     }
 
-    // Only admin can update member status
     if (user.role !== "admin") {
       return { error: "You don't have permission to update member status" }
     }
 
-    
-
-    // Get the member
+    // Fetch the member to validate existence and get contact info
     const { data: existing, error: memberError } = await supabaseAdmin
       .from('members')
       .select('phone, full_name')
@@ -486,7 +561,7 @@ export async function updateMemberStatusAction(
       return { error: "Member not found." }
     }
 
-    // Update member status
+    // Apply the status change
     const { error: updateError } = await supabaseAdmin
       .from('members')
       .update({
@@ -500,6 +575,7 @@ export async function updateMemberStatusAction(
       return { error: "Failed to update member status." }
     }
 
+    // Notify the member of their status change — non-fatal
     if (existing.phone) {
       const messages = {
         active: `Dear ${existing.full_name}, your SACCO membership has been activated. Welcome back! - SACCO`,
@@ -513,7 +589,6 @@ export async function updateMemberStatusAction(
         })
       } catch (smsError) {
         console.error('SMS sending failed:', smsError)
-        // Don't fail the status update if SMS fails
       }
     }
 
@@ -526,8 +601,11 @@ export async function updateMemberStatusAction(
   }
 }
 
-// ─── Send SMS to Member ───────────────────────────────────────────────────────
-
+/**
+ * Sends a custom SMS to a specific member.
+ * Only admins and cashiers can use this action.
+ * The message content and a delivery record are saved to the notifications table.
+ */
 export async function sendMemberSmsAction(
   id: string,
   message: string
@@ -538,14 +616,11 @@ export async function sendMemberSmsAction(
       return { error: "Unauthorized" }
     }
 
-    // Only admin and cashier can send SMS to members
     if (!["admin", "cashier"].includes(user.role)) {
       return { error: "You don't have permission to send SMS to members" }
     }
 
-    
-
-    // Get the member
+    // Fetch the member and verify they belong to the same SACCO
     const { data: member, error: memberError } = await supabaseAdmin
       .from('members')
       .select('phone')
@@ -560,6 +635,7 @@ export async function sendMemberSmsAction(
       return { error: "Member has no phone number." }
     }
 
+    // Send the SMS
     try {
       await sendSms({ to: member.phone, message })
     } catch (smsError) {
@@ -567,7 +643,7 @@ export async function sendMemberSmsAction(
       return { error: "Failed to send SMS." }
     }
 
-    // Create notification record
+    // Record the sent message in the notifications table for the audit trail
     const { error: notificationError } = await supabaseAdmin
       .from('notifications')
       .insert({
@@ -582,7 +658,6 @@ export async function sendMemberSmsAction(
 
     if (notificationError) {
       console.error('Error creating notification:', notificationError)
-      // Continue anyway as SMS was sent
     }
 
     return { success: true }
@@ -592,8 +667,11 @@ export async function sendMemberSmsAction(
   }
 }
 
-// ─── Get Member Stats ─────────────────────────────────────────────────────────
-
+/**
+ * Fetches comprehensive statistics for a single member, including loans,
+ * savings accounts, fines, and recent transactions.
+ * Returns formatted data with computed totals for display in the member detail view.
+ */
 export async function getMemberStatsAction(id: string) {
   try {
     const user = await getCurrentUser()
@@ -601,8 +679,7 @@ export async function getMemberStatsAction(id: string) {
       return { error: "Unauthorized" }
     }
 
-    
-
+    // Fetch all related data in parallel for performance
     const [
       { data: memberLoans, error: loansError },
       { data: memberSavings, error: savingsError },
@@ -611,47 +688,37 @@ export async function getMemberStatsAction(id: string) {
     ] = await Promise.all([
       supabaseAdmin
         .from('loans')
-        .select('id, sacco_id, member_id, category_id, loan_ref, amount, balance, interest_rate, status, due_date, disbursed_at, settled_at, decline_reason, notes, created_at, updated_at, interest_rate_id, expected_received, interest_type, duration_months, late_penalty_fee, daily_payment, monthly_payment')
+        .select('*')
         .eq('member_id', id)
         .eq('sacco_id', user.saccoId)
         .order('created_at', { ascending: false }),
       supabaseAdmin
         .from('savings_accounts')
-        .select('id, sacco_id, member_id, category_id, account_number, balance, account_type, is_locked, lock_until, lock_reason, created_at, updated_at')
+        .select('*')
         .eq('member_id', id)
         .eq('sacco_id', user.saccoId),
       supabaseAdmin
         .from('fines')
-        .select('id, fine_ref, amount, reason, description, status, priority, due_date, paid_at, payment_method, payment_reference, waiver_reason, notes, created_at, updated_at, member_id, category_id')
+        .select('*')
         .eq('member_id', id)
         .eq('sacco_id', user.saccoId)
         .order('created_at', { ascending: false }),
       supabaseAdmin
         .from('transactions')
-        .select('id, sacco_id, member_id, type, amount, balance_after, reference_id, payment_method, narration, created_at')
+        .select('*')
         .eq('member_id', id)
         .eq('sacco_id', user.saccoId)
         .order('created_at', { ascending: false })
-        .limit(20),
+        .limit(RECENT_TRANSACTIONS_LIMIT),
     ])
 
-    if (loansError) {
-      console.error('Error fetching member loans:', loansError)
-      return null
-    }
-    if (savingsError) {
-      console.error('Error fetching member savings:', savingsError)
-      return null
-    }
-    if (finesError) {
-      console.error('Error fetching member fines:', finesError)
-      return null
-    }
-    if (transactionsError) {
-      console.error('Error fetching member transactions:', transactionsError)
+    // Return null on any individual query failure rather than partial data
+    if (loansError || savingsError || finesError || transactionsError) {
+      console.error('Error fetching member stats:', { loansError, savingsError, finesError, transactionsError })
       return null
     }
 
+    // Compute aggregate totals
     const totalSavings = memberSavings?.reduce(
       (sum: number, s) => sum + s.balance,
       0
@@ -669,7 +736,7 @@ export async function getMemberStatsAction(id: string) {
       0
     )
 
-    // Format the data to match the expected interface
+    // Map snake_case DB columns to camelCase for the frontend
     const formattedLoans = memberLoans?.map(loan => ({
       id: loan.id,
       saccoId: loan.sacco_id,
@@ -762,8 +829,11 @@ export async function getMemberStatsAction(id: string) {
   }
 }
 
-// ─── Assign Loan to Member ────────────────────────────────────────────────────
-
+/**
+ * Creates a new loan for a member directly from the member detail page.
+ * Provides a quick way to assign a loan without going through the full loan creation flow.
+ * Amount is expected in major currency units (converted to cents internally).
+ */
 export async function assignLoanAction(
   memberId: string,
   prevState: MemberFormState,
@@ -775,6 +845,7 @@ export async function assignLoanAction(
       return { error: "Unauthorized" }
     }
 
+    // Convert UGX to cents for integer storage
     const amount = parseInt(formData.get("amount") as string) * 100
     const interest_rate = formData.get("interest_rate") as string
     const due_date = formData.get("due_date") as string
@@ -783,9 +854,7 @@ export async function assignLoanAction(
     if (!amount || amount <= 0) return { error: "Valid amount is required." }
     if (!due_date) return { error: "Due date is required." }
 
-    
-
-    // Get the member
+    // Fetch member to validate and get contact info
     const { data: member, error: memberError } = await supabaseAdmin
       .from('members')
       .select('phone, full_name')
@@ -797,9 +866,9 @@ export async function assignLoanAction(
       return { error: "Member not found." }
     }
 
-    const loan_ref = `LN-${Date.now()}`
+    const loan_ref = `${LOAN_REF_PREFIX}-${Date.now()}`
 
-    // Calculate loan details
+    // Calculate expected repayment including interest
     const calc = calculateLoan({
       principal: amount,
       interestRate: parseFloat(interest_rate || "0"),
@@ -807,7 +876,7 @@ export async function assignLoanAction(
       durationMonths: 12,
     })
 
-    // Create loan
+    // Insert the loan with pending status
     const { error: insertError } = await supabaseAdmin
       .from('loans')
       .insert({
@@ -828,6 +897,7 @@ export async function assignLoanAction(
       return { error: "Failed to assign loan." }
     }
 
+    // Notify the member — non-fatal
     if (member.phone) {
       try {
         await sendSms({
@@ -836,7 +906,6 @@ export async function assignLoanAction(
         })
       } catch (smsError) {
         console.error('SMS sending failed:', smsError)
-        // Don't fail the loan creation if SMS fails
       }
     }
 
@@ -850,8 +919,12 @@ export async function assignLoanAction(
   }
 }
 
-// ─── Add Savings to Member ────────────────────────────────────────────────────
-
+/**
+ * Records a savings deposit for a member.
+ * If the member has no existing savings account, one is auto-created.
+ * Otherwise the deposit is added to their primary account balance.
+ * Amount is expected in major currency units (converted to cents internally).
+ */
 export async function addSavingsAction(
   memberId: string,
   prevState: MemberFormState,
@@ -861,14 +934,13 @@ export async function addSavingsAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Unauthorized." }
 
+    // Convert UGX to cents
     const amount = parseInt(formData.get("amount") as string) * 100
     const narration = formData.get("narration") as string
 
     if (!amount || amount <= 0) return { error: "Valid amount is required." }
 
-    
-
-    // Get the member
+    // Fetch the member to validate existence and get contact info
     const { data: member, error: memberError } = await supabaseAdmin
       .from('members')
       .select('phone, full_name, member_code')
@@ -891,12 +963,11 @@ export async function addSavingsAction(
       return { error: "Failed to check existing accounts." }
     }
 
-    let accountId: string
     let newBalance: number
 
     if (!existingAccounts || existingAccounts.length === 0) {
-      // Create new savings account
-      const account_number = `SAV-${Date.now()}`
+      // No existing account — create one with the deposit as the opening balance
+      const account_number = `${SAVINGS_ACCOUNT_PREFIX}-${Date.now()}`
       const { data: newAccount, error: insertError } = await supabaseAdmin
         .from('savings_accounts')
         .insert({
@@ -913,10 +984,9 @@ export async function addSavingsAction(
         return { error: "Failed to create savings account." }
       }
 
-      accountId = newAccount.id
       newBalance = amount
     } else {
-      // Update existing account balance
+      // Add to existing primary account balance
       const account = existingAccounts[0]
       newBalance = account.balance + amount
 
@@ -932,11 +1002,9 @@ export async function addSavingsAction(
         console.error('Error updating savings balance:', updateError)
         return { error: "Failed to update savings balance." }
       }
-
-      accountId = account.id
     }
 
-    // Create transaction record
+    // Create a transaction record for the deposit
     const { error: transactionError } = await supabaseAdmin
       .from('transactions')
       .insert({
@@ -953,10 +1021,11 @@ export async function addSavingsAction(
       return { error: "Failed to create transaction record." }
     }
 
+    // Send deposit confirmation SMS — non-fatal
     if (member.phone) {
       try {
         const { data: saccoForSms } = await supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single()
-        const saccoSettings = (() => { try { return JSON.parse(saccoForSms?.settings ?? "{}") } catch { return {} } })()
+        const saccoSettings = parseSaccoSettings(saccoForSms?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
@@ -982,8 +1051,26 @@ export async function addSavingsAction(
   }
 }
 
-// ─── Import Members from Excel ────────────────────────────────────────────────
+/** Zod schema for validating individual imported rows. */
+const importRowSchema = z.object({
+  full_name: z.string().min(2, "Full name is required"),
+  phone: z.string().min(9, "Valid phone number required"),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  national_id: z.string().min(3, "National ID is required"),
+  address: z.string().optional(),
+})
 
+/**
+ * Bulk-imports members from an Excel upload.
+ * Only admins can perform bulk imports.
+ *
+ * Each row is:
+ *   1. Validated against the Zod schema
+ *   2. Checked for duplicate phone / national_id against existing members
+ *   3. Inserted individually so one bad row doesn't sink the whole batch
+ *
+ * Returns the count of successfully imported rows and any per-row errors.
+ */
 export async function importMembersAction(
   rows: Array<{
     full_name: string
@@ -992,43 +1079,128 @@ export async function importMembersAction(
     national_id: string
     address: string
   }>
-): Promise<MemberFormState & { imported?: number }> {
+): Promise<MemberFormState & { imported?: number; errors?: string[] }> {
   try {
     const user = await getCurrentUser()
     if (!user) return { error: "Unauthorized." }
 
-    // Only admin can import members
     if (user.role !== "admin") {
       return { error: "You don't have permission to import members" }
     }
 
-    
-
+    // Pre-generate member codes for the entire batch
     const memberCodes = await generateMemberCodes(user.saccoId, rows.length)
-    const members = rows.map((row, i) => ({
-      sacco_id: user.saccoId,
-      member_code: memberCodes[i],
-      full_name: row.full_name,
-      phone: row.phone || null,
-      email: row.email || null,
-      national_id: row.national_id || null,
-      address: row.address || null,
-      status: "active",
-    }))
 
-    const { error: insertError } = await supabaseAdmin.from('members').insert(members)
+    // Fetch existing phones and national IDs for duplicate detection
+    const { data: existingMembers } = await supabaseAdmin
+      .from('members')
+      .select('phone, national_id')
+      .eq('sacco_id', user.saccoId)
 
-    if (insertError) {
-      console.error('Error importing members:', insertError)
-      return { error: "Failed to import members." }
+    const existingPhones = new Set(existingMembers?.map(m => m.phone).filter(Boolean) ?? [])
+    const existingNationalIds = new Set(existingMembers?.map(m => m.national_id).filter(Boolean) ?? [])
+
+    let imported = 0
+    const rowErrors: string[] = []
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowLabel = `Row ${i + 2}` // +2 for 1-indexed + header row
+
+      // 1. Zod validation
+      const parsed = importRowSchema.safeParse(row)
+      if (!parsed.success) {
+        rowErrors.push(`${rowLabel}: ${parsed.error.flatten().fieldErrors.full_name?.[0] ?? "Validation failed"}`)
+        continue
+      }
+
+      // 2. Duplicate phone
+      if (parsed.data.phone && existingPhones.has(parsed.data.phone)) {
+        rowErrors.push(`${rowLabel}: Phone ${parsed.data.phone} already exists`)
+        continue
+      }
+
+      // 3. Duplicate national ID
+      if (parsed.data.national_id && existingNationalIds.has(parsed.data.national_id)) {
+        rowErrors.push(`${rowLabel}: National ID ${parsed.data.national_id} already exists`)
+        continue
+      }
+
+      // 4. Insert
+      const { error: insertError } = await supabaseAdmin
+        .from('members')
+        .insert({
+          sacco_id: user.saccoId,
+          member_code: memberCodes[i],
+          full_name: parsed.data.full_name,
+          phone: parsed.data.phone || null,
+          email: parsed.data.email || null,
+          national_id: parsed.data.national_id || null,
+          address: parsed.data.address || null,
+          status: "active",
+        })
+
+      if (insertError) {
+        rowErrors.push(`${rowLabel}: ${insertError.message}`)
+        continue
+      }
+
+      // Add to sets so subsequent duplicate checks catch intra-batch dupes
+      if (parsed.data.phone) existingPhones.add(parsed.data.phone)
+      if (parsed.data.national_id) existingNationalIds.add(parsed.data.national_id)
+
+      imported++
     }
 
-    const imported = members.length
-
     revalidatePath("/members")
-    return { success: true, imported }
+
+    if (imported === 0) {
+      return { error: `No members were imported.${rowErrors.length ? ` Issues: ${rowErrors.join("; ")}` : ""}` }
+    }
+
+    return {
+      success: true,
+      imported,
+      errors: rowErrors.length > 0 ? rowErrors : undefined,
+    }
   } catch (err) {
     console.error(err)
     return { error: "Failed to import members." }
   }
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED ACTIONS:
+//   addMemberAction(prevState, formData)           – create a member + portal account + welcome SMS
+//   editMemberAction(id, prevState, formData)      – update member profile (admin only)
+//   deleteMemberAction(id)                         – soft-delete a member (checks active loans/savings/fines)
+//   updateMemberStatusAction(id, status)           – change active/suspended/exited status
+//   sendMemberSmsAction(id, message)               – send a custom SMS to a member
+//   getMemberStatsAction(id)                       – fetch loans, savings, fines, transactions
+//   assignLoanAction(memberId, prevState, formData)– quick-assign a loan from the member page
+//   addSavingsAction(memberId, prevState, formData)– record a savings deposit
+//   importMembersAction(rows)                      – bulk-import members from Excel
+//
+// EXPORTED TYPES:
+//   MemberFormState  – { success?, error?, fieldErrors? }
+//
+// KEY CONSTANTS:
+//   CENTS_PER_UNIT             = 100
+//   PHOTO_MAX_SIZE_BYTES       = 5 242 880  (5 MB)
+//   ALLOWED_PHOTO_TYPES        = ["image/jpeg", "image/png", "image/webp"]
+//   MEMBER_MANAGEMENT_ROLES    = ["admin", "cashier", "field_agent", "branch_admin"]
+//   RECENT_TRANSACTIONS_LIMIT  = 20
+//   LOAN_REF_PREFIX            = "LN"
+//   SAVINGS_ACCOUNT_PREFIX     = "SAV"
+//
+// KEY HELPERS:
+//   parseSaccoSettings(raw)   – safely parse the SACCO settings JSON column
+//
+// RELATED FILES:
+//   lib/auth.ts                   – getCurrentUser
+//   lib/member-code.ts            – generateMemberCode / generateMemberCodes
+//   lib/sms.ts                    – sendSms, getSmsTemplates
+//   lib/credentials.ts            – generateEmail, generatePassword
+//   lib/activity-log.ts           – logActivity (audit trail)
+//   lib/supabase/storage.ts       – STORAGE_BUCKETS constant

@@ -34,7 +34,7 @@ export function PayFineDialog({
   open: boolean
   onClose: () => void
 }) {
-  const [state, formAction, isPending] = useActionState(markFinePaidAction, {})
+  const [state, formAction, isPending] = useActionState(markFinePaidAction, {} as { success?: boolean; error?: string; receipt?: ReceiptData })
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
   useEffect(() => {

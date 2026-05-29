@@ -1,3 +1,21 @@
+// app/(dashboard)/dashboard/page.tsx
+// Server-rendered dashboard page. Fetches KPI data, chart data, and recent
+// transactions in parallel, then passes processed results to client components.
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** ISR revalidation interval in seconds. */
+const REVALIDATE_SECONDS = 60
+
+/** Number of transactions fetched for the chart and recent-transactions list. */
+const TRANSACTIONS_FETCH_LIMIT = 100
+
+/** Number of recent transactions shown in the list widget. */
+const RECENT_TRANSACTIONS_DISPLAY_LIMIT = 8
+
+/** Number of months shown in the savings/loans trend chart. */
+const CHART_MONTHS = 6
+
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { requireAuth } from "@/lib/auth"
 import { KpiCards } from "./components/kpi-cards"
@@ -48,7 +66,7 @@ export default async function DashboardPage() {
       .select('id, type, amount, narration, created_at')
       .eq('sacco_id', saccoId)
       .order('created_at', { ascending: false })
-      .limit(100),
+      .limit(TRANSACTIONS_FETCH_LIMIT),
   ])
 
   // ── Process members ──
@@ -85,7 +103,7 @@ export default async function DashboardPage() {
 
   // ── Process transactions (first 8 for recent, all 100 for chart) ──
   const allTransactions = transactionsResult.data ?? []
-  const processedRecentTransactions = allTransactions.slice(0, 8).map(tx => ({
+  const processedRecentTransactions = allTransactions.slice(0, RECENT_TRANSACTIONS_DISPLAY_LIMIT).map(tx => ({
     id: tx.id,
     type: tx.type,
     amount: tx.amount,
@@ -114,7 +132,7 @@ export default async function DashboardPage() {
       if (a.year !== b.year) return b.year - a.year
       return b.month - a.month
     })
-    .slice(0, 6)
+    .slice(0, CHART_MONTHS)
     .map((item) => ({
       month: new Date(item.year, item.month - 1).toLocaleString("en-US", {
         month: "short",
@@ -154,3 +172,27 @@ export default async function DashboardPage() {
     </div>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// PAGE:
+//   /dashboard  – main SACCO overview
+//
+// KEY CONSTANTS:
+//   REVALIDATE_SECONDS                  = 60
+//   TRANSACTIONS_FETCH_LIMIT            = 100
+//   RECENT_TRANSACTIONS_DISPLAY_LIMIT   = 8
+//   CHART_MONTHS                        = 6
+//
+// DATA FETCHED (parallel):
+//   members      – total member count
+//   loans        – amount + status for KPI + chart
+//   savings      – balance sum
+//   fines        – pending count
+//   transactions – recent 100 for list + savings/loans chart
+//
+// CLIENT COMPONENTS:
+//   KpiCards           – top-level stat tiles
+//   SavingsLoanChart   – trend chart (last N months)
+//   LoanStatusChart    – donut chart by loan status
+//   RecentTransactions – last 8 transactions list

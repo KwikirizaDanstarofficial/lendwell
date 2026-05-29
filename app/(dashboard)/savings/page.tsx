@@ -1,3 +1,10 @@
+// app/(dashboard)/savings/page.tsx
+// Server page for /savings. Fetches accounts, stats, members, categories,
+// and active loans in parallel, then renders the SavingsClient shell.
+
+/** ISR revalidation interval in seconds. */
+export const revalidate = 60
+
 import { requireAuth } from "@/lib/auth"
 import {
   getAllSavingsAccounts,
@@ -7,8 +14,6 @@ import {
 } from "@/db/queries/savings"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { SavingsClient } from "./components/savings-client"
-
-export const revalidate = 60
 
 export default async function SavingsPage() {
   const user = await requireAuth()
@@ -53,3 +58,16 @@ export default async function SavingsPage() {
     />
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// PAGE:  /savings  (revalidates every 60 s)
+//
+// DATA FETCHED (parallel):
+//   getAllSavingsAccounts  – full account list
+//   getSavingsStats        – aggregate totals
+//   getMembersForSavings   – member list for the create-account form
+//   getSavingsCategoriesForSelect – category options
+//   loans (active only)    – used to compute loanable amounts on accounts
+//
+// CLIENT COMPONENT:  SavingsClient

@@ -1,7 +1,26 @@
+/**
+ * auth.ts
+ *
+ * Authentication and authorisation utilities for the SACCO application.
+ * Provides server-side helpers to retrieve the current user session,
+ * enforce authentication and role-based access, and resolve UI permissions
+ * for each role.  Built on top of Supabase Auth and React's `cache()` so
+ * the session is fetched at most once per server-render pass.
+ */
+
 import { cache } from "react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-export type UserRole = "admin" | "cashier" | "field_agent" | "branch_admin" | "member"
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** All recognised user roles. Used to reject tokens with unknown role values. */
+export const VALID_ROLES = [
+  "admin", "cashier", "field_agent", "branch_admin", "member",
+] as const
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type UserRole = (typeof VALID_ROLES)[number]
 
 export interface SessionData {
   userId: string
@@ -16,6 +35,15 @@ export interface SessionData {
   memberCode?: string | null
 }
 
+/**
+ * Retrieve the currently logged-in user's session from Supabase Auth.
+ * Uses `React.cache` so the result is shared across all components calling
+ * this function during the same server-render.
+ *
+ * @returns The session data (`SessionData`) or `null` when the user is not
+ *          authenticated, the token is stale, or the user metadata lacks a
+ *          valid role.
+ */
 export const getCurrentUser = cache(async (): Promise<SessionData | null> => {
   try {
     const supabase = await createSupabaseServerClient()
@@ -33,7 +61,6 @@ export const getCurrentUser = cache(async (): Promise<SessionData | null> => {
     if (!user) return null
 
     const meta = user.user_metadata
-    const VALID_ROLES: UserRole[] = ["admin", "cashier", "field_agent", "branch_admin", "member"]
     if (!meta?.role || !VALID_ROLES.includes(meta.role)) return null
 
     return {
@@ -53,6 +80,15 @@ export const getCurrentUser = cache(async (): Promise<SessionData | null> => {
   }
 })
 
+/**
+ * Guard that redirects unauthenticated users to the login page.
+ * Also redirects members away from admin routes (to `/portal`) and
+ * forces users without a `saccoId` to the onboarding flow.
+ *
+ * @returns The validated `SessionData`.
+ * @throws (via Next.js `redirect`) when the user is not logged in, is a
+ *          member, or has not completed onboarding.
+ */
 export async function requireAuth(): Promise<SessionData> {
   const { redirect } = await import("next/navigation")
   const user = await getCurrentUser()
@@ -70,6 +106,15 @@ export async function requireMember(): Promise<SessionData> {
   return user as SessionData
 }
 
+/**
+ * Guard that checks the current user's role against a list of permitted roles.
+ * Calls `requireAuth` internally, so unauthenticated requests are redirected
+ * to login first.
+ *
+ * @param roles - One or more `UserRole` values that are allowed access.
+ * @returns The validated `SessionData`.
+ * @throws Redirects to `/dashboard` when the user's role is not in the list.
+ */
 export async function requireRole(...roles: UserRole[]): Promise<SessionData> {
   const user = await requireAuth()
   if (!roles.includes(user.role)) {
@@ -100,10 +145,48 @@ const PERMISSIONS: Record<UserRole, Permission[]> = {
   member: ["view"],
 }
 
+/**
+ * Return the list of `Permission` values assigned to a given role.
+ *
+ * @param role - The role name (e.g. `"admin"`, `"cashier"`).
+ * @returns An array of `Permission` strings.  Unknown roles get an empty list.
+ */
 export function getPermissionsForRole(role: string): Permission[] {
   return PERMISSIONS[role as UserRole] ?? []
 }
 
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED FUNCTIONS:
+//   getCurrentUser()                 – cached session fetch; returns SessionData | null
+//   requireAuth()                    – redirects to /auth/login if not authenticated
+//   requireMember()                  – redirects to /dashboard if not a member role
+//   requireRole(...roles)            – redirects to /dashboard if role not permitted
+//   getPermissionsForRole(role)      – returns Permission[] for a given role string
+//   getPagePermissions()             – returns flat boolean permission flags + user
+//
+// EXPORTED TYPES / CONSTANTS:
+//   UserRole        – "admin" | "cashier" | "field_agent" | "branch_admin" | "member"
+//   VALID_ROLES     – readonly array of all valid role strings
+//   SessionData     – shape of the currently authenticated user's session
+//   Permission      – union of all permission strings
+//   PERMISSIONS     – Record<UserRole, Permission[]> mapping
+//
+// RELATED FILES:
+//   lib/supabase/server.ts              – provides createSupabaseServerClient
+//   app/(dashboard)/loans/actions.ts    – calls getCurrentUser for auth checks
+//   app/(dashboard)/members/actions.ts  – calls getCurrentUser and requireRole
+
+/**
+ * Convenience helper for page-level authorisation.  Fetches the current user
+ * and resolves a flat set of boolean permission flags together with the user's
+ * role and the full session object.
+ *
+ * @returns An object with `canView`, `canAdd`, `canEdit`, `canDelete`,
+ *          `canManageUsers`, `canManageSettings`, `canCreateFieldAgents`,
+ *          `canManageBranch`, `role`, and `user`.  When no user is logged in
+ *          every flag is `false` and `role` is `null`.
+ */
 export async function getPagePermissions() {
   const user = await getCurrentUser()
   if (!user) {

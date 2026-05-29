@@ -1,3 +1,18 @@
+// app/(dashboard)/loans/page.tsx
+// Server page for /loans. Fetches all loans + active interest rates,
+// computes summary stats, and renders the LoansClient shell.
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** ISR revalidation interval for the loans page. */
+const REVALIDATE_SECONDS = 60
+
+/** Loan statuses that count toward the total disbursed amount. */
+const DISBURSED_STATUSES = ["disbursed", "active", "settled"] as const
+
+/** Loan statuses that count toward the outstanding balance. */
+const OUTSTANDING_STATUSES = ["disbursed", "active"] as const
+
 import { requireAuth } from "@/lib/auth"
 import { getAllLoans } from "@/db/queries/loans"
 import { getActiveInterestRates } from "@/db/queries/interest-rates"
@@ -19,10 +34,10 @@ export default async function LoansPage() {
   let settledLoans = 0
 
   for (const loan of loans) {
-    if (["disbursed", "active", "settled"].includes(loan.status)) {
+    if ((DISBURSED_STATUSES as readonly string[]).includes(loan.status)) {
       totalDisbursed += loan.amount
     }
-    if (["disbursed", "active"].includes(loan.status)) {
+    if ((OUTSTANDING_STATUSES as readonly string[]).includes(loan.status)) {
       outstandingBalance += loan.balance
     }
     if (loan.status === "active") activeLoans++
@@ -50,3 +65,18 @@ export default async function LoansPage() {
     </div>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// PAGE:  /loans
+//
+// DATA FETCHED (parallel):
+//   getAllLoans(saccoId)            – full loan list with member info
+//   getActiveInterestRates(saccoId) – active rate tiers for the new-loan form
+//
+// STATS COMPUTED:
+//   totalDisbursed    – sum of amounts for disbursed/active/settled loans
+//   outstandingBalance – sum of balances for disbursed/active loans
+//   activeLoans, pendingLoans, settledLoans – status counts
+//
+// CLIENT COMPONENT:  LoansClient

@@ -1,3 +1,6 @@
+// components/receipts/receipt-dialog.tsx
+// Modal that displays a printable payment receipt after a successful transaction.
+// Opens a new browser window for thermal-printer-style printing.
 "use client"
 
 import { useRef } from "react"
@@ -14,20 +17,33 @@ import { Printer, X } from "lucide-react"
 import type { ReceiptData } from "@/types/receipt"
 export type { ReceiptData } from "@/types/receipt"
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Print window dimensions. Sized for an 80mm thermal receipt printer. */
+const PRINT_WINDOW_WIDTH  = 400
+const PRINT_WINDOW_HEIGHT = 600
+
+/** Date locale used for formatting dates on the receipt. */
+const RECEIPT_DATE_LOCALE = "en-UG"
+
+/** Payment method display labels. */
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash:         "Cash",
+  mobile_money: "Mobile Money",
+  bank:         "Bank Transfer",
+  flutterwave:  "Mobile Money",
+  mtn:          "MTN Mobile Money",
+  airtel:       "Airtel Money",
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function formatUGX(amount: number) {
   return `UGX ${amount.toLocaleString("en-UG", { minimumFractionDigits: 0 })}`
 }
 
-function formatMethod(method: string) {
-  const map: Record<string, string> = {
-    cash: "Cash",
-    mobile_money: "Mobile Money",
-    bank: "Bank Transfer",
-    flutterwave: "Mobile Money",
-    mtn: "MTN Mobile Money",
-    airtel: "Airtel Money",
-  }
-  return map[method] ?? method
+function formatMethod(method: string): string {
+  return PAYMENT_METHOD_LABELS[method] ?? method
 }
 
 interface Props {
@@ -43,7 +59,7 @@ export function ReceiptDialog({ open, onClose, receipt }: Props) {
     const content = printRef.current
     if (!content) return
 
-    const win = window.open("", "_blank", "width=400,height=600")
+    const win = window.open("", "_blank", `width=${PRINT_WINDOW_WIDTH},height=${PRINT_WINDOW_HEIGHT}`)
     if (!win) return
 
     win.document.write(`
@@ -71,13 +87,9 @@ export function ReceiptDialog({ open, onClose, receipt }: Props) {
     win.document.close()
   }
 
-  const date = new Date(receipt.performedAt)
-  const dateStr = date.toLocaleDateString("en-UG", {
-    day: "2-digit", month: "short", year: "numeric",
-  })
-  const timeStr = date.toLocaleTimeString("en-UG", {
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  })
+  const date    = new Date(receipt.performedAt)
+  const dateStr = date.toLocaleDateString(RECEIPT_DATE_LOCALE, { day: "2-digit", month: "short", year: "numeric" })
+  const timeStr = date.toLocaleTimeString(RECEIPT_DATE_LOCALE, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -184,3 +196,23 @@ export function ReceiptDialog({ open, onClose, receipt }: Props) {
     </Dialog>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   ReceiptDialog({ open, onClose, receipt })
+//     – printable payment receipt dialog
+//     – opens a new window for thermal-printer-style printing
+//
+// EXPORTED TYPES:
+//   ReceiptData  – re-exported from @/types/receipt
+//
+// KEY CONSTANTS:
+//   PRINT_WINDOW_WIDTH / HEIGHT  – 400 × 600 px (80 mm thermal receipt size)
+//   RECEIPT_DATE_LOCALE          – "en-UG"
+//   PAYMENT_METHOD_LABELS        – human-readable labels for payment method codes
+//
+// RELATED FILES:
+//   types/receipt.ts                   – ReceiptData type definition
+//   app/(dashboard)/loans/actions.ts   – produces receipt in repayLoanAction
+//   app/(dashboard)/savings/actions.ts – produces receipt in deposit/withdrawAction

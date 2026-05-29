@@ -1,3 +1,6 @@
+// app/(dashboard)/members/[id]/edit/edit-member-form.tsx
+// 3-step form for editing an existing member: photo → personal info → next of kin.
+// Also provides a guarded delete action with a confirmation dialog.
 "use client"
 
 import { useActionState, useState, useEffect, useRef } from "react"
@@ -30,6 +33,11 @@ type Member = {
   createdAt: Date
   updatedAt: Date
 }
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const INITIAL_FORM_STATE: MemberFormState = {}
+
+import { PHOTO_MAX_SIZE_BYTES, PHOTO_ACCEPTED_TYPES } from "@/lib/ui-styles"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -55,8 +63,6 @@ import { Camera, Loader2, ArrowLeft, User, Upload, Trash2 } from "lucide-react"
 interface EditMemberFormProps {
   member: Member
 }
-
-const initialState: MemberFormState = {}
 
 function SectionHeader({
   step,
@@ -127,9 +133,6 @@ function Field({
   )
 }
 
-const inputClass =
-  "h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
-
 export function EditMemberForm({ member }: EditMemberFormProps) {
   const router = useRouter()
   const [photoPreview, setPhotoPreview] = useState(member.photoUrl ?? "")
@@ -153,7 +156,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
   const boundAction = editMemberAction.bind(null, member.id)
   const [state, formAction, isPending] = useActionState(
     boundAction,
-    initialState
+    INITIAL_FORM_STATE
   )
 
   useEffect(() => {
@@ -171,13 +174,9 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
   }, [state, router])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: {
-      "image/jpeg": [".jpg", ".jpeg"],
-      "image/png": [".png"],
-      "image/webp": [".webp"],
-    },
+    accept:   PHOTO_ACCEPTED_TYPES,
     maxFiles: 1,
-    maxSize: 5 * 1024 * 1024, // 5MB
+    maxSize:  PHOTO_MAX_SIZE_BYTES,
     onDrop: (files, rejectedFiles) => {
       // Handle rejected files
       if (rejectedFiles.length > 0) {
@@ -271,11 +270,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
 
           <div
             {...getRootProps()}
-            className={`flex-1 cursor-pointer rounded-xl border-2 border-dashed px-5 py-4 transition-all ${
-              isDragActive
-                ? "border-ring bg-accent"
-                : "border-border hover:border-ring/50 hover:bg-accent/50"
-            }`}
+            className={`flex-1 cursor-pointer rounded-xl border-2 border-dashed px-5 py-4 transition-all ${isDragActive ? "border-ring bg-accent" : "border-border hover:border-ring/50 hover:bg-accent/50"}`}
           >
             <input {...getInputProps()} />
             <div className="flex flex-col items-center gap-1.5 text-center">
@@ -314,7 +309,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="full_name"
               defaultValue={member.fullName}
               placeholder="Enter full name"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -329,7 +324,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="phone"
               defaultValue={member.phone ?? ""}
               placeholder="07XX XXX XXX"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -340,7 +335,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               type="email"
               defaultValue={member.email ?? ""}
               placeholder="email@example.com"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -355,7 +350,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="national_id"
               defaultValue={member.nationalId ?? ""}
               placeholder="CM XXXXXXXXXX"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -365,7 +360,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="date_of_birth"
               type="date"
               defaultValue={member.dateOfBirth ?? ""}
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
@@ -375,13 +370,13 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="address"
               defaultValue={member.address ?? ""}
               placeholder="Street, area or town"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
 
           <Field id="status" label="Membership Status" span>
             <Select name="status" defaultValue={member.status}>
-              <SelectTrigger className={`${inputClass} flex w-full`}>
+              <SelectTrigger className={`${"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"} flex w-full`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -424,7 +419,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="next_of_kin"
               defaultValue={member.nextOfKin ?? ""}
               placeholder="Next of kin name"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
           <Field id="next_of_kin_relationship" label="Relationship">
@@ -433,7 +428,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="next_of_kin_relationship"
               defaultValue={member.nextOfKinRelationship ?? ""}
               placeholder="e.g. Spouse, Parent, Sibling"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
           <Field id="next_of_kin_phone" label="Phone Number">
@@ -442,7 +437,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="next_of_kin_phone"
               defaultValue={member.nextOfKinPhone ?? ""}
               placeholder="07XX XXX XXX"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
           <Field id="next_of_kin_address" label="Address">
@@ -451,7 +446,7 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
               name="next_of_kin_address"
               defaultValue={member.nextOfKinAddress ?? ""}
               placeholder="Next of kin address"
-              className={inputClass}
+              className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
             />
           </Field>
         </FieldGroup>
@@ -461,19 +456,21 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
       <div className="flex items-center justify-between pt-2 pb-8">
         {/* Delete with confirmation */}
         <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button
-              type="button"
-              disabled={deleting}
-              className="flex items-center gap-2 text-sm text-destructive transition-colors hover:text-destructive/80 disabled:opacity-50"
-            >
-              {deleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-              Delete Member
-            </button>
+          <AlertDialogTrigger
+            render={
+              <button
+                type="button"
+                disabled={deleting}
+                className="flex items-center gap-2 text-sm text-destructive transition-colors hover:text-destructive/80 disabled:opacity-50"
+              />
+            }
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Delete Member
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -525,3 +522,23 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
     </form>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   EditMemberForm({ member })
+//     – 3-step member edit form: photo → personal info → next of kin
+//     – includes a guarded delete with AlertDialog confirmation
+//
+// KEY CONSTANTS:
+//   PHOTO_MAX_SIZE_BYTES  = 5 242 880 (5 MB)
+//   PHOTO_ACCEPTED_TYPES  – jpeg, png, webp
+//   "h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"           – shared Tailwind class for all text inputs
+//
+// SUB-COMPONENTS (file-local):
+//   SectionHeader  – numbered step header
+//   FieldGroup     – responsive 2-column grid wrapper
+//   Field          – labelled input wrapper with error message
+//
+// RELATED FILES:
+//   app/(dashboard)/members/actions.ts  – editMemberAction, deleteMemberAction

@@ -1,5 +1,5 @@
 /**
- * db/seed.ts
+ * db/seed.ts — Seeds the database with a SACCO, staff users, members, loans, etc.
  *
  * Seeds:
  *  1. A SACCO record with a fixed UUID
@@ -83,12 +83,12 @@ async function seed() {
     const staffUsers = [
       { sacco_id: SACCO_ID, full_name: "System Admin", email: "admin@mysacco.ug", phone: "+256 700 000 001", password_hash: adminHash, role: "admin", is_active: true, must_change_password: false, notes: "Default admin — change password after setup" },
       { sacco_id: SACCO_ID, full_name: "Super Admin", email: "superadmin@mysacco.ug", phone: "+256 700 000 004", password_hash: adminHash, role: "admin", is_active: true, must_change_password: true, notes: "Additional admin for testing" },
-      { sacco_id: null, full_name: "dan", email: "dan@12", phone: null, password_hash: danHash, role: "admin", is_active: true, must_change_password: false, notes: "Dan admin user - needs onboarding" },
+      { sacco_id: SACCO_ID, full_name: "dan", email: "dan@12", phone: null, password_hash: danHash, role: "admin", is_active: true, must_change_password: false, notes: "Dan admin user" },
       ...[1,2,3,4,5,6,7,8,9,10].map(n => ({
-        sacco_id: null, full_name: `Admin ${["One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten"][n-1]}`,
+        sacco_id: SACCO_ID, full_name: `Admin ${["One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten"][n-1]}`,
         email: `admin${n}@mysacco.ug`, phone: `+256 700 000 0${String(n + 9)}`,
         password_hash: adminHash, role: "admin", is_active: true, must_change_password: true,
-        notes: "Additional admin user - needs onboarding",
+        notes: "Additional admin user",
       })),
       { sacco_id: SACCO_ID, full_name: "Jane Cashier", email: "cashier@mysacco.ug", phone: "+256 700 000 002", password_hash: cashierHash, role: "cashier", is_active: true, must_change_password: true },
       { sacco_id: SACCO_ID, full_name: "Bob Field Agent", email: "agent@mysacco.ug", phone: "+256 700 000 003", password_hash: agentHash, role: "field_agent", is_active: true, must_change_password: true },

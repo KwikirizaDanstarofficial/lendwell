@@ -1,4 +1,17 @@
-// app/(dashboard)/loans/actions.ts (Complete)
+/**
+ * app/(dashboard)/loans/actions.ts
+ *
+ * Server actions for loan management in the SACCO application.
+ * Each action runs on the server and orchestrates:
+ *   – Authentication and role-based authorisation
+ *   – Input validation via Zod
+ *   – Interest-rate lookup and repayment schedule calculation
+ *   – Database writes via the Supabase admin client
+ *   – Payment processing via Flutterwave (disbursal and collection)
+ *   – SMS notifications to members
+ *   – Audit log entries
+ *   – Next.js cache revalidation
+ */
 "use server"
 
 import { getCurrentUser } from "@/lib/auth"
@@ -16,6 +29,43 @@ import {
 import { z } from "zod"
 import type { ReceiptData } from "@/types/receipt"
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/**
+ * Multiplier to convert major currency units (UGX) to minor units (cents).
+ * All monetary amounts are stored as integers in minor units.
+ */
+const CENTS_PER_UNIT = 100
+
+/** Roles permitted to approve, decline, and disburse loans. */
+const LOAN_MANAGEMENT_ROLES = ["admin", "cashier"] as const
+
+/** Loan statuses that allow a repayment to be recorded. */
+const REPAYABLE_STATUSES = ["disbursed", "active"] as const
+
+/** Loan statuses that allow a top-up to be added. */
+const TOP_UP_ELIGIBLE_STATUSES = ["active", "disbursed"] as const
+
+/** Prefix for auto-generated loan reference numbers. */
+const LOAN_REF_PREFIX = "LN"
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Safely parse the SACCO settings JSON column.
+ * Returns an empty object when the column is null or malformed.
+ */
+function parseSaccoSettings(raw: string | null | undefined): Record<string, any> {
+  try {
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/** Return shape for all loan server actions. */
 export type LoanFormState = {
   success?: boolean
   error?: string
@@ -23,6 +73,7 @@ export type LoanFormState = {
   fieldErrors?: Record<string, string[]>
 }
 
+/** Zod schema for validating loan creation input. */
 const loanSchema = z.object({
   member_id: z.string().uuid("Please select a member"),
   amount: z.coerce.number().positive("Amount must be greater than 0"),
@@ -31,8 +82,11 @@ const loanSchema = z.object({
   notes: z.string().optional(),
 })
 
-// ─── Add Loan ─────────────────────────────────────────────────────────────────
-
+/**
+ * Creates a new loan application for a member.
+ * Validates input, calculates interest, inserts the loan record,
+ * and notifies the member via SMS.
+ */
 export async function addLoanAction(
   prevState: LoanFormState,
   formData: FormData
@@ -57,9 +111,7 @@ export async function addLoanAction(
       }
     }
 
-    
-
-    // Get member
+    // Fetch the member to validate existence and get contact info
     const { data: member, error: memberError } = await supabaseAdmin
       .from('members')
       .select('full_name, phone')
@@ -68,9 +120,10 @@ export async function addLoanAction(
 
     if (memberError || !member) return { error: "Member not found." }
 
+    // Convert UGX to cents for storage (avoids floating-point precision issues)
     const amountInCents = Math.floor(parsed.data.amount * 100)
 
-    // Get applicable interest rate from interest_rates table
+    // Look up the applicable interest rate tier for this amount
     const { data: interestRatesList, error: ratesError } = await supabaseAdmin
       .from('interest_rates')
       .select('*')
@@ -85,7 +138,7 @@ export async function addLoanAction(
     const { rate: interestRate, rateType: interestType } =
       getInterestRateForAmount(amountInCents, interestRatesList || [])
 
-    // Calculate loan details
+    // Compute repayment schedule, daily/monthly payment amounts, and penalty fees
     const calc = calculateLoan({
       principal: amountInCents,
       interestRate: interestRate,
@@ -93,16 +146,16 @@ export async function addLoanAction(
       durationMonths: parsed.data.duration_months,
     })
 
-    const loan_ref = `LN-${Date.now()}`
+    const loan_ref = `${LOAN_REF_PREFIX}-${Date.now()}`
 
-    // Get the interest rate ID
+    // Find the exact interest rate tier that matches this amount range
     const applicableRate = (interestRatesList || []).find(
       (rate) =>
         amountInCents >= rate.min_amount && amountInCents <= rate.max_amount
     )
 
-    // Insert loan
-    const { error: insertError } = await supabaseAdmin
+    // Insert the loan record with pending status
+    const { data: loan, error: insertError } = await supabaseAdmin
       .from('loans')
       .insert({
         sacco_id: user.saccoId,
@@ -122,13 +175,39 @@ export async function addLoanAction(
         notes: parsed.data.notes || null,
         status: "pending",
       })
+      .select('id')
+      .single()
 
     if (insertError) {
       console.error('Supabase insert error:', insertError)
       return { error: "Failed to add loan. Please try again." }
     }
 
-    // Send SMS notification (don't fail if SMS fails)
+    // Insert guarantors if any were selected
+    try {
+      const guarantorIdsRaw = formData.get("guarantor_ids") as string
+      if (guarantorIdsRaw) {
+        const guarantorIds: string[] = JSON.parse(guarantorIdsRaw)
+        if (guarantorIds.length > 0) {
+          const guarantorRows = guarantorIds.map((memberId: string) => ({
+            loan_id: loan!.id,
+            member_id: memberId,
+            sacco_id: user.saccoId,
+            status: "pending",
+          }))
+          const { error: guarantorError } = await supabaseAdmin
+            .from('loan_guarantors')
+            .insert(guarantorRows)
+          if (guarantorError) {
+            console.error('Failed to insert guarantors:', guarantorError)
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse guarantor_ids:', e)
+    }
+
+    // Notify the member — SMS failure is non-fatal for loan creation
     if (member.phone) {
       try {
         await sendSms({
@@ -149,13 +228,20 @@ export async function addLoanAction(
   }
 }
 
-// ─── Approve Loan ─────────────────────────────────────────────────────────────
-
+/**
+ * Approves a pending loan and immediately disburses it.
+ * Only users with admin or cashier roles can approve loans.
+ * Disbursal failure is logged but does not roll back the approval.
+ */
 export async function approveLoanAction(id: string): Promise<LoanFormState> {
   try {
-    
+    const user = await getCurrentUser()
+    if (!user) return { error: "Not authenticated." }
+    if (!(LOAN_MANAGEMENT_ROLES as readonly string[]).includes(user.role)) {
+      return { error: "You don't have permission to approve loans." }
+    }
 
-    // Get the loan
+    // Fetch the loan and verify it exists
     const { data: loan, error: loanError } = await supabaseAdmin
       .from('loans')
       .select('*')
@@ -166,14 +252,19 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
       return { error: "Loan not found." }
     }
 
-    // Get member for SMS
+    // Only pending loans can be approved
+    if (loan.status !== "pending") {
+      return { error: "Only pending loans can be approved." }
+    }
+
+    // Get member for SMS notification
     const { data: member } = await supabaseAdmin
       .from('members')
       .select('phone, full_name, member_code')
       .eq('id', loan.member_id)
       .single()
 
-    // Update loan status
+    // Update loan status to approved
     const { error: updateError } = await supabaseAdmin
       .from('loans')
       .update({
@@ -187,32 +278,40 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
       return { error: "Failed to approve loan." }
     }
 
-    // Auto-disburse immediately after approval
+    // Attempt automatic disbursement after approval.
+    // If disbursement fails, the loan remains approved — a manual retry is possible.
     const disburseResult = await disburseLoanAction(id)
     if (disburseResult.error) {
-      // Loan is approved but disburse failed — still a partial success
       console.error("[Loan] Auto-disburse after approve failed:", disburseResult.error)
       revalidatePath("/loans")
-      return { success: true }
+      return { success: true, error: "Loan approved but auto-disbursement failed. You can disburse manually." }
     }
 
-    return disburseResult
+    revalidatePath("/loans")
+    return { success: true }
   } catch (err) {
     console.error(err)
     return { error: "Failed to approve loan." }
   }
 }
 
-// ─── Decline Loan ─────────────────────────────────────────────────────────────
-
+/**
+ * Declines a pending loan with a reason.
+ * Only users with admin or cashier roles can decline loans.
+ * The member is notified via SMS with the decline reason.
+ */
 export async function declineLoanAction(
   id: string,
   reason: string
 ): Promise<LoanFormState> {
   try {
-    
+    const user = await getCurrentUser()
+    if (!user) return { error: "Not authenticated." }
+    if (!(LOAN_MANAGEMENT_ROLES as readonly string[]).includes(user.role)) {
+      return { error: "You don't have permission to decline loans." }
+    }
 
-    // Get the loan
+    // Fetch the loan and verify it exists
     const { data: loan, error: loanError } = await supabaseAdmin
       .from('loans')
       .select('*')
@@ -223,13 +322,18 @@ export async function declineLoanAction(
       return { error: "Loan not found." }
     }
 
-    // Get member + sacco for SMS
+    // Only pending loans can be declined
+    if (loan.status !== "pending") {
+      return { error: "Only pending loans can be declined." }
+    }
+
+    // Fetch member contact info and SACCO language settings in parallel
     const [{ data: member }, { data: saccoLang }] = await Promise.all([
       supabaseAdmin.from('members').select('phone, full_name').eq('id', loan.member_id).single(),
       supabaseAdmin.from('saccos').select('settings').eq('id', loan.sacco_id).single(),
     ])
 
-    // Update loan status
+    // Update loan status to declined with the provided reason
     const { error: updateError } = await supabaseAdmin
       .from('loans')
       .update({
@@ -244,9 +348,10 @@ export async function declineLoanAction(
       return { error: "Failed to decline loan." }
     }
 
+    // Notify the member — SMS failure is non-fatal
     if (member?.phone) {
       try {
-        const saccoSettings = (() => { try { return JSON.parse(saccoLang?.settings ?? "{}") } catch { return {} } })()
+        const saccoSettings = parseSaccoSettings(saccoLang?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
@@ -265,16 +370,22 @@ export async function declineLoanAction(
   }
 }
 
-// ─── Disburse Loan ────────────────────────────────────────────────────────────
-
+/**
+ * Disburses an approved loan by initiating a Flutterwave transfer and
+ * updating the loan status to "disbursed".
+ * Only admins and cashiers can disburse.
+ * The status update only happens AFTER the transfer succeeds so we
+ * never mark a loan as disbursed if the money didn't actually move.
+ */
 export async function disburseLoanAction(id: string): Promise<LoanFormState> {
   try {
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
+    if (!(LOAN_MANAGEMENT_ROLES as readonly string[]).includes(user.role)) {
+      return { error: "You don't have permission to disburse loans." }
+    }
 
-    
-
-    // Get the loan
+    // Fetch the loan and verify it exists
     const { data: loan, error: loanError } = await supabaseAdmin
       .from('loans')
       .select('*')
@@ -288,57 +399,29 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
       return { error: "Loan must be approved first." }
     }
 
-    // Get member + sacco for transfer and SMS
+    // Fetch member contact and SACCO settings in parallel
     const [{ data: member }, { data: saccoLangDisb }] = await Promise.all([
       supabaseAdmin.from('members').select('phone, full_name').eq('id', loan.member_id).single(),
       supabaseAdmin.from('saccos').select('settings').eq('id', loan.sacco_id).single(),
     ])
 
-    // Update loan status
-    const { error: updateError } = await supabaseAdmin
-      .from('loans')
-      .update({
-        status: "disbursed",
-        disbursed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-
-    if (updateError) {
-      console.error('Supabase update error:', updateError)
-      return { error: "Failed to disburse loan." }
-    }
-
-    // Create transaction record
-    const { error: transactionError } = await supabaseAdmin
-      .from('transactions')
-      .insert({
-        sacco_id: user.saccoId,
-        member_id: loan.member_id,
-        type: "loan_disbursement",
-        amount: loan.amount,
-        narration: `Loan disbursement - ${loan.loan_ref}`,
-        payment_method: "flutterwave",
-      })
-
-    if (transactionError) {
-      console.error('Transaction creation error:', transactionError)
-      // Continue anyway as the loan status was updated
-    }
-
-    // Initiate Flutterwave transfer to member's phone
+    // Initiate Flutterwave transfer to the member's mobile money account
+    // This runs BEFORE the status update so we never mark a loan as disbursed
+    // if the payment fails.
     if (member?.phone) {
       try {
         const normalizedPhone = member.phone
           .replace(/\s+/g, "")
           .replace(/^\+/, "")
           .replace(/^0/, "256")
-        // Assume MTN for now, can be improved to detect network
+
+        // Detect network from phone prefix (MTN: 25675/25670, Airtel: others)
         const account_bank =
           normalizedPhone.startsWith("25675") ||
           normalizedPhone.startsWith("25670")
             ? "MPS"
             : "ATL"
+
         await initiateFlutterwaveTransfer({
           account_bank,
           account_number: normalizedPhone,
@@ -350,11 +433,45 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
         })
       } catch (transferError) {
         console.error("[Loan] Flutterwave transfer failed:", transferError)
-        // Still proceed, maybe mark as pending transfer
+        return { error: "Payment transfer failed. Please retry or contact support." }
       }
+    }
 
+    // Payment succeeded — now update the loan status
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update({
+        status: "disbursed",
+        disbursed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Supabase update error:', updateError)
+      return { error: "Loan disbursed (payment sent) but status update failed. Contact support." }
+    }
+
+    // Record the disbursement transaction
+    const { error: transactionError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        sacco_id: user.saccoId,
+        member_id: loan.member_id,
+        type: "loan_disbursement",
+        amount: loan.amount,
+        narration: `Loan disbursement - ${loan.loan_ref}`,
+        payment_method: member?.phone ? "flutterwave" : "cash",
+      })
+
+    if (transactionError) {
+      console.error('Transaction creation error:', transactionError)
+    }
+
+    // Send SMS notification — non-fatal
+    if (member?.phone) {
       try {
-        const saccoSettings = (() => { try { return JSON.parse(saccoLangDisb?.settings ?? "{}") } catch { return {} } })()
+        const saccoSettings = parseSaccoSettings(saccoLangDisb?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
@@ -377,8 +494,12 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
   }
 }
 
-// ─── Make Repayment ───────────────────────────────────────────────────────────
-
+/**
+ * Records a loan repayment, optionally processing mobile money payment
+ * via Flutterwave before updating the balance. If the full balance is cleared,
+ * the loan is automatically marked as "settled".
+ * Returns a receipt on success.
+ */
 export async function repayLoanAction(
   prevState: LoanFormState,
   formData: FormData
@@ -387,8 +508,7 @@ export async function repayLoanAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
-    
-
+    // Parse and validate repayment amount (strips commas for user-friendly input)
     const id = formData.get("loan_id") as string
     const amountStr = (formData.get("amount") as string)?.replace(/,/g, "")
     const amount = Math.round(parseFloat(amountStr || "0") * 100)
@@ -397,7 +517,7 @@ export async function repayLoanAction(
     if (!amountStr || isNaN(amount) || amount <= 0)
       return { error: "Valid amount required." }
 
-    // Get the loan
+    // Fetch the loan
     const { data: loan, error: loanError } = await supabaseAdmin
       .from('loans')
       .select('*')
@@ -407,11 +527,11 @@ export async function repayLoanAction(
     if (loanError || !loan) {
       return { error: "Loan not found." }
     }
-    if (loan.status !== "disbursed" && loan.status !== "active") {
+    if (!(REPAYABLE_STATUSES as readonly string[]).includes(loan.status)) {
       return { error: "Loan must be disbursed to record repayments." }
     }
 
-    // Get member + sacco for payment processing, SMS, and receipt
+    // Fetch member and SACCO info in parallel for payment, SMS, and receipt
     const [{ data: member }, { data: sacco }] = await Promise.all([
       supabaseAdmin
         .from('members')
@@ -425,7 +545,7 @@ export async function repayLoanAction(
         .single(),
     ])
 
-    // Process payment if mobile money
+    // Process mobile money payment via Flutterwave before recording the repayment
     if (payment_method === "mobile_money" && member?.phone) {
       try {
         await initiateFlutterwaveCharge({
@@ -448,10 +568,11 @@ export async function repayLoanAction(
       }
     }
 
+    // Calculate new balance and determine if the loan is fully settled
     const newBalance = Math.max(0, loan.balance - amount)
     const newStatus = newBalance === 0 ? "settled" : "active"
 
-    // Update loan
+    // Update the loan balance and status
     const { error: updateError } = await supabaseAdmin
       .from('loans')
       .update({
@@ -467,7 +588,7 @@ export async function repayLoanAction(
       return { error: "Failed to record repayment." }
     }
 
-    // Create transaction record
+    // Create a transaction record for the repayment
     const { error: transactionError } = await supabaseAdmin
       .from('transactions')
       .insert({
@@ -483,12 +604,12 @@ export async function repayLoanAction(
 
     if (transactionError) {
       console.error('Transaction creation error:', transactionError)
-      // Continue anyway as the loan was updated
     }
 
+    // Send repayment confirmation SMS — non-fatal
     if (member?.phone) {
       try {
-        const saccoSettings = (() => { try { return JSON.parse(sacco?.settings ?? "{}") } catch { return {} } })()
+        const saccoSettings = parseSaccoSettings(sacco?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
         await sendSms({
           to: member.phone,
@@ -505,6 +626,8 @@ export async function repayLoanAction(
 
     revalidatePath("/loans")
     revalidatePath(`/members/${loan.member_id}`)
+
+    // Return a receipt for the repayment
     return {
       success: true,
       receipt: {
@@ -527,8 +650,11 @@ export async function repayLoanAction(
   }
 }
 
-// ─── Top Up Loan ──────────────────────────────────────────────────────────────
-
+/**
+ * Adds a top-up to an existing active loan, increasing the balance owed.
+ * Records the top-up in the loan_top_ups table and creates a corresponding
+ * disbursement transaction.
+ */
 export async function topUpLoanAction(
   prevState: LoanFormState,
   formData: FormData
@@ -537,8 +663,7 @@ export async function topUpLoanAction(
     const user = await getCurrentUser()
     if (!user) return { error: "Not authenticated." }
 
-    
-
+    // Parse and validate the top-up amount
     const id = formData.get("loan_id") as string
     const amountStr = (formData.get("amount") as string)?.replace(/,/g, "")
     const amount = Math.round(parseFloat(amountStr || "0") * 100)
@@ -549,7 +674,7 @@ export async function topUpLoanAction(
     if (!amountStr || isNaN(amount) || amount <= 0)
       return { error: "Valid amount required." }
 
-    // Get the loan
+    // Fetch the loan
     const { data: loan, error: loanError } = await supabaseAdmin
       .from('loans')
       .select('*')
@@ -559,18 +684,18 @@ export async function topUpLoanAction(
     if (loanError || !loan) {
       return { error: "Loan not found." }
     }
-    if (loan.status !== "active" && loan.status !== "disbursed") {
+    if (!(TOP_UP_ELIGIBLE_STATUSES as readonly string[]).includes(loan.status)) {
       return { error: "Loan must be active or disbursed to add top-up." }
     }
 
-    // Get member for SMS
+    // Fetch member contact info for SMS
     const { data: member } = await supabaseAdmin
       .from('members')
       .select('phone, full_name')
       .eq('id', loan.member_id)
       .single()
 
-    // Add top-up record
+    // Insert the top-up record
     const { error: topUpError } = await supabaseAdmin
       .from('loan_top_ups')
       .insert({
@@ -579,7 +704,7 @@ export async function topUpLoanAction(
         reason,
         payment_method: payment_method as any,
         notes,
-        // processed_by: // TODO: Add current user/admin ID when authentication is implemented
+        processed_by: user.userId,
       })
 
     if (topUpError) {
@@ -587,7 +712,7 @@ export async function topUpLoanAction(
       return { error: "Failed to process loan top-up." }
     }
 
-    // Update loan balance (add to balance since top-up increases the amount owed)
+    // Increase the loan balance by the top-up amount
     const newBalance = loan.balance + amount
 
     const { error: updateError } = await supabaseAdmin
@@ -603,13 +728,13 @@ export async function topUpLoanAction(
       return { error: "Failed to process loan top-up." }
     }
 
-    // Record transaction
+    // Record the additional disbursement transaction
     const { error: transactionError } = await supabaseAdmin
       .from('transactions')
       .insert({
         sacco_id: user.saccoId,
         member_id: loan.member_id,
-        type: "loan_disbursement", // Top-up is essentially additional disbursement
+        type: "loan_disbursement",
         amount,
         balance_after: newBalance,
         narration: `Loan top-up - ${loan.loan_ref}${reason ? ` - ${reason}` : ""}`,
@@ -621,10 +746,9 @@ export async function topUpLoanAction(
 
     if (transactionError) {
       console.error('Transaction creation error:', transactionError)
-      // Continue anyway as the loan was updated
     }
 
-    // Send SMS notification
+    // Send SMS notification — non-fatal
     if (member?.phone) {
       try {
         await sendSms({
@@ -646,16 +770,24 @@ export async function topUpLoanAction(
   }
 }
 
-// ─── Delete Loan ──────────────────────────────────────────────────────────────
-
+/**
+ * Soft-deletes a loan by setting deleted_at.
+ * Only admin users are permitted.
+ * Logs the action to the audit trail.
+ */
 export async function deleteLoanAction(id: string): Promise<LoanFormState> {
   try {
     const user = await getCurrentUser()
     if (!user) return { error: "Unauthorized" }
+    if (user.role !== "admin") {
+      return { error: "Only admins can delete loans." }
+    }
 
+    // Fetch loan reference for audit logging before deletion
     const { data: loan } = await supabaseAdmin
       .from('loans').select('loan_ref').eq('id', id).single()
 
+    // Soft-delete by setting the deleted_at timestamp
     const { error } = await supabaseAdmin
       .from('loans')
       .update({ deleted_at: new Date().toISOString() })
@@ -663,6 +795,7 @@ export async function deleteLoanAction(id: string): Promise<LoanFormState> {
 
     if (error) return { error: "Failed to delete loan." }
 
+    // Log to audit trail — non-fatal
     const { logActivity } = await import("@/lib/activity-log")
     await logActivity({
       saccoId: user.saccoId, actorId: user.userId,
@@ -679,3 +812,36 @@ export async function deleteLoanAction(id: string): Promise<LoanFormState> {
     return { error: "Failed to delete loan." }
   }
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED ACTIONS:
+//   addLoanAction(prevState, formData)      – create a new loan application
+//   approveLoanAction(id)                   – approve + auto-disburse a pending loan
+//   declineLoanAction(id, reason)           – decline a pending loan with reason
+//   disburseLoanAction(id)                  – disburse an approved loan via Flutterwave
+//   repayLoanAction(prevState, formData)    – record a repayment instalment
+//   topUpLoanAction(prevState, formData)    – add a top-up to an active loan
+//   deleteLoanAction(id)                    – soft-delete a loan
+//
+// EXPORTED TYPES:
+//   LoanFormState  – { success?, error?, receipt?, fieldErrors? }
+//
+// KEY CONSTANTS:
+//   CENTS_PER_UNIT             = 100
+//   LOAN_MANAGEMENT_ROLES      = ["admin", "cashier"]
+//   REPAYABLE_STATUSES         = ["disbursed", "active"]
+//   TOP_UP_ELIGIBLE_STATUSES   = ["active", "disbursed"]
+//   LOAN_REF_PREFIX            = "LN"
+//
+// KEY HELPERS:
+//   parseSaccoSettings(raw)  – safely parse the SACCO settings JSON column
+//
+// RELATED FILES:
+//   lib/auth.ts                       – getCurrentUser, role constants
+//   lib/sms.ts                        – sendSms, getSmsTemplates
+//   lib/payments/flutterwave.ts       – initiateFlutterwaveTransfer/Charge
+//   lib/pdf/loan-calculator.ts        – calculateLoan, getInterestRateForAmount
+//   lib/activity-log.ts               – logActivity (audit trail)
+//   db/queries/loans.ts               – read-only loan queries
+//   db/queries/guarantors.ts          – guarantor management

@@ -16,6 +16,12 @@ import {
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
+// Drizzle ORM schema definition for all database tables.
+// Tables: members, loanCategories, fineCategories, fines, complaints, loans, auditLogs,
+//   savingsCategories, savingsAccounts, notifications, transactions, documents,
+//   loanExtensions, loanGuarantors, interestRates, cmsActivityLogs, saccoUsers,
+//   loanTopUps, saccoStats, superadmins, saccos
+
 export const complaintStatus = pgEnum("complaint_status", [
   "open",
   "in_progress",
@@ -69,11 +75,6 @@ export const saccoStatus = pgEnum("sacco_status", [
   "suspended",
   "trial",
   "cancelled",
-])
-export const saccoUserRole = pgEnum("sacco_user_role", [
-  "admin",
-  "cashier",
-  "field_agent",
 ])
 export const savingsAccountType = pgEnum("savings_account_type", [
   "regular",

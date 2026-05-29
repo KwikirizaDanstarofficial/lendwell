@@ -209,7 +209,7 @@ export async function markFinePaidAction(
       }
 
       finalReference =
-        paymentResult.data?.data?.tx_ref || `FINE-${fine.id}-${Date.now()}`
+        (paymentResult.data as { data?: { tx_ref?: string } })?.data?.tx_ref || `FINE-${fine.id}-${Date.now()}`
       finalMethod = "flutterwave"
     }
 

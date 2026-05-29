@@ -1,4 +1,6 @@
 // app/(dashboard)/loans/components/repay-dialog.tsx
+// Dialog for recording a loan repayment instalment.
+// Submits via server action and shows a receipt on success.
 "use client"
 
 import { useActionState, useEffect, useState } from "react"
@@ -26,23 +28,34 @@ import {
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog"
 import type { ReceiptData } from "@/types/receipt"
 
-const initialState: LoanFormState = {}
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Default payment method pre-selected in the dropdown. */
+const DEFAULT_PAYMENT_METHOD = "mobile_money"
+
+/** Divisor to convert stored cent amounts to UGX for display. */
+const CENTS_PER_UNIT = 100
+
+const INITIAL_FORM_STATE: LoanFormState = {}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function RepayDialog({
   loan,
   open,
   onClose,
 }: {
-  loan: any
-  open: boolean
+  loan:    any
+  open:    boolean
   onClose: () => void
 }) {
   const [state, formAction, isPending] = useActionState(
     repayLoanAction,
-    initialState
+    INITIAL_FORM_STATE
   )
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
+  // On success show receipt; on error show toast
   useEffect(() => {
     if (state.success && state.receipt) {
       setReceipt(state.receipt)
@@ -60,7 +73,7 @@ export function RepayDialog({
             <DialogDescription>
               Loan: {loan.loanRef} · Balance:{" "}
               <span className="font-semibold text-foreground">
-                {formatUGX(loan.balance)}
+                {formatUGX(loan.balance / CENTS_PER_UNIT)}
               </span>
             </DialogDescription>
           </DialogHeader>
@@ -68,6 +81,7 @@ export function RepayDialog({
           <form action={formAction} className="space-y-4">
             <input type="hidden" name="loan_id" value={loan.id} />
 
+            {/* Quick-reference payment amounts */}
             <div className="grid grid-cols-3 gap-3 text-center text-sm">
               <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
                 <p className="text-xs text-muted-foreground">Daily</p>
@@ -95,13 +109,13 @@ export function RepayDialog({
                 id="amount"
                 name="amount"
                 type="number"
-                placeholder={`Max: ${loan.balance / 100}`}
+                placeholder={`Max: ${loan.balance / CENTS_PER_UNIT}`}
               />
             </div>
 
             <div className="space-y-1.5">
               <Label>Payment Method</Label>
-              <Select name="payment_method" defaultValue="mobile_money">
+              <Select name="payment_method" defaultValue={DEFAULT_PAYMENT_METHOD}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -126,6 +140,7 @@ export function RepayDialog({
         </DialogContent>
       </Dialog>
 
+      {/* Receipt dialog shown after a successful repayment */}
       {receipt && (
         <ReceiptDialog
           open={!!receipt}
@@ -136,3 +151,20 @@ export function RepayDialog({
     </>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   RepayDialog({ loan, open, onClose })
+//     – modal for recording a loan repayment
+//     – shows daily/monthly/min amounts for reference
+//     – triggers ReceiptDialog on success
+//
+// KEY CONSTANTS:
+//   DEFAULT_PAYMENT_METHOD = "mobile_money"
+//   CENTS_PER_UNIT         = 100
+//
+// RELATED FILES:
+//   ../actions.ts                        – repayLoanAction server action
+//   components/receipts/receipt-dialog.tsx – receipt display
+//   lib/utils/format.ts                  – formatUGX()

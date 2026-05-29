@@ -25,7 +25,7 @@ export function LockDialog({
   open: boolean
   onClose: () => void
 }) {
-  const [state, formAction, isPending] = useActionState(lockAccountAction, {})
+  const [state, formAction, isPending] = useActionState(lockAccountAction, {} as { success?: boolean; error?: string })
 
   useEffect(() => {
     if (state.success) {

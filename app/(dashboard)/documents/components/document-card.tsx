@@ -111,14 +111,8 @@ export function DocumentCard({ doc }: { doc: Document }) {
             onClick={(e) => e.stopPropagation()}
           >
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </Button>
+              <DropdownMenuTrigger className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-secondary text-secondary-foreground opacity-0 transition-opacity hover:bg-secondary/80 group-hover:opacity-100">
+                <MoreVertical className="h-3.5 w-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onClick={() => setPreviewOpen(true)}>

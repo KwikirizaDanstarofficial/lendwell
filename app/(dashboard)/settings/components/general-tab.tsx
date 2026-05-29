@@ -1,3 +1,5 @@
+// app/(dashboard)/settings/components/general-tab.tsx
+// Settings tab for SACCO branding: logo upload, name, contact info, and brand colour.
 "use client"
 
 import { useActionState, useState, useEffect } from "react"
@@ -22,19 +24,44 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Loader2, Upload, Building2 } from "lucide-react"
 
-const initialState: SettingsState = {}
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Maximum logo file size accepted by the dropzone (2 MB). */
+const LOGO_MAX_SIZE_BYTES = 2 * 1024 * 1024
+
+/** Accepted MIME types for the logo dropzone. */
+const LOGO_ACCEPTED_TYPES = {
+  "image/jpeg":   [".jpg", ".jpeg"],
+  "image/png":    [".png"],
+  "image/webp":   [".webp"],
+  "image/svg+xml": [".svg"],
+} as const
+
+/** Default brand colour used when the SACCO has no saved colour. */
+const DEFAULT_BRAND_COLOR = "#16a34a"
+
+/** Progress bar increment per tick during the upload simulation. */
+const PROGRESS_INCREMENT = 10
+
+/** Tick interval in ms for the progress bar simulation. */
+const PROGRESS_TICK_MS = 100
+
+/** Delay in ms before clearing the progress state after upload completes. */
+const PROGRESS_CLEAR_DELAY_MS = 500
+
+const INITIAL_STATE: SettingsState = {}
 
 export function GeneralTab({ sacco }: { sacco: any }) {
   const [state, formAction, isPending] = useActionState(
     updateGeneralSettingsAction,
-    initialState
+    INITIAL_STATE
   )
-  const [name, setName] = useState(sacco?.name ?? "")
+  const [name,         setName]         = useState(sacco?.name         ?? "")
   const [contactEmail, setContactEmail] = useState(sacco?.contactEmail ?? "")
   const [contactPhone, setContactPhone] = useState(sacco?.contactPhone ?? "")
-  const [address, setAddress] = useState(sacco?.address ?? "")
-  const [tagline, setTagline] = useState(sacco?.tagline ?? "")
-  const [color, setColor] = useState(sacco?.primaryColor ?? "#16a34a")
+  const [address,      setAddress]      = useState(sacco?.address      ?? "")
+  const [tagline,      setTagline]      = useState(sacco?.tagline       ?? "")
+  const [color,        setColor]        = useState(sacco?.primaryColor  ?? DEFAULT_BRAND_COLOR)
   const [logoUrl, setLogoUrl] = useState(sacco?.logoUrl ?? "")
   const [localPreview, setLocalPreview] = useState("")
   const [uploading, setUploading] = useState(false)
@@ -52,19 +79,14 @@ export function GeneralTab({ sacco }: { sacco: any }) {
     setContactPhone(sacco?.contactPhone ?? "")
     setAddress(sacco?.address ?? "")
     setTagline(sacco?.tagline ?? "")
-    setColor(sacco?.primaryColor ?? "#16a34a")
+    setColor(sacco?.primaryColor ?? DEFAULT_BRAND_COLOR)
     setLogoUrl(sacco?.logoUrl ?? "")
   }, [sacco])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: {
-      "image/jpeg": [".jpg", ".jpeg"],
-      "image/png": [".png"],
-      "image/webp": [".webp"],
-      "image/svg+xml": [".svg"],
-    },
+    accept:   LOGO_ACCEPTED_TYPES,
     maxFiles: 1,
-    maxSize: 2 * 1024 * 1024, // 2MB
+    maxSize:  LOGO_MAX_SIZE_BYTES,
     onDrop: async (files, rejectedFiles) => {
       // Handle rejected files
       if (rejectedFiles.length > 0) {
@@ -93,8 +115,8 @@ export function GeneralTab({ sacco }: { sacco: any }) {
 
       try {
         const progressInterval = setInterval(() => {
-          setUploadProgress((prev) => Math.min(prev + 10, 90))
-        }, 100)
+          setUploadProgress((prev) => Math.min(prev + PROGRESS_INCREMENT, 90))
+        }, PROGRESS_TICK_MS)
 
         const fd = new FormData()
         fd.append("logo", file)
@@ -121,7 +143,7 @@ export function GeneralTab({ sacco }: { sacco: any }) {
         setTimeout(() => {
           setUploading(false)
           setUploadProgress(0)
-        }, 500)
+        }, PROGRESS_CLEAR_DELAY_MS)
       }
     },
   })
@@ -158,11 +180,7 @@ export function GeneralTab({ sacco }: { sacco: any }) {
             </div>
             <div
               {...getRootProps()}
-              className={`flex-1 cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-                isDragActive
-                  ? "border-primary bg-primary/5"
-                  : "border-muted-foreground/30 hover:border-primary"
-              }`}
+              className={`flex-1 cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-primary"}`}
             >
               <input {...getInputProps()} />
               {uploading ? (
@@ -314,3 +332,22 @@ export function GeneralTab({ sacco }: { sacco: any }) {
     </div>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   GeneralTab({ sacco })
+//     – settings tab for SACCO logo, name, contact info, and brand colour
+//     – logo upload is immediate (calls uploadLogoAction on drop)
+//     – general info form submits via updateGeneralSettingsAction
+//
+// KEY CONSTANTS:
+//   LOGO_MAX_SIZE_BYTES     = 2 097 152  (2 MB)
+//   LOGO_ACCEPTED_TYPES     – jpeg, png, webp, svg
+//   DEFAULT_BRAND_COLOR     = "#16a34a"
+//   PROGRESS_INCREMENT      = 10  (% per tick)
+//   PROGRESS_TICK_MS        = 100
+//   PROGRESS_CLEAR_DELAY_MS = 500
+//
+// RELATED FILES:
+//   ../actions.ts  – updateGeneralSettingsAction, uploadLogoAction

@@ -663,11 +663,9 @@ export function MemberProfile({
             {loadingProfile ? "Generating…" : "Print Profile"}
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <MoreVertical className="h-4 w-4" />
-                Actions
-              </Button>
+            <DropdownMenuTrigger className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground">
+              <MoreVertical className="h-4 w-4" />
+              Actions
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setShowSmsDialog(true)}>

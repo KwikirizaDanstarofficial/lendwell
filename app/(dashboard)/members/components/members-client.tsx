@@ -1,3 +1,7 @@
+// app/(dashboard)/members/components/members-client.tsx
+// Top-level client shell for the Members page.
+// Manages view mode (table/grid), search filtering, Excel export,
+// and the import dialog.
 "use client"
 
 import { useState, useMemo } from "react"
@@ -5,104 +9,124 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Download,
-  Upload,
-  UserPlus,
-  LayoutGrid,
-  List,
-  Search,
-} from "lucide-react"
+import { Download, Upload, UserPlus, LayoutGrid, List, Search } from "lucide-react"
 import { MembersTable } from "./members-table"
-
-type Member = {
-  id: string
-  saccoId: string
-  memberCode: string
-  fullName: string
-  email: string | null
-  phone: string | null
-  nationalId: string | null
-  photoUrl: string | null
-  dateOfBirth: Date | null
-  address: string | null
-  nextOfKin: string | null
-  nextOfKinPhone: string | null
-  nextOfKinRelationship: string | null
-  nextOfKinAddress: string | null
-  status: "active" | "suspended" | "exited"
-  joinedAt: Date | null
-  createdAt: Date | null
-  updatedAt: Date | null
-  totalSavings?: number
-  totalLoans?: number
-}
 import { MembersGrid } from "./members-grid"
 import { ImportExcel } from "./import-excel"
 import ExcelJS from "exceljs"
 import { toast } from "sonner"
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Default view mode when the page first renders. */
+const DEFAULT_VIEW = "table" as const
+
+/** Filename used when exporting the members list to Excel. */
+const EXPORT_FILENAME = "sacco-members.xlsx"
+
+/** Excel worksheet name for the members export. */
+const EXPORT_SHEET_NAME = "Members"
+
+/** MIME type for .xlsx files used in the download blob. */
+const XLSX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+/** Column definitions for the Excel export. */
+const EXPORT_COLUMNS = [
+  { header: "Member Code",       key: "member_code",    width: 15 },
+  { header: "Full Name",         key: "full_name",       width: 25 },
+  { header: "Email",             key: "email",           width: 30 },
+  { header: "Phone",             key: "phone",           width: 15 },
+  { header: "National ID",       key: "national_id",     width: 15 },
+  { header: "Status",            key: "status",          width: 10 },
+  { header: "Date of Birth",     key: "date_of_birth",   width: 15 },
+  { header: "Address",           key: "address",         width: 30 },
+  { header: "Next of Kin",       key: "next_of_kin",     width: 20 },
+  { header: "Next of Kin Phone", key: "next_of_kin_phone", width: 15 },
+  { header: "Joined At",         key: "joined_at",       width: 15 },
+] as const
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ViewMode = "table" | "grid"
+
+type Member = {
+  id:                      string
+  saccoId:                 string
+  memberCode:              string
+  fullName:                string
+  email:                   string | null
+  phone:                   string | null
+  nationalId:              string | null
+  photoUrl:                string | null
+  dateOfBirth:             Date   | null
+  address:                 string | null
+  nextOfKin:               string | null
+  nextOfKinPhone:          string | null
+  nextOfKinRelationship:   string | null
+  nextOfKinAddress:        string | null
+  status:                  "active" | "suspended" | "exited"
+  joinedAt:                Date | null
+  createdAt:               Date | null
+  updatedAt:               Date | null
+  totalSavings?:           number
+  totalLoans?:             number
+}
+
 interface MembersClientProps {
   members: Member[]
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function MembersClient({ members }: MembersClientProps) {
   const router = useRouter()
-  const [view, setView] = useState<"table" | "grid">("table")
-  const [search, setSearch] = useState("")
+  const [view,       setView]       = useState<ViewMode>(DEFAULT_VIEW)
+  const [search,     setSearch]     = useState("")
   const [showImport, setShowImport] = useState(false)
 
-  const filtered = useMemo(() => {
-    return members.filter((m) =>
-      m.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      m.memberCode.toLowerCase().includes(search.toLowerCase()) ||
-      (m.phone ?? "").toLowerCase().includes(search.toLowerCase())
-    )
-  }, [members, search])
+  // Filter members by name, code, or phone as the user types
+  const filteredMembers = useMemo(
+    () =>
+      members.filter(
+        (m) =>
+          m.fullName.toLowerCase().includes(search.toLowerCase())    ||
+          m.memberCode.toLowerCase().includes(search.toLowerCase())  ||
+          (m.phone ?? "").toLowerCase().includes(search.toLowerCase())
+      ),
+    [members, search]
+  )
 
+  /** Export the currently filtered member list to an Excel file. */
   const handleExport = async () => {
-    const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet("Members")
+    const workbook  = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet(EXPORT_SHEET_NAME)
 
-    worksheet.columns = [
-      { header: "Member Code", key: "member_code", width: 15 },
-      { header: "Full Name", key: "full_name", width: 25 },
-      { header: "Email", key: "email", width: 30 },
-      { header: "Phone", key: "phone", width: 15 },
-      { header: "National ID", key: "national_id", width: 15 },
-      { header: "Status", key: "status", width: 10 },
-      { header: "Date of Birth", key: "date_of_birth", width: 15 },
-      { header: "Address", key: "address", width: 30 },
-      { header: "Next of Kin", key: "next_of_kin", width: 20 },
-      { header: "Next of Kin Phone", key: "next_of_kin_phone", width: 15 },
-      { header: "Joined At", key: "joined_at", width: 15 },
-    ]
+    worksheet.columns = EXPORT_COLUMNS as any
 
-    const data = filtered.map((m) => ({
-      member_code: m.memberCode,
-      full_name: m.fullName,
-      email: m.email ?? "",
-      phone: m.phone ?? "",
-      national_id: m.nationalId ?? "",
-      status: m.status,
-      date_of_birth: m.dateOfBirth ?? "",
-      address: m.address ?? "",
-      next_of_kin: m.nextOfKin ?? "",
-      next_of_kin_phone: m.nextOfKinPhone ?? "",
-      joined_at: m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : "",
-    }))
-
-    worksheet.addRows(data)
+    worksheet.addRows(
+      filteredMembers.map((m) => ({
+        member_code:    m.memberCode,
+        full_name:      m.fullName,
+        email:          m.email          ?? "",
+        phone:          m.phone          ?? "",
+        national_id:    m.nationalId     ?? "",
+        status:         m.status,
+        date_of_birth:  m.dateOfBirth    ?? "",
+        address:        m.address        ?? "",
+        next_of_kin:    m.nextOfKin      ?? "",
+        next_of_kin_phone: m.nextOfKinPhone ?? "",
+        joined_at:      m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : "",
+      }))
+    )
 
     const buffer = await workbook.xlsx.writeBuffer()
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "sacco-members.xlsx"
-    a.click()
+    const blob   = new Blob([buffer], { type: XLSX_MIME_TYPE })
+    const url    = window.URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href     = url
+    anchor.download = EXPORT_FILENAME
+    anchor.click()
     window.URL.revokeObjectURL(url)
 
     toast.success("Members exported to Excel")
@@ -110,7 +134,7 @@ export function MembersClient({ members }: MembersClientProps) {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Page header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Members</h1>
@@ -119,11 +143,7 @@ export function MembersClient({ members }: MembersClientProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => setShowImport(true)}
-          >
+          <Button variant="outline" size="lg" onClick={() => setShowImport(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Import Excel
           </Button>
@@ -138,13 +158,9 @@ export function MembersClient({ members }: MembersClientProps) {
         </div>
       </div>
 
-      {/* Toolbar */}
+      {/* Toolbar: view toggle + search */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        {/* Left — View Toggle */}
-        <Tabs
-          value={view}
-          onValueChange={(v) => setView(v as "table" | "grid")}
-        >
+        <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
           <TabsList>
             <TabsTrigger value="table">
               <List className="mr-2 h-4 w-4" />
@@ -157,7 +173,6 @@ export function MembersClient({ members }: MembersClientProps) {
           </TabsList>
         </Tabs>
 
-        {/* Right — Search + Filter */}
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <div className="relative flex-1 sm:w-72">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -171,15 +186,33 @@ export function MembersClient({ members }: MembersClientProps) {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content: table or card grid */}
       {view === "table" ? (
-        <MembersTable members={filtered} />
+        <MembersTable members={filteredMembers} />
       ) : (
-        <MembersGrid members={filtered} />
+        <MembersGrid members={filteredMembers} />
       )}
 
-      {/* Import Modal */}
+      {/* Import dialog */}
       <ImportExcel open={showImport} onClose={() => setShowImport(false)} />
     </div>
   )
 }
+
+// ─── Appendix ─────────────────────────────────────────────────────────────────
+//
+// EXPORTED COMPONENTS:
+//   MembersClient({ members })
+//     – client shell for the /members page
+//     – controls view mode, search, Excel export, and import dialog
+//
+// KEY CONSTANTS:
+//   DEFAULT_VIEW     = "table"
+//   EXPORT_FILENAME  = "sacco-members.xlsx"
+//   EXPORT_COLUMNS   – column definitions for the Excel export
+//   XLSX_MIME_TYPE   – MIME type for .xlsx blobs
+//
+// RELATED COMPONENTS:
+//   MembersTable      – tabular member list
+//   MembersGrid       – card grid member list
+//   ImportExcel       – bulk Excel import dialog
