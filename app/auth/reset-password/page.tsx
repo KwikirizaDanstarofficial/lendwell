@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { ResetPasswordForm } from "./reset-password-form"
 import { LogoMark } from "@/components/logo"
 
-export const metadata: Metadata = { title: "Reset Password — SaccoOS" }
+export const metadata: Metadata = { title: "Reset Password — Lendwell" }
 
 export default function ResetPasswordPage() {
   return (
@@ -11,7 +11,7 @@ export default function ResetPasswordPage() {
         <div className="mb-8 flex justify-center">
           <a href="/" className="flex items-center gap-2.5">
             <LogoMark size={32} />
-            <span className="font-bold text-base tracking-tight">SaccoOS</span>
+            <span className="font-bold text-base tracking-tight">Lendwell</span>
           </a>
         </div>
         <ResetPasswordForm />

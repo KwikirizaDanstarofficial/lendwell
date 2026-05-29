@@ -28,7 +28,7 @@ export default async function BranchLoginPage({ params }: { params: Promise<{ co
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="/" className="flex items-center gap-2.5">
             <LogoMark size={32} />
-            <span className="font-bold text-base tracking-tight">SaccoOS</span>
+            <span className="font-bold text-base tracking-tight">Lendwell</span>
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">

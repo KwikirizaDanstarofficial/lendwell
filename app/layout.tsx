@@ -13,10 +13,10 @@ const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
 const fontMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
-  title: { default: "SaccoOS", template: "%s — SaccoOS" },
+  title: { default: "Lendwell", template: "%s — Lendwell" },
   description: "Cooperative Management Platform",
   manifest: "/manifest.json",
-  applicationName: "SaccoOS",
+  applicationName: "Lendwell",
   icons: [
     { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
     { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },

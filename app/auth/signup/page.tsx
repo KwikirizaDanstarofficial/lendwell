@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { SignupForm } from "./signup-form"
 import { LogoMark } from "@/components/logo"
 
-export const metadata: Metadata = { title: "Create Account — SaccoOS" }
+export const metadata: Metadata = { title: "Create Account — Lendwell" }
 
 export default function SignupPage() {
   return (
@@ -12,7 +12,7 @@ export default function SignupPage() {
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="/" className="flex items-center gap-2.5">
             <LogoMark size={32} />
-            <span className="font-bold text-base tracking-tight">SaccoOS</span>
+            <span className="font-bold text-base tracking-tight">Lendwell</span>
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">

@@ -3,7 +3,7 @@ import { LoginForm } from "./login-form"
 import { LogoMark } from "@/components/logo"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
-export const metadata: Metadata = { title: "Sign In — SaccoOS" }
+export const metadata: Metadata = { title: "Sign In — Lendwell" }
 
 export default async function LoginPage() {
   const { data } = await supabaseAdmin
@@ -21,7 +21,7 @@ export default async function LoginPage() {
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="/" className="flex items-center gap-2.5">
             <LogoMark size={32} />
-            <span className="font-bold text-base tracking-tight">SaccoOS</span>
+            <span className="font-bold text-base tracking-tight">Lendwell</span>
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">

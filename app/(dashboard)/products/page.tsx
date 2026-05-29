@@ -7,7 +7,7 @@ import {
 import { requireAuth } from "@/lib/auth"
 import { ProductsClient } from "./components/products-client"
 
-export const metadata = { title: "Products — SaccoOS" }
+export const metadata = { title: "Products — Lendwell" }
 
 export default async function ProductsPage() {
   const user = await requireAuth()

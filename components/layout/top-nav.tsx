@@ -189,7 +189,7 @@ export function TopNav({ user }: TopNavProps) {
             {mounted ? (
               <img
                 src={resolvedTheme === "dark" ? LOGO_DARK_MODE : LOGO_LIGHT_MODE}
-                alt="SaccoOS"
+                alt="Lendwell"
                 className="h-8 object-contain"
               />
             ) : (
