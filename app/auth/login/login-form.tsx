@@ -122,7 +122,15 @@ function LoginCredentialsForm({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Password</Label>
+          <a
+            href="/auth/reset-password"
+            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            Forgot password?
+          </a>
+        </div>
         <PasswordField value={password} onChange={setPassword} disabled={isPending} />
       </div>
       <Button type="submit" className="w-full" disabled={isPending}>
@@ -164,7 +172,7 @@ export function LoginForm({ className, branches = [], branchCode }: LoginFormPro
     <div className={cn("flex flex-col gap-6", className)}>
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl font-bold">Sign in to your account</h1>
-        <p className="text-sm text-muted-foreground">Use the email and password sent to your phone</p>
+        <p className="text-sm text-muted-foreground">Enter your email and password</p>
       </div>
 
       {hasBranches && (
