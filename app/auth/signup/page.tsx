@@ -23,32 +23,37 @@ export default function SignupPage() {
       </div>
 
       {/* ── Right: brand panel ── */}
-      <div className="relative hidden bg-muted lg:block">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-background" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
-          <LogoMark size={80} className="mb-6 drop-shadow-2xl" />
-          <h1 className="mb-3 text-3xl font-bold tracking-tight text-foreground">
+      <div className="relative hidden lg:block">
+        {/* Background photo */}
+        <img
+          src="/african-ladies-sacco.jpg"
+          alt="African women in SACCO"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        {/* Dark gradient overlay so text remains legible */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
+        {/* Content anchored to the bottom */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col p-10">
+          <LogoMark size={48} className="mb-4 drop-shadow-2xl" />
+          <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">
             Get started today
           </h1>
-          <p className="mb-2 text-xs font-medium tracking-[0.25em] text-muted-foreground uppercase">
-            Cooperative Management Platform
-          </p>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
+          <p className="mb-8 max-w-sm text-sm leading-relaxed text-white/75">
             Your SACCO account is ready in minutes. Manage members, loans, savings,
             and finances from day one.
           </p>
-          <div className="mt-10 grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Members", icon: "👥" },
-              { label: "Loans", icon: "💰" },
-              { label: "Savings", icon: "🏦" },
+              { label: "Members", desc: "Register & manage all your SACCO members" },
+              { label: "Loans", desc: "Issue, track, and collect loan repayments" },
+              { label: "Savings", desc: "Monitor deposits and member balances" },
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-xl border border-border/50 bg-background/60 p-4 backdrop-blur-sm"
+                className="rounded-lg border border-white/20 bg-white/10 p-3 backdrop-blur-sm"
               >
-                <div className="mb-1 text-2xl">{item.icon}</div>
-                <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
+                <p className="mb-1 text-xs font-bold uppercase tracking-widest text-white">{item.label}</p>
+                <p className="text-[11px] leading-snug text-white/70">{item.desc}</p>
               </div>
             ))}
           </div>

@@ -41,8 +41,12 @@ export default function OnboardingPage() {
           setError(data.error ?? "Failed to create SACCO.")
           return
         }
-        // Refresh the session so the new sacco_id metadata is visible client-side
-        await supabase.auth.refreshSession()
+        // Refresh the session so the new sacco_id metadata is in cookies.
+        const { error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError) {
+          console.error("[ONBOARDING] session refresh error:", refreshError)
+        }
+        router.refresh()
         router.push("/dashboard")
       } catch {
         setError("Something went wrong. Please try again.")

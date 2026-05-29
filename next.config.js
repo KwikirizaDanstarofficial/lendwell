@@ -9,6 +9,26 @@ const nextConfig = withOffline({
     skipWaiting: true,
     disable: process.env.NODE_ENV === "development",
     runtimeCaching: [
+      // Never cache page navigations — auth state must always be fresh
+      {
+        urlPattern: ({ request }) => request.mode === "navigate",
+        handler: "NetworkOnly",
+      },
+      // Never cache API routes — they carry live auth/session data
+      {
+        urlPattern: /\/api\//,
+        handler: "NetworkOnly",
+      },
+      // Cache-busted Next.js static chunks (content-hashed filenames)
+      {
+        urlPattern: /\/_next\/static\/.*/,
+        handler: "CacheFirst",
+        options: {
+          cacheName: "static-assets",
+          expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
+        },
+      },
+      // Everything else (images, fonts, etc.) — network first with cache fallback
       {
         urlPattern: /^https?.*/,
         handler: "NetworkFirst",
@@ -63,7 +83,7 @@ const nextConfig = withOffline({
         headers: [
           {
             key: "Cache-Control",
-            value: "public, s-maxage=60, stale-while-revalidate=300",
+            value: "no-store",
           },
         ],
       },

@@ -135,9 +135,9 @@ export function ClientHeader({ user }: ClientHeaderProps) {
             </div>
             <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60" sideOffset={8}>
+          <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-lg p-0" sideOffset={8}>
             {/* Identity block */}
-            <div className="flex items-center gap-3 px-3 py-3">
+            <div className="flex items-center gap-3 border-b bg-muted/40 px-4 py-3.5">
               <Avatar className="h-10 w-10 shrink-0 rounded-full">
                 <AvatarFallback className="rounded-full bg-primary text-sm font-bold text-primary-foreground">
                   {initials}
@@ -148,7 +148,7 @@ export function ClientHeader({ user }: ClientHeaderProps) {
                 <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                 <span
                   className={[
-                    "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                    "mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
                     ROLE_BADGE[user.role] ?? ROLE_BADGE.field_agent,
                   ].join(" ")}
                 >
@@ -156,22 +156,24 @@ export function ClientHeader({ user }: ClientHeaderProps) {
                 </span>
               </div>
             </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => router.push("/settings")}
-              className="cursor-pointer"
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className="cursor-pointer text-destructive focus:text-destructive"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </DropdownMenuItem>
+            <div className="p-1.5">
+              <DropdownMenuItem
+                onClick={() => router.push("/settings")}
+                className="cursor-pointer rounded-md px-3 py-2 text-sm"
+              >
+                <Settings className="mr-2.5 h-4 w-4 text-muted-foreground" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1.5" />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                variant="destructive"
+                className="cursor-pointer rounded-md px-3 py-2 text-sm"
+              >
+                <LogOut className="mr-2.5 h-4 w-4" />
+                Sign Out
+              </DropdownMenuItem>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>

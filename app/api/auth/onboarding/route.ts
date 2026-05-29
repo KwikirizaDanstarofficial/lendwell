@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { sendSms } from "@/lib/sms"
 
 export async function POST(req: Request) {
   try {
@@ -70,6 +71,18 @@ export async function POST(req: Request) {
       password_hash: "supabase_auth",
     })
     if (staffError) console.error("[ONBOARDING] sacco_users insert error:", staffError)
+
+    // Send welcome SMS to the SACCO contact number (fire-and-forget)
+    if (contactPhone?.trim()) {
+      const adminName = user.user_metadata?.full_name?.trim() || "Admin"
+      const welcomeMessage =
+        `Welcome, ${adminName}! ${saccoName.trim()} is now live. ` +
+        `You can manage members, savings, and loans from your dashboard. ` +
+        `Thank you for choosing us!`
+      sendSms({ to: contactPhone.trim(), message: welcomeMessage }).catch((err) =>
+        console.error("[ONBOARDING] welcome SMS error:", err)
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {
