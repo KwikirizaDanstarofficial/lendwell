@@ -7,8 +7,6 @@ import { TopNav } from "@/components/layout/top-nav"
 import { TempPasswordBanner } from "@/components/layout/temp-password-banner"
 import { PowerSyncProvider } from "@/lib/powersync/provider"
 import "./globals.css"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
@@ -50,7 +48,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" suppressHydrationWarning className={cn("antialiased", GeistSans.variable, GeistMono.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("antialiased")}>
       <head>
         {/* Inject server-side config before hydration — no NEXT_PUBLIC_ vars needed */}
         <script dangerouslySetInnerHTML={{ __html: `window.__CONFIG__=${JSON.stringify({
