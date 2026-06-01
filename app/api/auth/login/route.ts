@@ -1,13 +1,29 @@
-import { NextResponse } from "next/server"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@supabase/ssr"
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json()
     if (!email || !password)
       return NextResponse.json({ error: "Email and password required." }, { status: 400 })
 
-    const supabase = await createSupabaseServerClient()
+    // Collect cookies set by Supabase so we can attach them to the response we return.
+    // Using cookies().set() + NextResponse.json() loses the session because they are
+    // separate response objects. We buffer cookies here and set them on the final response.
+    const pendingCookies: { name: string; value: string; options: Record<string, unknown> }[] = []
+
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return req.cookies.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach((c) => pendingCookies.push(c))
+          },
+        },
+      }
+    )
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
@@ -28,12 +44,22 @@ export async function POST(req: Request) {
 
     const meta = data.user.user_metadata
 
-    return NextResponse.json({
+    const hasSaccoId = Boolean(meta?.sacco_id)
+
+    const response = NextResponse.json({
       success: true,
       role: meta?.role,
       fullName: meta?.full_name,
       branchCode: meta?.branch_code ?? null,
+      hasSaccoId,
     })
+
+    // Attach session cookies to the response
+    pendingCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options as any)
+    })
+
+    return response
   } catch (err) {
     console.error("[LOGIN]", err)
     return NextResponse.json({ error: "Something went wrong." }, { status: 500 })

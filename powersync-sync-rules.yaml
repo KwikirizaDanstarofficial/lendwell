@@ -1,0 +1,56 @@
+# See https://docs.powersync.com/sync/advanced/compatibility
+config:
+  edition: 3
+
+# Each stream syncs one table scoped to the user's sacco_id.
+# sacco_id comes from the Supabase JWT user_metadata claim.
+# auth.jwt() -> 'user_metadata' ->> 'sacco_id'
+
+streams:
+  members:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM members
+      WHERE members.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  loans:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM loans
+      WHERE loans.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  loan_categories:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM loan_categories
+      WHERE loan_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  savings_accounts:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM savings_accounts
+      WHERE savings_accounts.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  savings_categories:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM savings_categories
+      WHERE savings_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  transactions:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM transactions
+      WHERE transactions.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  fines:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM fines
+      WHERE fines.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  fine_categories:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM fine_categories
+      WHERE fine_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')

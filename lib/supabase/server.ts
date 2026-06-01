@@ -18,11 +18,11 @@ import { cookies }            from "next/headers"
 
 // ─── Environment variables ────────────────────────────────────────────────────
 
-/** Public Supabase project URL. */
-const SUPABASE_URL              = process.env.NEXT_PUBLIC_SUPABASE_URL!
+/** Supabase project URL. */
+const SUPABASE_URL              = process.env.SUPABASE_URL!
 
-/** Public anon key — used for the SSR client (RLS enforced). */
-const SUPABASE_ANON_KEY         = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+/** Anon key — used for the SSR client (RLS enforced). */
+const SUPABASE_ANON_KEY         = process.env.SUPABASE_ANON_KEY!
 
 /** Service-role key — bypasses RLS; never expose to the browser. */
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!

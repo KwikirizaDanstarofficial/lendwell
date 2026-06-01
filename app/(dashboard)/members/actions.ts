@@ -286,7 +286,7 @@ export async function addMemberAction(
       try {
         const { data: saccoForWelcome } = await supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single()
         const saccoSettings = parseSaccoSettings(saccoForWelcome?.settings)
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
+        const appUrl = process.env.APP_URL ?? ""
         const welcomeMsg = getSmsTemplates(saccoSettings?.sms?.language).welcome(parsed.data.full_name, member_code)
         const portalInfo = `\nPortal: ${appUrl}/portal\nUse your email and the forgot-password link to set your password.`
         sendSms({

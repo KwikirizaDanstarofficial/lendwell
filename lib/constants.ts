@@ -20,7 +20,7 @@ export const SACCO_ID = DEFAULT_SACCO_ID
  * Display name of the SACCO, sourced from the environment or a sensible
  * default.  Used in SMS messages and page titles.
  */
-export const SACCO_NAME = process.env.NEXT_PUBLIC_SACCO_NAME || "My SACCO"
+export const SACCO_NAME = process.env.SACCO_NAME || "My SACCO"
 
 // ─── Currency ─────────────────────────────────────────────────────────────────
 

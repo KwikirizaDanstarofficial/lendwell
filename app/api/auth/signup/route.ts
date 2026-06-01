@@ -22,7 +22,7 @@ export async function POST(req: Request) {
           role: "admin",
           has_temp_password: false,
         },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+        emailRedirectTo: `${process.env.APP_URL}/auth/callback`,
       },
     })
 

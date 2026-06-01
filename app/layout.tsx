@@ -5,12 +5,11 @@ import { ThemeProvider } from "@/components/providers/theme-provider"
 import { getCurrentUser } from "@/lib/auth"
 import { TopNav } from "@/components/layout/top-nav"
 import { TempPasswordBanner } from "@/components/layout/temp-password-banner"
+import { PowerSyncProvider } from "@/lib/powersync/provider"
 import "./globals.css"
-import { Geist, JetBrains_Mono } from "next/font/google"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
 import { cn } from "@/lib/utils"
-
-const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
-const fontMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
   title: { default: "Lendwell", template: "%s — Lendwell" },
@@ -40,17 +39,28 @@ export default async function RootLayout({
 
   if (user) {
     body = (
-      <div className="min-h-screen flex flex-col">
-        <TopNav user={user} />
-        {user.hasTempPassword && <TempPasswordBanner />}
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
-      </div>
+      <PowerSyncProvider>
+        <div className="min-h-screen flex flex-col">
+          <TopNav user={user} />
+          {user.hasTempPassword && <TempPasswordBanner />}
+          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        </div>
+      </PowerSyncProvider>
     )
   }
 
   return (
-    <html lang="en" suppressHydrationWarning className={cn("antialiased", fontSans.variable, fontMono.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("antialiased", GeistSans.variable, GeistMono.variable)}>
       <head>
+        {/* Inject server-side config before hydration — no NEXT_PUBLIC_ vars needed */}
+        <script dangerouslySetInnerHTML={{ __html: `window.__CONFIG__=${JSON.stringify({
+          supabaseUrl: process.env.SUPABASE_URL ?? "",
+          supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
+          powersyncUrl: process.env.POWERSYNC_URL ?? "",
+          flwPublicKey: process.env.FLW_PUBLIC_KEY ?? "",
+          appUrl: process.env.APP_URL ?? "",
+          saccoName: process.env.SACCO_NAME ?? "My SACCO",
+        }).replace(/<\/script>/gi,"<\\/script>")};` }} />
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch(e){}` }} />
       </head>
       <body className="font-sans" suppressHydrationWarning>

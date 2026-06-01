@@ -95,6 +95,8 @@ function LoginCredentialsForm({
           window.location.href = "/portal"
         } else if (data.role === "branch_admin" && data.branchCode) {
           window.location.href = `/branch/${data.branchCode}/dashboard`
+        } else if (!data.hasSaccoId) {
+          window.location.href = "/onboarding"
         } else {
           const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard"
           window.location.href = safeRedirect

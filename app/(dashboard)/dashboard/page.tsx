@@ -1,23 +1,7 @@
-// app/(dashboard)/dashboard/page.tsx
-// Server-rendered dashboard page. Fetches KPI data, chart data, and recent
-// transactions in parallel, then passes processed results to client components.
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/** ISR revalidation interval in seconds. */
-const REVALIDATE_SECONDS = 60
-
-/** Number of transactions fetched for the chart and recent-transactions list. */
-const TRANSACTIONS_FETCH_LIMIT = 100
-
-/** Number of recent transactions shown in the list widget. */
-const RECENT_TRANSACTIONS_DISPLAY_LIMIT = 8
-
-/** Number of months shown in the savings/loans trend chart. */
-const CHART_MONTHS = 6
-
+import Link from "next/link"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { requireAuth } from "@/lib/auth"
+import { cached } from "@/lib/cache"
 import { KpiCards } from "./components/kpi-cards"
 import { SavingsLoanChart } from "./components/savings-loan-chart"
 import { LoanStatusChart } from "./components/loan-status-chart"
@@ -25,85 +9,46 @@ import { RecentTransactions } from "./components/recent-transactions"
 
 export const revalidate = 60
 
-export default async function DashboardPage() {
-  const user = await requireAuth()
-  const { saccoId } = user
+const CACHE_TTL_MS = 30_000
 
-  const supabase = supabaseAdmin
-
-  // Run all queries in parallel
+async function getDashboardData(saccoId: string) {
   const [
     memberCountResult,
-    loanDataResult,
-    savingsResult,
+    savingsAggResult,
     finesCountResult,
     transactionsResult,
   ] = await Promise.all([
-    // Total members count
-    supabase
-      .from('members')
-      .select('*', { count: 'exact', head: true })
-      .eq('sacco_id', saccoId),
-    // All loans: amount + status (covers active count, pending count, disbursed amount, status breakdown)
-    supabase
-      .from('loans')
-      .select('amount, status')
-      .eq('sacco_id', saccoId),
-    // Total savings balances
-    supabase
-      .from('savings_accounts')
-      .select('balance')
-      .eq('sacco_id', saccoId),
-    // Pending fines count
-    supabase
-      .from('fines')
-      .select('*', { count: 'exact', head: true })
-      .eq('sacco_id', saccoId)
-      .eq('status', 'pending'),
-    // Recent 100 transactions (used for both recent list + chart)
-    supabase
-      .from('transactions')
-      .select('id, type, amount, narration, created_at')
-      .eq('sacco_id', saccoId)
-      .order('created_at', { ascending: false })
-      .limit(TRANSACTIONS_FETCH_LIMIT),
+    supabaseAdmin
+      .from("members")
+      .select("*", { count: "exact", head: true })
+      .eq("sacco_id", saccoId),
+    supabaseAdmin
+      .from("savings_accounts")
+      .select("balance")
+      .eq("sacco_id", saccoId),
+    supabaseAdmin
+      .from("fines")
+      .select("*", { count: "exact", head: true })
+      .eq("sacco_id", saccoId)
+      .eq("status", "pending"),
+    supabaseAdmin
+      .from("transactions")
+      .select("id, type, amount, narration, created_at")
+      .eq("sacco_id", saccoId)
+      .order("created_at", { ascending: false })
+      .limit(100),
   ])
 
-  // ── Process members ──
   const totalMembers = memberCountResult.count ?? 0
 
-  // ── Process loans (single pass over all loans) ──
-  let activeLoanCount = 0
-  let pendingLoanCount = 0
-  let totalDisbursed = 0
-  const statusCounts: Record<string, number> = {}
-
-  for (const loan of loanDataResult.data ?? []) {
-    if (loan.status === 'active') {
-      activeLoanCount++
-      totalDisbursed += loan.amount
-    } else if (loan.status === 'pending') {
-      pendingLoanCount++
-    }
-    statusCounts[loan.status] = (statusCounts[loan.status] ?? 0) + 1
-  }
-
-  const processedLoanStatusData = Object.entries(statusCounts).map(([status, count]) => ({
-    status,
-    count,
-  }))
-
-  // ── Process savings ──
-  const totalSavings = savingsResult.data?.reduce(
+  const totalSavings = savingsAggResult.data?.reduce(
     (sum, a) => sum + a.balance, 0
   ) ?? 0
 
-  // ── Process fines ──
   const pendingFines = finesCountResult.count ?? 0
 
-  // ── Process transactions (first 8 for recent, all 100 for chart) ──
   const allTransactions = transactionsResult.data ?? []
-  const processedRecentTransactions = allTransactions.slice(0, RECENT_TRANSACTIONS_DISPLAY_LIMIT).map(tx => ({
+  const processedRecentTransactions = allTransactions.slice(0, 8).map(tx => ({
     id: tx.id,
     type: tx.type,
     amount: tx.amount,
@@ -115,14 +60,12 @@ export default async function DashboardPage() {
   for (const tx of allTransactions) {
     const date = new Date(tx.created_at)
     const key = `${date.getFullYear()}-${date.getMonth() + 1}`
-
     if (!chartDataMap[key]) {
       chartDataMap[key] = { year: date.getFullYear(), month: date.getMonth() + 1, savings: 0, loans: 0 }
     }
-
-    if (tx.type === 'savings_deposit') {
+    if (tx.type === "savings_deposit") {
       chartDataMap[key].savings += tx.amount
-    } else if (tx.type === 'loan_disbursement') {
+    } else if (tx.type === "loan_disbursement") {
       chartDataMap[key].loans += tx.amount
     }
   }
@@ -132,7 +75,7 @@ export default async function DashboardPage() {
       if (a.year !== b.year) return b.year - a.year
       return b.month - a.month
     })
-    .slice(0, CHART_MONTHS)
+    .slice(0, 6)
     .map((item) => ({
       month: new Date(item.year, item.month - 1).toLocaleString("en-US", {
         month: "short",
@@ -141,14 +84,94 @@ export default async function DashboardPage() {
       loans: Number(item.loans),
     }))
 
+  return {
+    totalMembers,
+    pendingFines,
+    totalSavings,
+    processedRecentTransactions,
+    processedSavingsLoanChartData,
+  }
+}
+
+async function getLoanData(saccoId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("loans")
+    .select("amount, status")
+    .eq("sacco_id", saccoId)
+
+  if (error) console.error("[DASHBOARD] loans error:", error)
+
+  let activeLoanCount = 0
+  let pendingLoanCount = 0
+  let totalDisbursed = 0
+  const statusCounts: Record<string, number> = {}
+
+  for (const loan of data ?? []) {
+    if (loan.status === "active") {
+      activeLoanCount++
+      totalDisbursed += loan.amount
+    } else if (loan.status === "pending") {
+      pendingLoanCount++
+    }
+    statusCounts[loan.status] = (statusCounts[loan.status] ?? 0) + 1
+  }
+
+  const processedLoanStatusData = Object.entries(statusCounts).map(([status, count]) => ({
+    status,
+    count,
+  }))
+
+  return { activeLoanCount, pendingLoanCount, totalDisbursed, processedLoanStatusData }
+}
+
+export default async function DashboardPage() {
+  const user = await requireAuth()
+  const { saccoId } = user
+
+  const [
+    { totalMembers, pendingFines, totalSavings, processedRecentTransactions, processedSavingsLoanChartData },
+    { activeLoanCount, pendingLoanCount, totalDisbursed, processedLoanStatusData },
+  ] = await Promise.all([
+    cached(`dashboard_main:${saccoId}`, CACHE_TTL_MS, () => getDashboardData(saccoId)),
+    cached(`dashboard_loans:${saccoId}`, CACHE_TTL_MS, () => getLoanData(saccoId)),
+  ])
+
+  const isEmpty = totalMembers === 0 && activeLoanCount === 0 && Number(totalSavings) === 0
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Welcome back! Here&apos;s what&apos;s happening with your SACCO.
+          {isEmpty ? `Welcome to your SACCO, ${user.fullName.split(" ")[0]}!` : "Welcome back! Here's what's happening with your SACCO."}
         </p>
       </div>
+
+      {isEmpty && (
+        <div className="rounded border border-border bg-card p-6">
+          <h2 className="text-base font-semibold mb-1">Get started</h2>
+          <p className="text-sm text-muted-foreground mb-5">Your SACCO is set up. Complete these steps to start managing members and finances.</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { href: "/members/add",    label: "Add first member",         desc: "Register your first SACCO member"         },
+              { href: "/settings",       label: "Configure loan categories", desc: "Set up loan products and interest rates"   },
+              { href: "/savings/new",    label: "Open savings account",      desc: "Create a savings account for a member"    },
+              { href: "/loans/new",      label: "Issue a loan",              desc: "Disburse a loan to a member"              },
+              { href: "/settings",       label: "Invite staff",              desc: "Add cashiers or field agents"              },
+              { href: "/notifications",  label: "Send a notification",       desc: "Notify members via SMS"                   },
+            ].map((item) => (
+              <Link
+                key={item.href + item.label}
+                href={item.href}
+                className="flex flex-col gap-1 rounded border border-border bg-muted/40 px-4 py-3 hover:border-primary/40 hover:bg-muted/70 transition-colors"
+              >
+                <span className="text-sm font-medium text-foreground">{item.label}</span>
+                <span className="text-xs text-muted-foreground">{item.desc}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <KpiCards
         totalMembers={totalMembers}
@@ -173,26 +196,4 @@ export default async function DashboardPage() {
   )
 }
 
-// ─── Appendix ─────────────────────────────────────────────────────────────────
-//
-// PAGE:
-//   /dashboard  – main SACCO overview
-//
-// KEY CONSTANTS:
-//   REVALIDATE_SECONDS                  = 60
-//   TRANSACTIONS_FETCH_LIMIT            = 100
-//   RECENT_TRANSACTIONS_DISPLAY_LIMIT   = 8
-//   CHART_MONTHS                        = 6
-//
-// DATA FETCHED (parallel):
-//   members      – total member count
-//   loans        – amount + status for KPI + chart
-//   savings      – balance sum
-//   fines        – pending count
-//   transactions – recent 100 for list + savings/loans chart
-//
-// CLIENT COMPONENTS:
-//   KpiCards           – top-level stat tiles
-//   SavingsLoanChart   – trend chart (last N months)
-//   LoanStatusChart    – donut chart by loan status
-//   RecentTransactions – last 8 transactions list
+

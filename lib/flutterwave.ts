@@ -34,7 +34,7 @@ export async function initializeFlutterWave() {
     return null
   }
 
-  const publicKey = process.env.NEXT_PUBLIC_FLW_PUBLIC_KEY || "FLWPUBK-XXXX"
+  const { flwPublicKey: publicKey } = (await import("@/lib/client-config")).getClientConfig()
 
   if (!window.Flutterwave) {
     await new Promise<void>((resolve) => {

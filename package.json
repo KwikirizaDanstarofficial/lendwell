@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "main": "electron/dist/main.js",
   "scripts": {
     "dev": "next dev --webpack",
     "db:push": "drizzle-kit push",
@@ -14,12 +15,84 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "npm run build && npm run electron:compile && electron-builder",
+    "electron:build:linux": "npm run build && npm run electron:compile && electron-builder --linux",
+    "electron:build:win": "npm run build && npm run electron:compile && electron-builder --win",
+    "electron:build:mac": "npm run build && npm run electron:compile && electron-builder --mac",
+    "electron:build:all": "npm run build && npm run electron:compile && electron-builder --linux --win",
+    "electron:pack": "npm run electron:compile && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.lendwell.desktop",
+    "productName": "Lendwell",
+    "asar": true,
+    "files": [
+      "electron/dist/**",
+      "!**/*.ts",
+      "!**/*.map",
+      "!.env*",
+      "!.env.local",
+      "!.env.example"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "nextapp/.next/standalone",
+        "filter": ["**/*"]
+      },
+      {
+        "from": ".next/static",
+        "to": "nextapp/.next/standalone/.next/static"
+      },
+      {
+        "from": "public",
+        "to": "nextapp/.next/standalone/public"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "public/icons/icon-512x512.png"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "public/icons/icon-512x512.png",
+      "category": "public.app-category.business",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] },
+        { "target": "rpm", "arch": ["x64"] }
+      ],
+      "icon": "public/icons/icon-512x512.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "public/icons/icon-512x512.png"
+    },
+    "publish": null
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@hookform/resolvers": "^5.2.2",
     "@phosphor-icons/react": "^2.1.10",
+    "@powersync/react": "^1.10.0",
+    "@powersync/web": "^1.38.2",
     "@react-pdf/renderer": "^4.3.2",
     "@remixicon/react": "^4.9.0",
     "@sentry/nextjs": "^10.53.1",
@@ -54,6 +127,11 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "electron": "^36.3.2",
+    "electron-builder": "^26.0.12",
+    "concurrently": "^9.1.2",
+    "wait-on": "^8.0.3",
+    "@types/electron": "^1.6.10",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/bcryptjs": "^2.4.6",

@@ -86,7 +86,7 @@ export async function createUserAction(
   if (authError) return { error: authError.message }
 
   // Send credentials via SMS (non-blocking)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "the portal"
+  const appUrl = process.env.APP_URL ?? "the portal"
   sendSms({
     to: parsed.data.phone,
     message: `Your SACCO staff account has been created.\nEmail: ${email}\nPassword: ${tempPassword}\nLogin at: ${appUrl}\nChange your password after signing in.`,

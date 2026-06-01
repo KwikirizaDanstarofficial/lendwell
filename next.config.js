@@ -40,10 +40,22 @@ const nextConfig = withOffline({
     ],
   },
 
+  output: "standalone",
+
   experimental: {
     serverActions: {
       bodySizeLimit: "2mb",
     },
+  },
+
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.experiments = {
+        ...config.experiments,
+        asyncWebAssembly: true,
+      }
+    }
+    return config
   },
 
   images: {
