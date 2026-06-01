@@ -12,7 +12,7 @@ import {
   LayoutDashboard, Users, Banknote, PiggyBank, AlertCircle,
   Settings, FileText, Bell, MessageSquare, UserCog, HelpCircle,
   ChevronDown, Menu, X, Sun, Moon, Monitor, LogOut,
-  BookOpen, Activity, Trash2,
+  BookOpen, Activity, Trash2, WifiOff, Wifi,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -134,6 +134,16 @@ export function TopNav({ user }: TopNavProps) {
   const { theme, resolvedTheme, setTheme } = useTheme()
   const [mounted,    setMounted]    = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isOnline,   setIsOnline]   = useState(true)
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine)
+    const up   = () => setIsOnline(true)
+    const down = () => setIsOnline(false)
+    window.addEventListener("online",  up)
+    window.addEventListener("offline", down)
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down) }
+  }, [])
   const { tourEnabled, shouldAutoStart, startTour, completeTour } = useTour()
 
   // Prevent hydration mismatch for theme-dependent logo
@@ -267,6 +277,24 @@ export function TopNav({ user }: TopNavProps) {
 
           {/* Right-side action buttons */}
           <div className="ml-auto flex items-center gap-1">
+            {/* Offline / online indicator */}
+            {mounted && (
+              <div
+                className={cn(
+                  "hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium sm:flex",
+                  isOnline
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                )}
+              >
+                {isOnline ? (
+                  <><Wifi className="h-3.5 w-3.5" /> Online</>
+                ) : (
+                  <><WifiOff className="h-3.5 w-3.5" /> Offline</>
+                )}
+              </div>
+            )}
+
             <Button
               id="tour-start-tour"
               variant="ghost" size="icon"
