@@ -13,12 +13,6 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "/lendwell-logo-primary.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
       "src": "/icons/icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
@@ -65,22 +59,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshots/dashboard.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "SACCO Manager Dashboard"
-    },
-    {
-      "src": "/screenshots/mobile-dashboard.png",
-      "sizes": "750x1334",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "SACCO Manager Mobile Dashboard"
     }
   ],
   "related_applications": [],

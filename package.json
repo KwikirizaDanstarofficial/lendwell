@@ -45,16 +45,16 @@
     "extraResources": [
       {
         "from": ".next/standalone",
-        "to": "nextapp/.next/standalone",
+        "to": "nextapp",
         "filter": ["**/*"]
       },
       {
         "from": ".next/static",
-        "to": "nextapp/.next/standalone/.next/static"
+        "to": "nextapp/.next/static"
       },
       {
         "from": "public",
-        "to": "nextapp/.next/standalone/public"
+        "to": "nextapp/public"
       }
     ],
     "win": {

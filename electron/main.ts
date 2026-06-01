@@ -114,7 +114,10 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  // Show as soon as the page is painted, or after 10s as a safety fallback
   win.once("ready-to-show", () => win.show())
+  win.webContents.once("did-fail-load", () => win.show())
+  setTimeout(() => { if (!win.isVisible()) win.show() }, 10_000)
 
   // In dev, Next.js dev server is already running on 3000
   const url = isDev
