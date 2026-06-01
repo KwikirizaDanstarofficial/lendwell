@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export interface ActivityLog {
@@ -23,7 +24,7 @@ export async function getActivityLogs(saccoId: string, limit = 200): Promise<Act
     .order("created_at", { ascending: false })
     .limit(limit)
 
-  if (error) throw new Error(`Failed to fetch activity logs: ${error.message}`)
+  if (error) { if (isOfflineError(error)) return []; throw new Error(`Failed to fetch activity logs: ${error.message}`) }
 
   return (data ?? []).map((r) => ({
     id:          r.id,

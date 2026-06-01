@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllNotifications(saccoId: string) {
@@ -31,7 +32,7 @@ export async function getAllNotifications(saccoId: string) {
     .limit(100)
 
   if (error) {
-    throw new Error(`Failed to fetch notifications: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch notifications: ${error.message}`)
   }
 
   return (data as any[]).map(notification => ({
@@ -64,7 +65,7 @@ export async function getUnreadNotificationsCount(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (error) {
-    throw new Error(`Failed to count notifications: ${error.message}`)
+    if (isOfflineError(error)) return 0; throw new Error(`Failed to count notifications: ${error.message}`)
   }
 
   return count ?? 0
@@ -92,7 +93,7 @@ export async function getLatestNotifications(saccoId: string, limit = 5) {
     .limit(limit)
 
   if (error) {
-    throw new Error(`Failed to fetch latest notifications: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch latest notifications: ${error.message}`)
   }
 
   return (data as any[]).map(notification => ({

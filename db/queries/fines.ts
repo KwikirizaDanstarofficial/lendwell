@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllFines(saccoId: string) {
@@ -35,7 +36,7 @@ export async function getAllFines(saccoId: string) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    throw new Error(`Failed to fetch fines: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch fines: ${error.message}`)
   }
 
   return (data as any[]).map(fine => ({
@@ -70,7 +71,7 @@ export async function getFinesStats(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (finesError) {
-    throw new Error(`Failed to fetch fines stats: ${finesError.message}`)
+    if (isOfflineError(finesError)) return { totalAmount:0, totalCount:0, pendingAmount:0, pendingCount:0, paidAmount:0, paidCount:0, waivedCount:0 }; throw new Error(`Failed to fetch fines stats: ${finesError.message}`)
   }
 
   let totalAmount = 0

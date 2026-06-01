@@ -4,6 +4,8 @@ import { createServer } from "http"
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs"
 import * as net from "net"
 
+app.setName("Lendwell")
+
 const isDev = !app.isPackaged
 const PORT = 3123 // avoid conflict with Next.js dev server on 3000
 
@@ -87,6 +89,9 @@ async function startNextServer(): Promise<void> {
 
   process.env.PORT = String(PORT)
   process.env.HOSTNAME = "127.0.0.1"
+
+  // Next.js standalone server.js resolves files relative to cwd
+  process.chdir(path.dirname(serverScript))
 
   // Run server.js in the same Node.js process (Electron main == Node.js)
   require(serverScript)

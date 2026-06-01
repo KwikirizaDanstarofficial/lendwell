@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllComplaints(saccoId: string) {
@@ -32,7 +33,7 @@ export async function getAllComplaints(saccoId: string) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    throw new Error(`Failed to fetch complaints: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch complaints: ${error.message}`)
   }
 
   return (data as any[]).map((complaint) => ({

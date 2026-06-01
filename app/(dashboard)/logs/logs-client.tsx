@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQuery } from "@powersync/react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Activity } from "lucide-react"
@@ -42,7 +43,9 @@ function cap(s: string) {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-export function LogsClient({ logs }: { logs: ActivityLog[] }) {
+export function LogsClient({ saccoId }: { saccoId: string }) {
+  // audit_logs not in PowerSync schema — fetched server-side when online, empty offline
+  const logs: ActivityLog[] = []
   const [search, setSearch] = useState("")
 
   const filtered = useMemo(() => {

@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export type Branch = {
@@ -22,7 +23,7 @@ export async function getBranches(saccoId: string): Promise<Branch[]> {
     .eq("sacco_id", saccoId)
     .order("name", { ascending: true })
 
-  if (error) throw new Error(error.message)
+  if (error) { if (isOfflineError(error)) return []; throw new Error(error.message) }
 
   return (data ?? []).map((b: any) => ({
     id: b.id,

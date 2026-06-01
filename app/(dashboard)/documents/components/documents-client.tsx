@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -50,13 +51,36 @@ const typeColors: Record<string, string> = {
 }
 
 interface DocumentsClientProps {
-  documents: Document[]
-  members: any[]
+  saccoId: string
 }
 
 export { typeLabels, typeColors }
 
-export function DocumentsClient({ documents, members }: DocumentsClientProps) {
+export function DocumentsClient({ saccoId }: DocumentsClientProps) {
+  const { data: docRows = [] } = useQuery(
+    `SELECT d.id, d.sacco_id, d.member_id, d.loan_id, d.type, d.file_name,
+             d.blob_url, d.created_at,
+             m.full_name AS member_name, m.member_code
+      FROM documents d
+      LEFT JOIN members m ON m.id = d.member_id
+      WHERE d.sacco_id = ?
+      ORDER BY d.created_at DESC`,
+    [saccoId]
+  )
+  const { data: memberRows = [] } = useQuery(
+    "SELECT id, full_name, member_code FROM members WHERE sacco_id = ? ORDER BY full_name ASC",
+    [saccoId]
+  )
+  const documents = useMemo(() => (docRows as any[]).map((r) => ({
+    id: r.id, saccoId: r.sacco_id, memberId: r.member_id, loanId: r.loan_id ?? null,
+    type: r.type, fileName: r.file_name,
+    blobUrl: r.blob_url,
+    createdAt: r.created_at ?? null,
+    memberName: r.member_name ?? null, memberCode: r.member_code ?? null,
+  } as Document)), [docRows])
+  const members = useMemo(() => (memberRows as any[]).map((r) => ({
+    id: r.id, full_name: r.full_name, member_code: r.member_code,
+  })), [memberRows])
   const [uploadOpen, setUploadOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
@@ -84,7 +108,7 @@ export function DocumentsClient({ documents, members }: DocumentsClientProps) {
   // Stats per type
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    documents.forEach((d) => {
+    ;(documents as any[]).forEach((d: any) => {
       counts[d.type] = (counts[d.type] || 0) + 1
     })
     return counts
@@ -327,7 +351,7 @@ export function DocumentsClient({ documents, members }: DocumentsClientProps) {
 
       {/* Table View */}
       {view === "table" && filtered.length > 0 && (
-        <DocumentsTable documents={filtered} />
+        <DocumentsTable documents={filtered as any} />
       )}
 
       {/* Upload Dialog */}

@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllSavingsAccounts(saccoId: string) {
@@ -29,7 +30,7 @@ export async function getAllSavingsAccounts(saccoId: string) {
     .limit(1000)
 
   if (error) {
-    throw new Error(`Failed to fetch savings accounts: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch savings accounts: ${error.message}`)
   }
 
   return (data as any[]).map(account => ({
@@ -58,7 +59,7 @@ export async function getSavingsStats(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (error) {
-    throw new Error(`Failed to fetch savings stats: ${error.message}`)
+    if (isOfflineError(error)) return { totalBalance:0, totalAccounts:0, lockedAccounts:0, regularAccounts:0, fixedAccounts:0, avgBalance:0 }; throw new Error(`Failed to fetch savings stats: ${error.message}`)
   }
 
   let totalBalance = 0
@@ -94,7 +95,7 @@ export async function getSavingsTransactions(accountId: string) {
     .limit(50)
 
   if (error) {
-    throw new Error(`Failed to fetch savings transactions: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch savings transactions: ${error.message}`)
   }
 
   return data.map(transaction => ({
@@ -119,7 +120,7 @@ export async function getMembersForSavings(saccoId: string) {
     .order('full_name', { ascending: true })
 
   if (error) {
-    throw new Error(`Failed to fetch members for savings: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch members for savings: ${error.message}`)
   }
 
   return data.map(member => ({
@@ -136,7 +137,7 @@ export async function getSavingsCategoriesForSelect(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (error) {
-    throw new Error(`Failed to fetch savings categories: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch savings categories: ${error.message}`)
   }
 
   return data.map(category => ({
@@ -178,7 +179,7 @@ export async function getSavingsById(id: string, saccoId: string) {
     .maybeSingle()
 
   if (error) {
-    throw new Error(`Failed to fetch savings account: ${error.message}`)
+    if (isOfflineError(error)) return null; throw new Error(`Failed to fetch savings account: ${error.message}`)
   }
 
   if (!data) return null

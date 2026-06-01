@@ -1,5 +1,5 @@
 {
-  "name": "sacco-manager",
+  "name": "lendwell",
   "version": "0.0.1",
   "type": "module",
   "private": true,
@@ -34,19 +34,21 @@
     "appId": "com.lendwell.desktop",
     "productName": "Lendwell",
     "asar": true,
+    "npmRebuild": false,
     "files": [
       "electron/dist/**",
-      "!**/*.ts",
-      "!**/*.map",
-      "!.env*",
-      "!.env.local",
-      "!.env.example"
+      "!electron/dist/**/*.ts",
+      "!electron/dist/**/*.map"
     ],
     "extraResources": [
       {
         "from": ".next/standalone",
         "to": "nextapp",
-        "filter": ["**/*"]
+        "filter": ["**/*", "!node_modules/**"]
+      },
+      {
+        "from": ".next/standalone/node_modules",
+        "to": "nextapp/node_modules"
       },
       {
         "from": ".next/static",
@@ -62,14 +64,14 @@
         { "target": "nsis", "arch": ["x64"] },
         { "target": "portable", "arch": ["x64"] }
       ],
-      "icon": "public/icons/icon-512x512.png"
+      "icon": "build/icons/icon.ico"
     },
     "mac": {
       "target": [
         { "target": "dmg", "arch": ["x64", "arm64"] },
         { "target": "zip", "arch": ["x64", "arm64"] }
       ],
-      "icon": "public/icons/icon-512x512.png",
+      "icon": "build/icons/512x512.png",
       "category": "public.app-category.business",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
@@ -79,15 +81,18 @@
         { "target": "AppImage", "arch": ["x64"] },
         { "target": "deb", "arch": ["x64"] }
       ],
-      "icon": "public/icons/icon-512x512.png",
+      "icon": "build/icons",
       "category": "Office"
+    },
+    "deb": {
+      "afterInstall": "build/deb-postinstall.sh"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "public/icons/icon-512x512.png"
+      "installerIcon": "build/icons/icon.ico"
     },
     "publish": null
   },

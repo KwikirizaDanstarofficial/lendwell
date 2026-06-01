@@ -6,6 +6,7 @@
 
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -74,16 +75,50 @@ type Member = {
 }
 
 interface MembersClientProps {
-  members: Member[]
+  saccoId: string
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function MembersClient({ members }: MembersClientProps) {
+export function MembersClient({ saccoId }: MembersClientProps) {
   const router = useRouter()
   const [view,       setView]       = useState<ViewMode>(DEFAULT_VIEW)
   const [search,     setSearch]     = useState("")
   const [showImport, setShowImport] = useState(false)
+
+  const { data: rows = [] } = useQuery(
+    `SELECT m.id, m.sacco_id, m.member_code, m.full_name, m.email, m.phone,
+            m.national_id, m.photo_url, m.date_of_birth, m.address,
+            m.next_of_kin, m.next_of_kin_phone, m.next_of_kin_relationship,
+            m.next_of_kin_address, m.status, m.joined_at, m.created_at, m.updated_at,
+            COALESCE((SELECT SUM(s.balance) FROM savings_accounts s WHERE s.member_id = m.id AND s.sacco_id = ?), 0) AS total_savings,
+            COALESCE((SELECT SUM(l.balance) FROM loans l WHERE l.member_id = m.id AND l.sacco_id = ? AND l.status IN ('active','disbursed')), 0) AS total_loans
+     FROM members m WHERE m.sacco_id = ? ORDER BY m.created_at ASC`,
+    [saccoId, saccoId, saccoId]
+  )
+
+  const members: Member[] = useMemo(() => (rows as any[]).map((r) => ({
+    id:                    r.id,
+    saccoId:               r.sacco_id,
+    memberCode:            r.member_code ?? "",
+    fullName:              r.full_name ?? "",
+    email:                 r.email ?? null,
+    phone:                 r.phone ?? null,
+    nationalId:            r.national_id ?? null,
+    photoUrl:              r.photo_url ?? null,
+    dateOfBirth:           r.date_of_birth ? new Date(r.date_of_birth) : null,
+    address:               r.address ?? null,
+    nextOfKin:             r.next_of_kin ?? null,
+    nextOfKinPhone:        r.next_of_kin_phone ?? null,
+    nextOfKinRelationship: r.next_of_kin_relationship ?? null,
+    nextOfKinAddress:      r.next_of_kin_address ?? null,
+    status:                (r.status ?? "active") as Member["status"],
+    joinedAt:              r.joined_at ? new Date(r.joined_at) : null,
+    createdAt:             r.created_at ? new Date(r.created_at) : null,
+    updatedAt:             r.updated_at ? new Date(r.updated_at) : null,
+    totalSavings:          Number(r.total_savings ?? 0),
+    totalLoans:            Number(r.total_loans ?? 0),
+  })), [rows])
 
   // Filter members by name, code, or phone as the user types
   const filteredMembers = useMemo(

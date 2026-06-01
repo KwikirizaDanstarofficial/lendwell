@@ -1,4 +1,5 @@
 "use server"
+import { isOfflineError } from "@/lib/offline-safe"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -110,7 +111,8 @@ export async function sendNotificationAction(
     return { success: true, sent: inserted?.length ?? 0 }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to send notification." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to send notification." }
   }
 }
 
@@ -132,7 +134,8 @@ export async function markNotificationReadAction(id: string) {
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to mark as read." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to mark as read." }
   }
 }
 

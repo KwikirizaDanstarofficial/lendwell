@@ -3,6 +3,7 @@
 // Handles member selection, loan detail entry, guarantor management,
 // live repayment calculation, and confirmation before server submission.
 "use client"
+import { useQuery } from "@powersync/react"
 
 import { useActionState, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -51,8 +52,9 @@ interface MemberOption {
 }
 
 interface NewLoanFormProps {
-  members: MemberOption[]
-  interestRates: any[]
+  saccoId: string
+  members?: MemberOption[]
+  interestRates?: any[]
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -156,7 +158,7 @@ function StatCard({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
+export function NewLoanForm({ saccoId, members: membersProp = [], interestRates: ratesProp = [] }: NewLoanFormProps) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     addLoanAction,
@@ -166,6 +168,10 @@ export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
   // Form field state
   const [amount,           setAmount]           = useState("")
   const [durationMonths,   setDurationMonths]   = useState(DEFAULT_DURATION_MONTHS)
+  const { data: memberRows = [] } = useQuery("SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC", [saccoId])
+  const { data: rateRows = [] } = useQuery("SELECT id, min_amount, max_amount, rate, rate_type FROM interest_rates WHERE sacco_id = ? AND is_active = 1", [saccoId])
+  const members = membersProp.length > 0 ? membersProp : (memberRows as any[]).map((r) => ({ id: r.id, full_name: r.full_name, member_code: r.member_code, phone: r.phone ?? null }))
+  const interestRates = ratesProp.length > 0 ? ratesProp : (rateRows as any[]).map((r) => ({ id: r.id, minAmount: Number(r.min_amount), maxAmount: Number(r.max_amount), rate: r.rate, rateType: r.rate_type }))
   const [selectedMemberId, setSelectedMemberId] = useState("")
   const [dueDate,          setDueDate]          = useState("")
   const [notes,            setNotes]            = useState("")

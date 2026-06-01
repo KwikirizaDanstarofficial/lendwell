@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getSaccoSettings(saccoId: string) {
@@ -8,7 +9,7 @@ export async function getSaccoSettings(saccoId: string) {
     .maybeSingle()
 
   if (error) {
-    throw new Error(`Failed to fetch sacco settings: ${error.message}`)
+    if (isOfflineError(error)) return null; throw new Error(`Failed to fetch sacco settings: ${error.message}`)
   }
 
   if (!data) return null
@@ -51,7 +52,7 @@ export async function getInterestRates(saccoId: string) {
     .order('min_amount', { ascending: true })
 
   if (error) {
-    throw new Error(`Failed to fetch interest rates: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch interest rates: ${error.message}`)
   }
 
   return data.map(rate => ({
@@ -76,7 +77,7 @@ export async function getLoanCategories(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (error) {
-    throw new Error(`Failed to fetch loan categories: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch loan categories: ${error.message}`)
   }
 
   return data.map(category => ({
@@ -103,7 +104,7 @@ export async function getSavingsCategories(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (error) {
-    throw new Error(`Failed to fetch savings categories: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch savings categories: ${error.message}`)
   }
 
   return data.map(category => ({
@@ -127,7 +128,7 @@ export async function getFineCategories(saccoId: string) {
     .eq('sacco_id', saccoId)
 
   if (error) {
-    throw new Error(`Failed to fetch fine categories: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch fine categories: ${error.message}`)
   }
 
   return data.map(category => ({

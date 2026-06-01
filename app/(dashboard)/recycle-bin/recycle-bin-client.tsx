@@ -25,6 +25,7 @@ interface RecycledItem {
 }
 
 interface RecycleBinClientProps {
+  saccoId?: string
   isAdmin: boolean
   members: RecycledItem[]
   loans: RecycledItem[]
@@ -50,7 +51,11 @@ const tabs = [
   { id: "fines",   label: "Fines",   icon: AlertCircle,  count: (items: RecycleBinClientProps) => items.fines.length },
 ]
 
-export function RecycleBinClient({ isAdmin, members, loans, fines }: RecycleBinClientProps) {
+export function RecycleBinClient({ saccoId, isAdmin, members: membersProp = [], loans: loansProp = [], fines: finesProp = [] }: RecycleBinClientProps) {
+  // Deleted records are not synced to local SQLite — only available online
+  const members = membersProp
+  const loans = loansProp
+  const fines = finesProp
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<"members" | "loans" | "fines">("members")
   const [loading, setLoading] = useState(false)

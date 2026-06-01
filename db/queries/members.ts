@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllMembers(saccoId: string) {
@@ -20,7 +21,7 @@ export async function getAllMembers(saccoId: string) {
       .in('status', ['active', 'disbursed']),
   ])
 
-  if (membersRes.error) throw new Error(`Failed to fetch members: ${membersRes.error.message}`)
+  if (membersRes.error) { if (isOfflineError(membersRes.error)) return []; throw new Error(`Failed to fetch members: ${membersRes.error.message}`) }
 
   // Build per-member aggregates
   const savingsMap: Record<string, number> = {}
@@ -65,7 +66,7 @@ export async function getMembersForSelect(saccoId: string) {
     .order('full_name', { ascending: true })
 
   if (error) {
-    throw new Error(`Failed to fetch members for select: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch members for select: ${error.message}`)
   }
 
   return data

@@ -1,4 +1,5 @@
 "use server"
+import { isOfflineError } from "@/lib/offline-safe"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -44,7 +45,8 @@ export async function updateGeneralSettingsAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to update settings." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to update settings." }
   }
 }
 
@@ -99,7 +101,8 @@ export async function uploadLogoAction(
     return { success: true, url: publicUrl }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to upload logo." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to upload logo." }
   }
 }
 
@@ -131,7 +134,8 @@ export async function addInterestRateAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to add interest rate." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to add interest rate." }
   }
 }
 
@@ -146,7 +150,8 @@ export async function deleteInterestRateAction(id: string): Promise<SettingsStat
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete interest rate." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete interest rate." }
   }
 }
 
@@ -177,7 +182,8 @@ export async function addLoanCategoryAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to add loan category." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to add loan category." }
   }
 }
 
@@ -192,7 +198,8 @@ export async function deleteLoanCategoryAction(id: string): Promise<SettingsStat
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete loan category." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete loan category." }
   }
 }
 
@@ -220,7 +227,8 @@ export async function addSavingsCategoryAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to add savings category." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to add savings category." }
   }
 }
 
@@ -235,7 +243,8 @@ export async function deleteSavingsCategoryAction(id: string): Promise<SettingsS
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete savings category." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete savings category." }
   }
 }
 
@@ -261,7 +270,8 @@ export async function addFineCategoryAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to add fine category." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to add fine category." }
   }
 }
 
@@ -276,7 +286,8 @@ export async function deleteFineCategoryAction(id: string): Promise<SettingsStat
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete fine category." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete fine category." }
   }
 }
 
@@ -330,7 +341,8 @@ export async function updatePaymentSettingsAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to update payment settings." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to update payment settings." }
   }
 }
 

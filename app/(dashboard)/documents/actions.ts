@@ -1,4 +1,5 @@
 "use server"
+import { isOfflineError } from "@/lib/offline-safe"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -76,7 +77,8 @@ export async function uploadDocumentAction(
     return { success: true, url: publicUrl }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to upload document." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to upload document." }
   }
 }
 
@@ -122,6 +124,7 @@ export async function deleteDocumentAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete document." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete document." }
   }
 }

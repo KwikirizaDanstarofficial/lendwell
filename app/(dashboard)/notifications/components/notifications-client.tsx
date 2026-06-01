@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { useQuery } from "@powersync/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Send, History, Bell, CheckCircle, XCircle, Clock } from "lucide-react"
@@ -9,10 +10,11 @@ import { NotificationsHistory } from "./notifications-history"
 import { cn } from "@/lib/utils"
 
 interface NotificationsClientProps {
-  notifications: any[]
-  members: any[]
-  saccoName: string
-  saccoColor: string
+  saccoId: string
+  saccoName?: string
+  saccoColor?: string
+  notifications?: any[]
+  members?: any[]
 }
 
 const tabs = [
@@ -21,15 +23,20 @@ const tabs = [
 ]
 
 export function NotificationsClient({
-  notifications,
-  members,
-  saccoName,
-  saccoColor,
+  saccoId, saccoName = "SACCO", saccoColor = "#16a34a", members: membersProp = [],
 }: NotificationsClientProps) {
   const [activeTab, setActiveTab] = useState("send")
-
-  const safeNotifications = notifications ?? []
-  const safeMembers = members ?? []
+  const { data: notifRows = [] } = useQuery(
+    "SELECT * FROM notifications WHERE sacco_id = ? ORDER BY created_at DESC LIMIT 200",
+    [saccoId]
+  )
+  const { data: memberRows = [] } = useQuery(
+    "SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC",
+    [saccoId]
+  )
+  const notifications = notifRows as any[]
+  const safeNotifications = notifications
+  const safeMembers = membersProp.length > 0 ? membersProp : (memberRows as any[])
 
   const sentCount    = safeNotifications.filter((n) => n.status === "sent").length
   const failedCount  = safeNotifications.filter((n) => n.status === "failed").length

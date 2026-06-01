@@ -1,9 +1,8 @@
+export const revalidate = 0
 import { requireAuth } from "@/lib/auth"
-import { getActivityLogs } from "@/db/queries/activity-logs"
-import { LogsClient } from "./logs-client"
+import { LogsClient } from "./logs-loader"
 
 export default async function LogsPage() {
   const user = await requireAuth()
-  const logs = await getActivityLogs(user.saccoId, 500)
-  return <LogsClient logs={logs} />
+  return <LogsClient saccoId={user.saccoId} />
 }

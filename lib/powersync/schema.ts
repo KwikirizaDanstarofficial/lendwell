@@ -117,6 +117,17 @@ const fine_categories = new Table({
   created_at: column.text,
 })
 
+const interest_rates = new Table({
+  sacco_id: column.text,
+  min_amount: column.integer,
+  max_amount: column.integer,
+  rate: column.text,
+  rate_type: column.text,
+  is_active: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
 export const AppSchema = new Schema({
   members,
   loans,
@@ -126,6 +137,7 @@ export const AppSchema = new Schema({
   transactions,
   fines,
   fine_categories,
+  interest_rates,
 })
 
 export type Database = (typeof AppSchema)["types"]

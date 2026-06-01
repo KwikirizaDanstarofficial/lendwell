@@ -9,6 +9,8 @@ import { BranchesTab } from "./branches-tab"
 import { SecurityTab } from "./security-tab"
 import { Building2, CreditCard, Shield, GitBranch } from "lucide-react"
 import type { Branch } from "@/db/queries/branches"
+import { useQuery } from "@powersync/react"
+import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 
 const WIZARD_STEPS = [
@@ -17,9 +19,10 @@ const WIZARD_STEPS = [
 ] as const
 
 interface SettingsClientProps {
-  sacco: any
-  branches: Branch[]
-  staff: { id: string; fullName: string; role: string }[]
+  saccoId: string
+  sacco?: any
+  branches?: Branch[]
+  staff?: { id: string; fullName: string; role: string }[]
   isFirstLogin?: boolean
 }
 
@@ -32,11 +35,13 @@ const tabs = [
 ]
 
 export function SettingsClient({
-  sacco,
-  branches,
-  staff,
-  isFirstLogin = false,
+  saccoId, sacco: saccoProp, branches: branchesProp = [], staff: staffProp = [], isFirstLogin = false,
 }: SettingsClientProps) {
+  const { data: saccoRows = [] } = useQuery("SELECT id, name, code, logo_url, primary_color, contact_email, contact_phone, address, settings, created_at, updated_at FROM saccos WHERE id = ?", [saccoId])
+  const { data: branchRows = [] } = useQuery("SELECT id, sacco_id, name, code, address, phone, is_active, created_at, updated_at FROM branches WHERE sacco_id = ?", [saccoId])
+  const sacco = saccoProp ?? (saccoRows.length > 0 ? { id: (saccoRows[0] as any).id, name: (saccoRows[0] as any).name, code: (saccoRows[0] as any).code, logoUrl: (saccoRows[0] as any).logo_url, primaryColor: (saccoRows[0] as any).primary_color, contactEmail: (saccoRows[0] as any).contact_email, contactPhone: (saccoRows[0] as any).contact_phone, address: (saccoRows[0] as any).address, settings: (saccoRows[0] as any).settings } : null)
+  const branches: any[] = branchesProp.length > 0 ? branchesProp : (branchRows as any[]).map((r) => ({ id: r.id, saccoId: r.sacco_id, name: r.name, code: r.code, address: r.address, phone: r.phone, isActive: Boolean(r.is_active), createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at) }))
+  const staff = staffProp
   const [activeTab, setActiveTab] = useState("general")
   const [wizardStep, setWizardStep] = useState(0)
   const [wizardDone, setWizardDone] = useState(false)
@@ -196,7 +201,7 @@ export function SettingsClient({
         {activeTab === "general"       && <GeneralTab sacco={sacco} />}
         {activeTab === "payments"      && <PaymentsTab sacco={sacco} />}
         {activeTab === "test-payments" && <TestPaymentsTab />}
-        {activeTab === "branches"      && <BranchesTab branches={branches} staff={staff} />}
+        {activeTab === "branches"      && <BranchesTab branches={branches as any} staff={staff} />}
         {activeTab === "security"      && <SecurityTab />}
       </div>
     </div>

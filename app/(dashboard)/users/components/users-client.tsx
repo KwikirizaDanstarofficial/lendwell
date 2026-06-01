@@ -397,7 +397,9 @@ function ResetPasswordDialog({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+import { useQuery } from "@powersync/react"
 interface Props {
+  saccoId: string
   users: any[]
   currentUser: {
     userId: string
@@ -412,7 +414,10 @@ interface Props {
   branches: Branch[]
 }
 
-export function UsersClient({ users, currentUser, canManageUsers, branches }: Props) {
+export function UsersClient({ saccoId, users: usersProp = [], currentUser, canManageUsers, branches: branchesProp = [] }: Props) {
+  const { data: branchRows = [] } = useQuery("SELECT id, sacco_id, name, code FROM branches WHERE sacco_id = ?", [saccoId])
+  const branches: any[] = branchesProp.length > 0 ? branchesProp : (branchRows as any[]).map((r) => ({ id: r.id, saccoId: r.sacco_id, name: r.name, code: r.code }))
+  const users = usersProp
   const isAdmin = currentUser.role === "admin"
   const isCashier = currentUser.role === "cashier"
 
@@ -769,14 +774,14 @@ export function UsersClient({ users, currentUser, canManageUsers, branches }: Pr
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         currentRole={currentUser.role}
-        branches={branches}
+        branches={branches as any}
       />
       {editUser && (
         <EditUserDialog
           user={editUser}
           open={!!editUser}
           onClose={() => setEditUser(null)}
-          branches={branches}
+          branches={branches as any}
         />
       )}
       {resetUser && (

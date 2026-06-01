@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search, Download } from "lucide-react"
@@ -10,18 +11,7 @@ import ExcelJS from "exceljs"
 import { toast } from "sonner"
 
 interface FinesClientProps {
-  fines: any[]
-  stats: {
-    totalAmount: number
-    totalCount: number
-    pendingAmount: number
-    pendingCount: number
-    paidAmount: number
-    paidCount: number
-    waivedCount: number
-  }
-  members: any[]
-  categories: any[]
+  saccoId: string
 }
 
 export const priorityColors: Record<string, string> = {
@@ -46,14 +36,67 @@ export const statusConfig: Record<string, { color: string; label: string }> = {
   },
 }
 
-export function FinesClient({
-  fines,
-  stats,
-  members,
-  categories,
-}: FinesClientProps) {
+export function FinesClient({ saccoId }: FinesClientProps) {
   const [addOpen, setAddOpen] = useState(false)
   const [search, setSearch] = useState("")
+
+  const { data: fineRows = [] } = useQuery(
+    `SELECT f.id, f.fine_ref, f.amount, f.reason, f.status, f.due_date,
+            f.paid_at, f.payment_method, f.payment_reference, f.notes,
+            f.created_at, f.updated_at, f.member_id, f.category_id,
+            m.full_name AS member_name, m.member_code,
+            c.name AS category_name
+     FROM fines f
+     LEFT JOIN members m ON m.id = f.member_id
+     LEFT JOIN fine_categories c ON c.id = f.category_id
+     WHERE f.sacco_id = ?
+     ORDER BY f.created_at DESC`,
+    [saccoId]
+  )
+
+  const { data: memberRows = [] } = useQuery(
+    "SELECT id, full_name, member_code FROM members WHERE sacco_id = ? ORDER BY full_name ASC",
+    [saccoId]
+  )
+
+  const { data: categoryRows = [] } = useQuery(
+    "SELECT id, name, default_amount FROM fine_categories WHERE sacco_id = ?",
+    [saccoId]
+  )
+
+  const fines = useMemo(() => (fineRows as any[]).map((r) => ({
+    id: r.id, fine_ref: r.fine_ref, fineRef: r.fine_ref,
+    amount: Number(r.amount), reason: r.reason ?? "", status: r.status,
+    due_date: r.due_date ? new Date(r.due_date) : null,
+    paid_at: r.paid_at ? new Date(r.paid_at) : null,
+    payment_method: r.payment_method ?? null,
+    payment_reference: r.payment_reference ?? null,
+    notes: r.notes ?? null,
+    createdAt: r.created_at ? new Date(r.created_at) : null,
+    member_id: r.member_id, category_id: r.category_id,
+    member_name: r.member_name ?? "", memberCode: r.member_code ?? "",
+    category_name: r.category_name ?? "",
+  })), [fineRows])
+
+  const members = useMemo(() => (memberRows as any[]).map((r) => ({
+    id: r.id, fullName: r.full_name, memberCode: r.member_code,
+  })), [memberRows])
+
+  const categories = useMemo(() => (categoryRows as any[]).map((r) => ({
+    id: r.id, name: r.name, defaultAmount: Number(r.default_amount ?? 0),
+  })), [categoryRows])
+
+  const stats = useMemo(() => {
+    let totalAmount = 0, pendingAmount = 0, paidAmount = 0
+    let totalCount = fines.length, pendingCount = 0, paidCount = 0, waivedCount = 0
+    for (const f of fines) {
+      totalAmount += f.amount
+      if (f.status === "pending") { pendingAmount += f.amount; pendingCount++ }
+      if (f.status === "paid")    { paidAmount    += f.amount; paidCount++    }
+      if (f.status === "waived")  { waivedCount++ }
+    }
+    return { totalAmount, totalCount, pendingAmount, pendingCount, paidAmount, paidCount, waivedCount }
+  }, [fines])
 
   const filtered = useMemo(() => {
     return fines.filter((f) =>
@@ -90,11 +133,11 @@ export function FinesClient({
       category: f.category_name ?? "",
       amount: f.amount / 100,
       reason: f.reason,
-      priority: f.priority,
+      priority: (f as any).priority ?? "",
       status: f.status,
-      due_date: f.dueDate ?? "",
-      paid_at: f.paidAt ? new Date(f.paidAt).toLocaleDateString() : "",
-      payment_method: f.paymentMethod ?? "",
+      due_date: f.due_date ? new Date(f.due_date).toLocaleDateString() : "",
+      paid_at: f.paid_at ? new Date(f.paid_at).toLocaleDateString() : "",
+      payment_method: f.payment_method ?? "",
       date: f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "",
     }))
 

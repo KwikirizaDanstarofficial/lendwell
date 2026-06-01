@@ -2,6 +2,7 @@
 // 3-step form for creating a new member: photo upload → personal info → next of kin.
 // On success the member gets a welcome SMS and portal login credentials.
 "use client"
+import { useQuery } from "@powersync/react"
 
 import { useActionState, useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -102,7 +103,9 @@ function Field({
   )
 }
 
-export function AddMemberForm({ branches = [] }: { branches?: Branch[] }) {
+export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoId: string; branches?: Branch[] }) {
+  const { data: branchRows = [] } = useQuery("SELECT id, sacco_id, name, code FROM branches WHERE sacco_id = ?", [saccoId])
+  const branches = branchesProp.length > 0 ? branchesProp : (branchRows as any[]).map((r) => ({ id: r.id, saccoId: r.sacco_id, name: r.name, code: r.code }))
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     addMemberAction,

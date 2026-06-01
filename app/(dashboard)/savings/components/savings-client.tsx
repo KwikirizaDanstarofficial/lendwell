@@ -4,6 +4,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search, Download } from "lucide-react"
@@ -40,31 +41,84 @@ const EXPORT_COLUMNS = [
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SavingsClientProps {
-  accounts:    any[]
-  stats: {
-    totalBalance:    number
-    totalAccounts:   number
-    lockedAccounts:  number
-    regularAccounts: number
-    fixedAccounts:   number
-    avgBalance:      number
-  }
-  members:     any[]
-  categories:  any[]
-  activeLoans: any[]
+  saccoId: string
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function SavingsClient({
-  accounts,
-  stats,
-  members,
-  categories,
-  activeLoans,
-}: SavingsClientProps) {
+export function SavingsClient({ saccoId }: SavingsClientProps) {
   const [createOpen, setCreateOpen] = useState(false)
   const [search,     setSearch]     = useState("")
+
+  const { data: accountRows = [] } = useQuery(
+    `SELECT s.id, s.account_number, s.balance, s.account_type, s.is_locked,
+            s.lock_until, s.lock_reason, s.created_at, s.updated_at,
+            s.member_id, s.category_id,
+            m.full_name AS member_name, m.member_code, m.phone AS member_phone,
+            c.name AS category_name
+     FROM savings_accounts s
+     LEFT JOIN members m ON m.id = s.member_id
+     LEFT JOIN savings_categories c ON c.id = s.category_id
+     WHERE s.sacco_id = ?
+     ORDER BY s.balance DESC`,
+    [saccoId]
+  )
+
+  const { data: memberRows = [] } = useQuery(
+    "SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC",
+    [saccoId]
+  )
+
+  const { data: categoryRows = [] } = useQuery(
+    "SELECT id, name, description, interest_rate, is_fixed FROM savings_categories WHERE sacco_id = ? AND is_active = 1",
+    [saccoId]
+  )
+
+  const { data: activeLoanRows = [] } = useQuery(
+    "SELECT id, loan_ref, balance, member_id FROM loans WHERE sacco_id = ? AND status = 'active'",
+    [saccoId]
+  )
+
+  const accounts = useMemo(() => (accountRows as any[]).map((r) => ({
+    id:           r.id,
+    accountNumber: r.account_number,
+    balance:      Number(r.balance),
+    accountType:  r.account_type,
+    isLocked:     Boolean(r.is_locked),
+    lockUntil:    r.lock_until ? new Date(r.lock_until) : null,
+    lockReason:   r.lock_reason ?? null,
+    createdAt:    r.created_at ? new Date(r.created_at) : null,
+    updatedAt:    r.updated_at ? new Date(r.updated_at) : null,
+    memberId:     r.member_id,
+    categoryId:   r.category_id,
+    memberName:   r.member_name ?? "",
+    memberCode:   r.member_code ?? "",
+    memberPhone:  r.member_phone ?? null,
+    categoryName: r.category_name ?? "",
+  })), [accountRows])
+
+  const members = useMemo(() => (memberRows as any[]).map((r) => ({
+    id: r.id, fullName: r.full_name, memberCode: r.member_code, phone: r.phone,
+  })), [memberRows])
+
+  const categories = useMemo(() => (categoryRows as any[]).map((r) => ({
+    id: r.id, name: r.name, description: r.description,
+    interestRate: r.interest_rate, isFixed: Boolean(r.is_fixed),
+  })), [categoryRows])
+
+  const activeLoans = useMemo(() => (activeLoanRows as any[]).map((r) => ({
+    id: r.id, loan_ref: r.loan_ref, balance: Number(r.balance), member_id: r.member_id,
+  })), [activeLoanRows])
+
+  const stats = useMemo(() => {
+    const totalBalance    = accounts.reduce((s, a) => s + a.balance, 0)
+    const totalAccounts   = accounts.length
+    const lockedAccounts  = accounts.filter((a) => a.isLocked).length
+    const fixedAccounts   = accounts.filter((a) => a.accountType === "fixed").length
+    const regularAccounts = totalAccounts - fixedAccounts
+    const avgBalance      = totalAccounts > 0 ? totalBalance / totalAccounts : 0
+    return { totalBalance, totalAccounts, lockedAccounts, regularAccounts, fixedAccounts, avgBalance }
+  }, [accounts])
 
   // Filter accounts by member name, account number, or member code
   const filteredAccounts = useMemo(() => {
@@ -87,13 +141,13 @@ export function SavingsClient({
     worksheet.addRows(
       filteredAccounts.map((a) => ({
         account_no:  a.accountNumber,
-        member:      a.member_name,
+        member:      a.memberName,
         member_code: a.memberCode,
         balance:     a.balance / CENTS_PER_UNIT,
         type:        a.accountType,
         status:      a.isLocked ? "Locked" : "Active",
         lock_until:  a.lockUntil ?? "",
-        category:    a.category_name ?? "",
+        category:    a.categoryName ?? "",
         opened:      a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "",
       }))
     )

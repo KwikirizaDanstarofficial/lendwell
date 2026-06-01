@@ -1,4 +1,5 @@
 "use server"
+import { isOfflineError } from "@/lib/offline-safe"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -101,7 +102,8 @@ export async function addComplaintAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to submit complaint." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to submit complaint." }
   }
 }
 
@@ -175,7 +177,8 @@ export async function updateComplaintStatusAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to update complaint status." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to update complaint status." }
   }
 }
 
@@ -217,7 +220,8 @@ export async function deleteComplaintAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete complaint." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete complaint." }
   }
 }
 
@@ -249,6 +253,7 @@ export async function submitRatingAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to submit rating." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to submit rating." }
   }
 }

@@ -1,0 +1,122 @@
+# PowerSync Sync Rules — Lendwell
+#
+# Prerequisites:
+#   1. Add a custom_access_token_hook in Supabase (see POWERSYNC_SETUP.md)
+#      so that sacco_id is a root-level JWT claim.
+#   2. Enable the hook in Supabase Dashboard → Auth → Hooks.
+#   3. Users must sign out and back in once after the hook is enabled
+#      to get a JWT with the new claim.
+#
+# Bucket strategy: one bucket per sacco_id.
+# Every table that contains sacco_id is synced for the user's sacco only.
+# Tables linked by member_id or loan_id use a sub-select.
+
+bucket_definitions:
+
+  # ── Core SACCO data ──────────────────────────────────────────────────────────
+  by_sacco:
+    parameters: SELECT token_parameters.sacco_id as sacco_id
+    data:
+
+      # Members
+      - SELECT id, sacco_id, member_code, full_name, email, phone,
+               national_id, photo_url, date_of_birth, address,
+               next_of_kin, next_of_kin_phone, next_of_kin_relationship,
+               next_of_kin_address, status, joined_at, created_at, updated_at
+          FROM members
+          WHERE sacco_id = bucket.sacco_id
+            AND deleted_at IS NULL
+
+      # Loans
+      - SELECT id, sacco_id, member_id, category_id, loan_ref, amount,
+               balance, interest_rate, interest_type, status, due_date,
+               disbursed_at, settled_at, decline_reason, notes,
+               expected_received, duration_months, late_penalty_fee,
+               daily_payment, monthly_payment, created_at, updated_at
+          FROM loans
+          WHERE sacco_id = bucket.sacco_id
+
+      # Loan categories (product definitions)
+      - SELECT id, sacco_id, name, description, min_amount, max_amount,
+               interest_rate, max_duration_months, requires_guarantor,
+               is_active, created_at
+          FROM loan_categories
+          WHERE sacco_id = bucket.sacco_id
+
+      # Savings accounts
+      - SELECT id, sacco_id, member_id, category_id, account_number,
+               balance, account_type, is_locked, lock_until, lock_reason,
+               created_at, updated_at
+          FROM savings_accounts
+          WHERE sacco_id = bucket.sacco_id
+
+      # Savings categories
+      - SELECT id, sacco_id, name, description, interest_rate,
+               is_fixed, is_active, created_at
+          FROM savings_categories
+          WHERE sacco_id = bucket.sacco_id
+
+      # Transactions
+      - SELECT id, sacco_id, member_id, type, amount, balance_after,
+               reference_id, payment_method, narration, created_at
+          FROM transactions
+          WHERE sacco_id = bucket.sacco_id
+
+      # Fines
+      - SELECT id, sacco_id, member_id, category_id, fine_ref, amount,
+               reason, status, due_date, paid_at, payment_method,
+               payment_reference, notes, created_at, updated_at
+          FROM fines
+          WHERE sacco_id = bucket.sacco_id
+            AND deleted_at IS NULL
+
+      # Fine categories
+      - SELECT id, sacco_id, name, default_amount, created_at
+          FROM fine_categories
+          WHERE sacco_id = bucket.sacco_id
+
+      # Interest rates
+      - SELECT id, sacco_id, min_amount, max_amount, rate, rate_type,
+               is_active, created_at, updated_at
+          FROM interest_rates
+          WHERE sacco_id = bucket.sacco_id
+
+      # Complaints
+      - SELECT id, sacco_id, member_id, complaint_ref, subject, body,
+               category, priority, status, assigned_to, resolution_notes,
+               resolved_at, resolved_by, satisfaction_rating, feedback,
+               notes, created_at, updated_at
+          FROM complaints
+          WHERE sacco_id = bucket.sacco_id
+
+      # Documents
+      - SELECT id, sacco_id, member_id, loan_id, type, file_name,
+               blob_url, created_at
+          FROM documents
+          WHERE sacco_id = bucket.sacco_id
+
+      # Notifications
+      - SELECT id, sacco_id, member_id, title, body, type, status,
+               priority, channel, recipient_phone, reference_type,
+               retry_count, error_message, scheduled_at, sent_at,
+               read_at, created_at
+          FROM notifications
+          WHERE sacco_id = bucket.sacco_id
+
+      # SACCO settings
+      - SELECT id, name, code, logo_url, primary_color, contact_email,
+               contact_phone, address, settings, created_at, updated_at
+          FROM saccos
+          WHERE id = bucket.sacco_id
+
+      # Branches
+      - SELECT id, sacco_id, name, code, address, phone,
+               is_active, created_at, updated_at
+          FROM branches
+          WHERE sacco_id = bucket.sacco_id
+
+      # Loan guarantors (linked via sacco_id)
+      - SELECT id, sacco_id, loan_id, member_id, status,
+               created_at, updated_at
+          FROM loan_guarantors
+          WHERE sacco_id = bucket.sacco_id

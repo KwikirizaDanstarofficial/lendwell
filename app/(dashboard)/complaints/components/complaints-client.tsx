@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -37,14 +38,7 @@ type MemberSelect = {
 }
 
 interface ComplaintsClientProps {
-  complaints: Complaint[]
-  members: MemberSelect[]
-  stats: {
-    total: number
-    open: number
-    inProgress: number
-    resolved: number
-  }
+  saccoId: string
 }
 
 export const priorityColors: Record<string, string> = {
@@ -82,11 +76,48 @@ export const categoryColors: Record<string, string> = {
   other: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
 }
 
-export function ComplaintsClient({
-  complaints,
-  members,
-  stats,
-}: ComplaintsClientProps) {
+export function ComplaintsClient({ saccoId }: ComplaintsClientProps) {
+  const { data: complaintRows = [] } = useQuery(
+    `SELECT c.id, c.sacco_id, c.member_id, c.complaint_ref, c.subject, c.body,
+             c.category, c.priority, c.status, c.assigned_to, c.resolution_notes,
+             c.resolved_at, c.notes, c.created_at, c.updated_at,
+             m.full_name AS member_name, m.member_code, m.phone AS member_phone
+      FROM complaints c
+      LEFT JOIN members m ON m.id = c.member_id
+      WHERE c.sacco_id = ?
+      ORDER BY c.created_at DESC`,
+    [saccoId]
+  )
+  const { data: memberRows = [] } = useQuery(
+    "SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC",
+    [saccoId]
+  )
+  const complaints = useMemo(() => (complaintRows as any[]).map((r) => ({
+    id: r.id, sacco_id: r.sacco_id, member_id: r.member_id,
+    complaint_ref: r.complaint_ref, complaintRef: r.complaint_ref,
+    subject: r.subject, body: r.body, category: r.category,
+    priority: r.priority, status: r.status, assigned_to: r.assigned_to,
+    resolution_notes: r.resolution_notes, notes: r.notes,
+    resolved_at: r.resolved_at ? new Date(r.resolved_at) : null,
+    created_at: r.created_at, updated_at: r.updated_at,
+    member_name: r.member_name ?? "", memberName: r.member_name ?? "",
+    member_code: r.member_code ?? "", memberCode: r.member_code ?? "",
+    member_phone: r.member_phone ?? null,
+    saccoId: r.sacco_id, memberId: r.member_id, assignedTo: r.assigned_to ?? null,
+    resolutionNotes: r.resolution_notes ?? null, createdAt: r.created_at ? new Date(r.created_at) : null,
+    updatedAt: r.updated_at ? new Date(r.updated_at) : null, resolvedAt: r.resolved_at ? new Date(r.resolved_at) : null,
+    resolvedBy: r.resolved_by ?? null, satisfactionRating: r.satisfaction_rating ?? null,
+    feedback: r.feedback ?? null, memberPhone: r.member_phone ?? null,
+  })), [complaintRows])
+  const members: MemberSelect[] = useMemo(() => (memberRows as any[]).map((r) => ({
+    id: r.id, full_name: r.full_name, member_code: r.member_code, phone: r.phone ?? null,
+  })), [memberRows])
+  const stats = useMemo(() => ({
+    total: complaints.length,
+    open: complaints.filter((c) => c.status === "open").length,
+    inProgress: complaints.filter((c) => c.status === "in_progress").length,
+    resolved: complaints.filter((c) => c.status === "resolved").length,
+  }), [complaints])
   const [addOpen, setAddOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string | null>("all")

@@ -182,7 +182,6 @@ export async function checkOverlappingRanges(
   excludeId?: string
 ) {
   try {
-
     let query = supabaseAdmin
       .from('interest_rates')
       .select('id')
@@ -197,11 +196,15 @@ export async function checkOverlappingRanges(
     const { data, error } = await query.limit(1)
 
     if (error) {
+      // Network error when offline — skip overlap check, server will validate on sync
+      if (!(error as any).status) return false
       throw new Error(`Failed to check overlapping ranges: ${error.message}`)
     }
 
     return data && data.length > 0
-  } catch (error) {
+  } catch (error: any) {
+    // Offline / network unreachable — skip the check, allow the write to queue
+    if (!(error as any)?.status) return false
     console.error("Error checking overlapping ranges:", error)
     throw new Error("Failed to check overlapping ranges")
   }

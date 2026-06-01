@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export async function getAllDocuments(saccoId: string) {
@@ -22,7 +23,7 @@ export async function getAllDocuments(saccoId: string) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    throw new Error(`Failed to fetch documents: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch documents: ${error.message}`)
   }
 
   return (data as any[]).map(document => ({
@@ -48,7 +49,7 @@ export async function getMembersForDocuments(saccoId: string) {
     .order('full_name', { ascending: true })
 
   if (error) {
-    throw new Error(`Failed to fetch members for documents: ${error.message}`)
+    if (isOfflineError(error)) return []; throw new Error(`Failed to fetch members for documents: ${error.message}`)
   }
 
   return data.map(member => ({

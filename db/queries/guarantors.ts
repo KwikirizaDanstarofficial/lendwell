@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 /**
  * db/queries/guarantors.ts
  *
@@ -46,7 +47,7 @@ export async function getGuarantorsByLoan(loanId: string) {
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
 
-  if (error) throw new Error(`Failed to fetch guarantors: ${error.message}`)
+  if (error) { if (isOfflineError(error)) return []; throw new Error(`Failed to fetch guarantors: ${error?.message}`) }
   return data ?? []
 }
 

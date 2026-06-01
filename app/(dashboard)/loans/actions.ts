@@ -1,3 +1,5 @@
+"use server"
+import { isOfflineError } from "@/lib/offline-safe"
 /**
  * app/(dashboard)/loans/actions.ts
  *
@@ -12,7 +14,6 @@
  *   – Audit log entries
  *   – Next.js cache revalidation
  */
-"use server"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -224,7 +225,8 @@ export async function addLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to add loan. Please try again." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to add loan. Please try again." }
   }
 }
 
@@ -291,7 +293,8 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to approve loan." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to approve loan." }
   }
 }
 
@@ -366,7 +369,8 @@ export async function declineLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to decline loan." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to decline loan." }
   }
 }
 
@@ -490,7 +494,8 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to disburse loan." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to disburse loan." }
   }
 }
 
@@ -646,7 +651,8 @@ export async function repayLoanAction(
     }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to record repayment." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to record repayment." }
   }
 }
 
@@ -766,7 +772,8 @@ export async function topUpLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to process loan top-up." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to process loan top-up." }
   }
 }
 
@@ -809,7 +816,8 @@ export async function deleteLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete loan." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete loan." }
   }
 }
 

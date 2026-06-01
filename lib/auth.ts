@@ -9,6 +9,7 @@
  */
 
 import { cache } from "react"
+import type { User } from "@supabase/supabase-js"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -50,35 +51,47 @@ export const getCurrentUser = cache(async (): Promise<SessionData | null> => {
 
     const { data: { user }, error } = await supabase.auth.getUser()
 
-    if (error) {
+    if (!error) return buildSessionData(user)
+
+    // error.status is set on HTTP-level auth failures (401/403/422).
+    // No status means a network/fetch error (offline) — fall back to the
+    // locally cached session so the app keeps working without connectivity.
+    if (error.status) {
       if ((error as any).code === 'refresh_token_not_found' || error.message?.includes('Refresh Token')) {
-        const { error: signOutError } = await supabase.auth.signOut()
-        if (signOutError) console.error("[AUTH] signOut after stale token failed:", signOutError)
+        await supabase.auth.signOut().catch(() => {})
       }
       return null
     }
 
-    if (!user) return null
+    // Offline fallback: parse the JWT from the cookie without a network call.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return null
+    // Reject genuinely expired tokens even while offline.
+    if (session.expires_at && session.expires_at * 1000 < Date.now()) return null
 
-    const meta = user.user_metadata
-    if (!meta?.role || !VALID_ROLES.includes(meta.role)) return null
-
-    return {
-      userId: user.id,
-      saccoId: meta.sacco_id ?? "",
-      role: meta.role as UserRole,
-      branchId: meta.branch_id ?? null,
-      branchCode: meta.branch_code ?? null,
-      fullName: meta.full_name ?? user.email ?? "",
-      email: user.email ?? "",
-      isLoggedIn: true,
-      hasTempPassword: meta.has_temp_password === true,
-      memberCode: meta.member_code ?? null,
-    }
+    return buildSessionData(session.user)
   } catch {
     return null
   }
 })
+
+function buildSessionData(user: User | null): SessionData | null {
+  if (!user) return null
+  const meta = user.user_metadata
+  if (!meta?.role || !VALID_ROLES.includes(meta.role)) return null
+  return {
+    userId: user.id,
+    saccoId: meta.sacco_id ?? "",
+    role: meta.role as UserRole,
+    branchId: meta.branch_id ?? null,
+    branchCode: meta.branch_code ?? null,
+    fullName: meta.full_name ?? user.email ?? "",
+    email: user.email ?? "",
+    isLoggedIn: true,
+    hasTempPassword: meta.has_temp_password === true,
+    memberCode: meta.member_code ?? null,
+  }
+}
 
 /**
  * Guard that redirects unauthenticated users to the login page.

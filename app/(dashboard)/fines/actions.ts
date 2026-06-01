@@ -1,4 +1,5 @@
 "use server"
+import { isOfflineError } from "@/lib/offline-safe"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -140,7 +141,8 @@ export async function addFineAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to add fine." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to add fine." }
   }
 }
 
@@ -259,7 +261,8 @@ export async function markFinePaidAction(
     }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to mark fine as paid." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to mark fine as paid." }
   }
 }
 
@@ -321,7 +324,8 @@ export async function waiveFineAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to waive fine." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to waive fine." }
   }
 }
 
@@ -355,6 +359,7 @@ export async function deleteFineAction(id: string): Promise<FineFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete fine." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete fine." }
   }
 }

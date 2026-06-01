@@ -1,4 +1,5 @@
 "use server"
+import { isOfflineError } from "@/lib/offline-safe"
 
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
@@ -129,7 +130,8 @@ export async function createSavingsAccountAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to create savings account." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to create savings account." }
   }
 }
 
@@ -263,7 +265,8 @@ export async function depositAction(
     }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to process deposit." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to process deposit." }
   }
 }
 
@@ -425,7 +428,8 @@ export async function withdrawAction(
     }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to process withdrawal." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to process withdrawal." }
   }
 }
 
@@ -504,7 +508,8 @@ export async function lockAccountAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to lock account." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to lock account." }
   }
 }
 
@@ -576,7 +581,8 @@ export async function unlockAccountAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to unlock account." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to unlock account." }
   }
 }
 
@@ -713,7 +719,8 @@ export async function trimToLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to trim savings to loan." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to trim savings to loan." }
   }
 }
 
@@ -958,7 +965,8 @@ export async function deleteSavingsAccountAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to delete savings account." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to delete savings account." }
   }
 }
 
@@ -1016,6 +1024,7 @@ export async function updateSavingsAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    return { error: "Failed to update savings account." }
+    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    return { error: (err as any)?.message || "Failed to update savings account." }
   }
 }

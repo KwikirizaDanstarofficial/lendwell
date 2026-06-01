@@ -1,3 +1,4 @@
+import { isOfflineError } from "@/lib/offline-safe"
 /**
  * db/queries/loans.ts
  *
@@ -83,9 +84,9 @@ export async function getAllLoans(saccoId: string) {
     .order("created_at", { ascending: false })
     .limit(QUERY_LIMIT)
 
-  if (error) throw new Error(`Failed to fetch loans: ${error.message}`)
+  if (error) { if (isOfflineError(error)) return []; throw new Error(`Failed to fetch loans: ${error!.message}`) }
 
-  return data.map((loan) => ({
+  return (data ?? []).map((loan) => ({
     ...mapLoanRow(loan),
     // Flatten the joined member fields onto the loan object
     memberName:       (loan.members as any)?.full_name    ?? null,
@@ -115,7 +116,7 @@ export async function getLoanById(id: string, saccoId: string) {
 
   if (error) {
     if (error.code === POSTGREST_NO_ROWS_CODE) return null
-    throw new Error(`Failed to fetch loan: ${error.message}`)
+    if (isOfflineError(error)) return null; throw new Error(`Failed to fetch loan: ${error.message}`)
   }
 
   if (!data) return null
