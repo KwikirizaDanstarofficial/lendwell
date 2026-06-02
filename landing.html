@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaccoOS — Cooperative Management Platform</title>
+  <meta name="description" content="Modern cooperative management platform for SACCOs. Manage members, loans, savings, and reports with ease.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#17803D',
+              600: '#166534',
+              700: '#14532d',
+              800: '#0f3d24',
+              900: '#0a2a18',
+            },
+            amber: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              200: '#fde68a',
+              300: '#fcd34d',
+              400: '#fbbf24',
+              500: '#F59E0B',
+              600: '#d97706',
+              700: '#b45309',
+              800: '#92400e',
+              900: '#78350f',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .glass {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .glass-light {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .gradient-green {
+      background: linear-gradient(135deg, #17803D 0%, #10B981 50%, #34D399 100%);
+    }
+    .gradient-amber {
+      background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 50%, #FDE68A 100%);
+    }
+    .gradient-hero {
+      background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(23, 128, 61, 0.15) 0%, transparent 60%),
+                  radial-gradient(ellipse 60% 50% at 80% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+                  #0F172A;
+    }
+    .gradient-cta {
+      background: linear-gradient(135deg, #0F172A 0%, #0a2a18 50%, #0F172A 100%);
+    }
+    .text-gradient {
+      background: linear-gradient(135deg, #4ADE80 0%, #34D399 50%, #FBBF24 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .glow-green {
+      box-shadow: 0 0 30px rgba(23, 128, 61, 0.3), 0 0 60px rgba(23, 128, 61, 0.1);
+    }
+    .glow-amber {
+      box-shadow: 0 0 30px rgba(245, 158, 11, 0.2), 0 0 60px rgba(245, 158, 11, 0.05);
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.8; }
+    }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-float { animation: float 6s ease-in-out infinite; }
+    .animate-pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+    .animate-slide-up { animation: slide-up 0.8s ease-out forwards; }
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
+    .delay-300 { animation-delay: 0.3s; }
+    .delay-400 { animation-delay: 0.4s; }
+    .delay-500 { animation-delay: 0.5s; }
+    .feature-card:hover .feature-icon {
+      transform: scale(1.1);
+    }
+    .feature-icon {
+      transition: transform 0.3s ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-[#0F172A] text-slate-100 antialiased">
+
+  <!-- ─── NAVBAR ─── -->
+  <nav class="fixed top-4 left-4 right-4 z-50 max-w-7xl mx-auto">
+    <div class="glass rounded-2xl px-5 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="#" class="flex items-center gap-2 shrink-0">
+          <svg viewBox="0 0 460 100" fill="none" class="h-9 w-auto">
+            <defs>
+              <linearGradient id="navIconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#1a3660"/><stop offset="100%" stop-color="#0a1628"/>
+              </linearGradient>
+              <linearGradient id="navChevBot" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#047857"/><stop offset="100%" stop-color="#10b981"/>
+              </linearGradient>
+              <linearGradient id="navChevMid" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#34d399"/>
+              </linearGradient>
+              <linearGradient id="navChevTop" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#a7f3d0"/>
+              </linearGradient>
+              <linearGradient id="navAmber" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f59e0b"/>
+              </linearGradient>
+            </defs>
+            <g transform="translate(1, 2) scale(1.05)">
+              <polygon points="40,3 72,21 72,59 40,77 8,59 8,21" fill="url(#navIconBg)"/>
+              <polygon points="40,7 68,23 68,57 40,73 12,57 12,23" stroke="#ffffff" stroke-width="0.75" stroke-opacity="0.12" fill="none"/>
+              <path d="M19 63 L40 49 L61 63" stroke="url(#navChevBot)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <path d="M21 51 L40 37 L59 51" stroke="url(#navChevMid)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <path d="M23 39 L40 23 L57 39" stroke="url(#navChevTop)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <circle cx="40" cy="19" r="6" fill="#f59e0b"/>
+              <circle cx="40" cy="19" r="3.5" fill="#fbbf24"/>
+              <circle cx="38.5" cy="17.5" r="1" fill="#fde68a" opacity="0.7"/>
+            </g>
+            <text x="113" y="58" font-family="'Inter','system-ui',sans-serif" font-size="38" font-weight="800" letter-spacing="-1.5" fill="#ffffff">Sacco</text>
+            <text x="268" y="58" font-family="'Inter','system-ui',sans-serif" font-size="38" font-weight="800" letter-spacing="-1.5" fill="url(#navAmber)">OS</text>
+          </svg>
+        </a>
+        <div class="hidden md:flex items-center gap-8">
+          <a href="#features" class="text-sm font-medium text-slate-300 hover:text-white transition-colors duration-200">Features</a>
+          <a href="#how-it-works" class="text-sm font-medium text-slate-300 hover:text-white transition-colors duration-200">How It Works</a>
+          <a href="#testimonials" class="text-sm font-medium text-slate-300 hover:text-white transition-colors duration-200">Testimonials</a>
+          <a href="#contact" class="text-sm font-medium text-slate-300 hover:text-white transition-colors duration-200">Contact</a>
+        </div>
+        <a href="#" class="inline-flex items-center gap-2 bg-[#17803D] hover:bg-[#166534] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer glow-green">
+          Get Started
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─── -->
+  <section class="gradient-hero min-h-screen flex items-center pt-24 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+    <div class="max-w-7xl mx-auto w-full">
+      <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <!-- Left: Text -->
+        <div class="max-w-2xl">
+          <div class="inline-flex items-center gap-2 bg-[#17803D]/10 border border-[#17803D]/20 rounded-full px-4 py-1.5 mb-6 animate-slide-up">
+            <span class="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse-glow"></span>
+            <span class="text-xs sm:text-sm font-medium text-[#4ADE80] font-mono tracking-wider">v2.0 — Now available</span>
+          </div>
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold leading-[1.1] tracking-tight mb-6 animate-slide-up delay-100">
+            <span class="text-white">The Operating System for</span>
+            <br>
+            <span class="text-gradient">Modern SACCOs</span>
+          </h1>
+          <p class="text-lg sm:text-xl text-slate-400 leading-relaxed max-w-xl mb-8 animate-slide-up delay-200">
+            From member onboarding to loan disbursement, savings management to regulatory reporting — 
+            SaccoOS powers the entire cooperative lifecycle in one seamless platform.
+          </p>
+          <div class="flex flex-wrap gap-4 animate-slide-up delay-300">
+            <a href="#" class="inline-flex items-center gap-2 bg-[#17803D] hover:bg-[#166534] text-white font-semibold px-7 py-3.5 rounded-xl transition-all duration-200 cursor-pointer glow-green text-base">
+              Start Free Trial
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+            <a href="#" class="inline-flex items-center gap-2 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-semibold px-7 py-3.5 rounded-xl transition-all duration-200 cursor-pointer text-base">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Watch Demo
+            </a>
+          </div>
+          <div class="flex items-center gap-4 mt-8 pt-8 border-t border-slate-800 animate-slide-up delay-400">
+            <div class="flex -space-x-2">
+              <img src="https://i.pravatar.cc/40?img=1" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0F172A]">
+              <img src="https://i.pravatar.cc/40?img=2" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0F172A]">
+              <img src="https://i.pravatar.cc/40?img=3" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0F172A]">
+              <img src="https://i.pravatar.cc/40?img=4" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0F172A]">
+            </div>
+            <div>
+              <div class="flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Trusted by 500+ cooperative leaders</p>
+            </div>
+          </div>
+        </div>
+        <!-- Right: Mockup -->
+        <div class="hidden lg:flex justify-center items-center animate-slide-up delay-200">
+          <div class="relative">
+            <div class="absolute -inset-4 gradient-green rounded-3xl opacity-20 blur-2xl animate-pulse-glow"></div>
+            <div class="glass-light rounded-2xl p-3 relative">
+              <div class="rounded-xl overflow-hidden">
+                <img src="https://images.unsplash.com/photo-1553877522-43269d4ea984?w=800&q=80" alt="SaccoOS Dashboard Preview" class="w-full h-auto">
+              </div>
+              <div class="absolute -bottom-3 -left-3 glass rounded-xl px-4 py-3 flex items-center gap-3 shadow-xl">
+                <div class="w-10 h-10 rounded-lg bg-[#17803D]/20 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-400">Loan disbursement</p>
+                  <p class="text-sm font-bold text-white">+23.5% <span class="text-xs font-normal text-[#4ADE80]">this quarter</span></p>
+                </div>
+              </div>
+              <div class="absolute -top-3 -right-3 glass rounded-xl px-4 py-3 flex items-center gap-3 shadow-xl">
+                <div class="w-10 h-10 rounded-lg bg-[#F59E0B]/20 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-400">Savings growth</p>
+                  <p class="text-sm font-bold text-white">UGX 2.4B <span class="text-xs font-normal text-[#FBBF24]">total</span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── STATS BAR ─── -->
+  <section class="relative -mt-20 pb-16 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="glass rounded-2xl px-8 py-8 sm:py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div class="text-center">
+          <p class="text-3xl sm:text-4xl font-extrabold text-white">500+</p>
+          <p class="text-sm text-slate-400 mt-1">SACCOs onboarded</p>
+        </div>
+        <div class="text-center">
+          <p class="text-3xl sm:text-4xl font-extrabold text-white">50K+</p>
+          <p class="text-sm text-slate-400 mt-1">Active members</p>
+        </div>
+        <div class="text-center">
+          <p class="text-3xl sm:text-4xl font-extrabold text-white">UGX 2.4B</p>
+          <p class="text-sm text-slate-400 mt-1">Savings managed</p>
+        </div>
+        <div class="text-center">
+          <p class="text-3xl sm:text-4xl font-extrabold text-white">99.9%</p>
+          <p class="text-sm text-slate-400 mt-1">Platform uptime</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FEATURES ─── -->
+  <section id="features" class="py-20 lg:py-28 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <p class="text-sm font-mono tracking-widest text-[#4ADE80] mb-4">FEATURES</p>
+        <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-6">
+          Everything a modern SACCO needs
+        </h2>
+        <p class="text-slate-400 text-lg leading-relaxed">
+          From member management to regulatory compliance — SaccoOS provides every tool 
+          you need to run your cooperative efficiently.
+        </p>
+      </div>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Feature 1 -->
+        <div class="feature-card group glass-light rounded-2xl p-6 sm:p-8 hover:bg-[#17803D]/[0.04] transition-all duration-300 cursor-pointer border border-transparent hover:border-[#17803D]/20">
+          <div class="feature-icon w-12 h-12 rounded-xl gradient-green flex items-center justify-center mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-3">Member Management</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Onboard members with profile photos, ID cards, certificates, and bulk Excel import. 
+            Track groups, guarantors, and member lifecycle.
+          </p>
+        </div>
+        <!-- Feature 2 -->
+        <div class="feature-card group glass-light rounded-2xl p-6 sm:p-8 hover:bg-[#17803D]/[0.04] transition-all duration-300 cursor-pointer border border-transparent hover:border-[#17803D]/20">
+          <div class="feature-icon w-12 h-12 rounded-xl gradient-green flex items-center justify-center mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-3">Loan Origination</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Full loan lifecycle — apply, verify, approve, disburse, settle. Dynamic interest rates, 
+            amortization schedules, and automated contract PDFs.
+          </p>
+        </div>
+        <!-- Feature 3 -->
+        <div class="feature-card group glass-light rounded-2xl p-6 sm:p-8 hover:bg-[#17803D]/[0.04] transition-all duration-300 cursor-pointer border border-transparent hover:border-[#17803D]/20">
+          <div class="feature-icon w-12 h-12 rounded-xl gradient-green flex items-center justify-center mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-3">Savings & Deposits</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Regular and fixed-deposit savings accounts. Automatic interest tracking, 
+            account locking, loan offset, and member passbook generation.
+          </p>
+        </div>
+        <!-- Feature 4 -->
+        <div class="feature-card group glass-light rounded-2xl p-6 sm:p-8 hover:bg-[#17803D]/[0.04] transition-all duration-300 cursor-pointer border border-transparent hover:border-[#17803D]/20">
+          <div class="feature-icon w-12 h-12 rounded-xl gradient-green flex items-center justify-center mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-3">Reports & Analytics</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Real-time dashboards with KPI widgets. Loan distribution, savings trends, 
+            fine reports. Export to PDF and Excel.
+          </p>
+        </div>
+        <!-- Feature 5 -->
+        <div class="feature-card group glass-light rounded-2xl p-6 sm:p-8 hover:bg-[#17803D]/[0.04] transition-all duration-300 cursor-pointer border border-transparent hover:border-[#17803D]/20">
+          <div class="feature-icon w-12 h-12 rounded-xl gradient-amber flex items-center justify-center mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-3">SMS Notifications</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Automated SMS alerts via EGO SMS API. Loan approvals, payment reminders, 
+            and bulk messaging with smart retry logic.
+          </p>
+        </div>
+        <!-- Feature 6 -->
+        <div class="feature-card group glass-light rounded-2xl p-6 sm:p-8 hover:bg-[#17803D]/[0.04] transition-all duration-300 cursor-pointer border border-transparent hover:border-[#17803D]/20">
+          <div class="feature-icon w-12 h-12 rounded-xl gradient-green flex items-center justify-center mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-3">Payments & Mobile Money</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Integrated MTN Mobile Money and Airtel Money collection. Automated 
+            loan repayments, share deposits, and payment reconciliation.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── HOW IT WORKS ─── -->
+  <section id="how-it-works" class="py-20 lg:py-28 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <p class="text-sm font-mono tracking-widest text-[#4ADE80] mb-4">HOW IT WORKS</p>
+        <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-6">
+          Go live in three simple steps
+        </h2>
+        <p class="text-slate-400 text-lg leading-relaxed">
+          From sign-up to full operation — we make the transition seamless.
+        </p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8 lg:gap-12">
+        <!-- Step 1 -->
+        <div class="text-center relative">
+          <div class="hidden md:block absolute top-12 left-[60%] w-[calc(80%)] h-px bg-gradient-to-r from-[#17803D]/40 to-transparent"></div>
+          <div class="w-24 h-24 rounded-2xl gradient-green flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <span class="text-3xl font-black text-white">1</span>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">Create Your Account</h3>
+          <p class="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+            Sign up and configure your SACCO profile. Set up loan products, 
+            savings plans, and fine categories in minutes.
+          </p>
+        </div>
+        <!-- Step 2 -->
+        <div class="text-center relative">
+          <div class="hidden md:block absolute top-12 left-[60%] w-[calc(80%)] h-px bg-gradient-to-r from-[#17803D]/40 to-transparent"></div>
+          <div class="w-24 h-24 rounded-2xl gradient-green flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <span class="text-3xl font-black text-white">2</span>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">Import Your Members</h3>
+          <p class="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+            Bulk import member data from Excel or add them individually. 
+            Generate ID cards and member certificates automatically.
+          </p>
+        </div>
+        <!-- Step 3 -->
+        <div class="text-center">
+          <div class="w-24 h-24 rounded-2xl gradient-amber flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <span class="text-3xl font-black text-white">3</span>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-3">Start Operations</h3>
+          <p class="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+            Begin accepting savings, processing loans, and sending SMS 
+            notifications. Your SACCO is live and running.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TESTIMONIALS ─── -->
+  <section id="testimonials" class="py-20 lg:py-28 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <p class="text-sm font-mono tracking-widest text-[#4ADE80] mb-4">TESTIMONIALS</p>
+        <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-6">
+          Trusted by cooperative leaders
+        </h2>
+        <p class="text-slate-400 text-lg leading-relaxed">
+          See what SACCO managers say about their experience with SaccoOS.
+        </p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <!-- Testimonial 1 -->
+        <div class="glass-light rounded-2xl p-6 sm:p-8 border border-slate-800/50">
+          <div class="flex items-center gap-1 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <p class="text-slate-300 text-sm leading-relaxed mb-6">
+            "SaccoOS cut our loan processing time from 3 days to under 2 hours. 
+            The member management module alone saved us countless hours of paperwork."
+          </p>
+          <div class="flex items-center gap-3">
+            <img src="https://i.pravatar.cc/48?img=11" alt="Grace N." class="w-10 h-10 rounded-full">
+            <div>
+              <p class="text-sm font-semibold text-white">Grace Nantongo</p>
+              <p class="text-xs text-slate-500">GM, Kampala Metropolitan SACCO</p>
+            </div>
+          </div>
+        </div>
+        <!-- Testimonial 2 -->
+        <div class="glass-light rounded-2xl p-6 sm:p-8 border border-slate-800/50">
+          <div class="flex items-center gap-1 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <p class="text-slate-300 text-sm leading-relaxed mb-6">
+            "The reports and analytics features are incredible. We can now generate 
+            regulatory reports in minutes instead of days. A game-changer for compliance."
+          </p>
+          <div class="flex items-center gap-3">
+            <img src="https://i.pravatar.cc/48?img=12" alt="David O." class="w-10 h-10 rounded-full">
+            <div>
+              <p class="text-sm font-semibold text-white">David Okello</p>
+              <p class="text-xs text-slate-500">Finance Manager, Nile Valley SACCO</p>
+            </div>
+          </div>
+        </div>
+        <!-- Testimonial 3 -->
+        <div class="glass-light rounded-2xl p-6 sm:p-8 border border-slate-800/50">
+          <div class="flex items-center gap-1 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <p class="text-slate-300 text-sm leading-relaxed mb-6">
+            "The mobile money integration with MTN and Airtel was seamless. 
+            Our members can now deposit savings and repay loans from their phones."
+          </p>
+          <div class="flex items-center gap-3">
+            <img src="https://i.pravatar.cc/48?img=31" alt="Sarah K." class="w-10 h-10 rounded-full">
+            <div>
+              <p class="text-sm font-semibold text-white">Sarah Kanyesigye</p>
+              <p class="text-xs text-slate-500">Treasurer, Women Empowerment SACCO</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA ─── -->
+  <section id="contact" class="py-20 lg:py-28 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="gradient-cta rounded-3xl p-8 sm:p-12 lg:p-16 relative overflow-hidden border border-[#17803D]/10">
+        <div class="absolute inset-0 opacity-10">
+          <div class="absolute top-[-50%] left-[-25%] w-[50%] h-[100%] rounded-full bg-[#17803D] blur-[120px]"></div>
+          <div class="absolute bottom-[-50%] right-[-25%] w-[50%] h-[100%] rounded-full bg-[#F59E0B] blur-[120px]"></div>
+        </div>
+        <div class="relative z-10 text-center max-w-3xl mx-auto">
+          <p class="text-sm font-mono tracking-widest text-[#FBBF24] mb-4">GET STARTED</p>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-6">
+            Ready to transform your SACCO?
+          </h2>
+          <p class="text-slate-400 text-lg leading-relaxed mb-10 max-w-2xl mx-auto">
+            Join hundreds of cooperatives already using SaccoOS to streamline operations, 
+            increase member satisfaction, and drive financial inclusion.
+          </p>
+          <div class="flex flex-wrap justify-center gap-4">
+            <a href="#" class="inline-flex items-center gap-2 bg-[#17803D] hover:bg-[#166534] text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 cursor-pointer glow-green text-base">
+              Start Free Trial
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+            <a href="#" class="inline-flex items-center gap-2 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-semibold px-8 py-4 rounded-xl transition-all duration-200 cursor-pointer text-base">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Talk to Sales
+            </a>
+          </div>
+          <p class="text-xs text-slate-600 mt-6">No credit card required • 14-day free trial • Cancel anytime</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer class="border-t border-slate-800/60 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+        <div class="sm:col-span-2 lg:col-span-1">
+          <div class="flex items-center gap-2 mb-4">
+            <svg viewBox="0 0 460 100" fill="none" class="h-8 w-auto">
+              <defs>
+                <linearGradient id="ftIconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#1a3660"/><stop offset="100%" stop-color="#0a1628"/>
+                </linearGradient>
+                <linearGradient id="ftChevBot" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#047857"/><stop offset="100%" stop-color="#10b981"/>
+                </linearGradient>
+                <linearGradient id="ftChevMid" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#34d399"/>
+                </linearGradient>
+                <linearGradient id="ftChevTop" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#a7f3d0"/>
+                </linearGradient>
+                <linearGradient id="ftAmber" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f59e0b"/>
+                </linearGradient>
+              </defs>
+              <g transform="translate(1, 2) scale(1.05)">
+                <polygon points="40,3 72,21 72,59 40,77 8,59 8,21" fill="url(#ftIconBg)"/>
+                <polygon points="40,7 68,23 68,57 40,73 12,57 12,23" stroke="#ffffff" stroke-width="0.75" stroke-opacity="0.12" fill="none"/>
+                <path d="M19 63 L40 49 L61 63" stroke="url(#ftChevBot)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <path d="M21 51 L40 37 L59 51" stroke="url(#ftChevMid)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <path d="M23 39 L40 23 L57 39" stroke="url(#ftChevTop)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <circle cx="40" cy="19" r="6" fill="#f59e0b"/>
+                <circle cx="40" cy="19" r="3.5" fill="#fbbf24"/>
+                <circle cx="38.5" cy="17.5" r="1" fill="#fde68a" opacity="0.7"/>
+              </g>
+              <text x="113" y="58" font-family="'Inter','system-ui',sans-serif" font-size="38" font-weight="800" letter-spacing="-1.5" fill="#ffffff">Sacco</text>
+              <text x="268" y="58" font-family="'Inter','system-ui',sans-serif" font-size="38" font-weight="800" letter-spacing="-1.5" fill="url(#ftAmber)">OS</text>
+            </svg>
+          </div>
+          <p class="text-slate-400 text-sm leading-relaxed max-w-xs">
+            The all-in-one operating system for modern Savings and Credit 
+            Cooperative organizations across Africa.
+          </p>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold text-white mb-4">Product</h4>
+          <ul class="space-y-3">
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Features</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Pricing</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Integrations</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Changelog</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold text-white mb-4">Company</h4>
+          <ul class="space-y-3">
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">About</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Blog</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Careers</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Contact</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-sm font-semibold text-white mb-4">Legal</h4>
+          <ul class="space-y-3">
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Privacy Policy</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Terms of Service</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Cookie Policy</a></li>
+            <li><a href="#" class="text-sm text-slate-400 hover:text-white transition-colors duration-200 cursor-pointer">Data Processing</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-slate-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-slate-600">
+          &copy; 2026 SaccoOS. All rights reserved.
+        </p>
+        <div class="flex items-center gap-4">
+          <a href="#" class="text-slate-500 hover:text-white transition-colors duration-200 cursor-pointer" aria-label="Twitter">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>
+          </a>
+          <a href="#" class="text-slate-500 hover:text-white transition-colors duration-200 cursor-pointer" aria-label="LinkedIn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>
+          </a>
+          <a href="#" class="text-slate-500 hover:text-white transition-colors duration-200 cursor-pointer" aria-label="GitHub">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

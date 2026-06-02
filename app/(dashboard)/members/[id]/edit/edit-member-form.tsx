@@ -4,6 +4,8 @@
 "use client"
 
 import { useActionState, useState, useEffect, useRef } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineEditMember, offlineDeleteMember } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useDropzone } from "react-dropzone"
@@ -135,6 +137,7 @@ function Field({
 
 export function EditMemberForm({ member }: EditMemberFormProps) {
   const router = useRouter()
+  const db = usePowerSync()
   const [photoPreview, setPhotoPreview] = useState(member.photoUrl ?? "")
   const [photoUrl, setPhotoUrl] = useState(member.photoUrl ?? "")
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -207,6 +210,13 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
 
   const handleDelete = async () => {
     setDeleting(true)
+    if (!navigator.onLine) {
+      await offlineDeleteMember(db, member.id).catch(() => {})
+      setDeleting(false)
+      toast.success("Member deleted offline — will sync when connected.")
+      router.push("/members")
+      return
+    }
     const res = await deleteMemberAction(member.id)
     setDeleting(false)
     if (res.success) {
@@ -217,10 +227,31 @@ export function EditMemberForm({ member }: EditMemberFormProps) {
     }
   }
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      offlineEditMember(db, member.id, {
+        full_name:              (fd.get("full_name") as string) || undefined,
+        email:                  (fd.get("email") as string) || null,
+        phone:                  (fd.get("phone") as string) || undefined,
+        national_id:            (fd.get("national_id") as string) || null,
+        date_of_birth:          (fd.get("date_of_birth") as string) || null,
+        address:                (fd.get("address") as string) || null,
+        next_of_kin:            (fd.get("next_of_kin") as string) || null,
+        next_of_kin_phone:      (fd.get("next_of_kin_phone") as string) || null,
+        next_of_kin_relationship: (fd.get("next_of_kin_relationship") as string) || null,
+        next_of_kin_address:    (fd.get("next_of_kin_address") as string) || null,
+        status:                 (fd.get("status") as string) || undefined,
+      }).then(() => { toast.success("Member saved offline — will sync when connected."); router.push("/members") })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
+
   const fieldError = (field: string) => state.fieldErrors?.[field]?.[0]
 
   return (
-    <form action={formAction} className="mx-auto max-w-2xl">
+    <form action={formAction} onSubmit={handleSubmit} className="mx-auto max-w-2xl">
       <input type="hidden" name="photo_url" value={photoUrl} />
       <input
         type="file"

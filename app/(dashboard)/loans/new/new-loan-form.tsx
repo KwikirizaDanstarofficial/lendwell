@@ -3,12 +3,13 @@
 // Handles member selection, loan detail entry, guarantor management,
 // live repayment calculation, and confirmation before server submission.
 "use client"
-import { useQuery } from "@powersync/react"
+import { useQuery, usePowerSync } from "@powersync/react"
 
 import { useActionState, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { addLoanAction, LoanFormState } from "../actions"
+import { offlineAddLoan } from "@/lib/powersync/offline-mutations"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { formatUGX } from "@/lib/utils/format"
 import { Button } from "@/components/ui/button"
@@ -160,10 +161,9 @@ function StatCard({
 
 export function NewLoanForm({ saccoId, members: membersProp = [], interestRates: ratesProp = [] }: NewLoanFormProps) {
   const router = useRouter()
-  const [state, formAction, isPending] = useActionState(
-    addLoanAction,
-    INITIAL_FORM_STATE
-  )
+  const db = usePowerSync()
+  const [state, formAction, isPending] = useActionState(addLoanAction, INITIAL_FORM_STATE)
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
   // Form field state
   const [amount,           setAmount]           = useState("")
@@ -187,15 +187,34 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
   const [isGuarantorDropdownOpen, setIsGuarantorDropdownOpen] = useState(false)
   const [pendingGuarantorId,   setPendingGuarantorId]   = useState("")
 
-  // Redirect on success, show error on failure
   useEffect(() => {
-    if (state.success) {
-      toast.success("Loan application submitted successfully!")
-      router.push("/loans")
-      router.refresh()
-    }
+    if (offlineSuccess) { router.push("/loans"); return }
+    if (state.success) { toast.success("Loan application submitted successfully!"); router.push("/loans"); router.refresh() }
     if (state.error) toast.error(state.error)
-  }, [state, router])
+  }, [state, router, offlineSuccess])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      const member_id = fd.get("member_id") as string
+      const amountVal = Number(fd.get("amount"))
+      const interest_rate = fd.get("interest_rate") as string
+      const interest_type = (fd.get("interest_type") as string) || "monthly"
+      const duration_months = Number(fd.get("duration_months") || 1)
+      if (!member_id || !amountVal || !interest_rate) { toast.error("Member, amount, and interest rate are required."); return }
+      offlineAddLoan(db, saccoId, {
+        member_id, amount: amountVal, interest_rate, interest_type, duration_months,
+        due_date: (fd.get("due_date") as string) || null,
+        notes: (fd.get("notes") as string) || null,
+        expected_received: Number(fd.get("expected_received") || amountVal),
+        daily_payment: Number(fd.get("daily_payment") || 0),
+        monthly_payment: Number(fd.get("monthly_payment") || 0),
+        late_penalty_fee: Number(fd.get("late_penalty_fee") || 0),
+      }).then(() => { toast.success("Loan saved offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   // Filter members for the primary member dropdown
   const filteredMembers = members.filter((member) => {
@@ -255,7 +274,7 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
   const selectedMember = members.find((m) => m.id === selectedMemberId)
 
   return (
-    <form action={formAction} className="mx-auto max-w-2xl">
+    <form action={formAction} onSubmit={handleSubmit} className="mx-auto max-w-2xl">
 
       {/* ── Step 1: Member selection ── */}
       <div className="mb-4 rounded-2xl border border-border bg-card p-6 shadow-sm">

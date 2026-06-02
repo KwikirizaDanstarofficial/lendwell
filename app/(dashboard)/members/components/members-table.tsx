@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState, useCallback } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteMember } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/components/providers/theme-provider"
 import { AgGridReact } from "ag-grid-react"
@@ -226,9 +228,18 @@ export function MembersTable({ members }: { members: Member[] }) {
     [router]
   )
 
+  const db = usePowerSync()
+
   const handleDelete = async () => {
     if (!memberToDelete) return
     setDeleting(true)
+    if (!navigator.onLine) {
+      await offlineDeleteMember(db, memberToDelete.id).catch(() => {})
+      setDeleting(false)
+      setMemberToDelete(null)
+      toast.success("Member deleted offline — will sync when connected.")
+      return
+    }
     const res = await deleteMemberAction(memberToDelete.id)
     setDeleting(false)
     setMemberToDelete(null)

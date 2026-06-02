@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState, useCallback } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineUnlockAccount, offlineDeleteSavingsAccount } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/components/providers/theme-provider"
 import { AgGridReact } from "ag-grid-react"
@@ -178,15 +180,29 @@ export function SavingsTable({
 
   const theme = resolvedTheme === "dark" ? agDarkTheme : agLightTheme
 
+  const db = usePowerSync()
+
   const handleUnlock = useCallback(async (id: string) => {
+    if (!navigator.onLine) {
+      await offlineUnlockAccount(db, id).catch(() => {})
+      toast.success("Account unlocked offline — will sync when connected.")
+      return
+    }
     const res = await unlockAccountAction(id)
     if (res.success) toast.success("Account unlocked")
     else toast.error(res.error)
-  }, [])
+  }, [db])
 
   const handleDelete = async () => {
     if (!deleteAccount) return
     setDeleting(true)
+    if (!navigator.onLine) {
+      await offlineDeleteSavingsAccount(db, deleteAccount.id).catch(() => {})
+      setDeleting(false)
+      toast.success("Account deleted offline — will sync when connected.")
+      setDeleteAccount(null)
+      return
+    }
     const res = await deleteSavingsAccountAction(deleteAccount.id)
     setDeleting(false)
     if (res.success) {

@@ -5,7 +5,9 @@
 
 import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
 import { repayLoanAction, LoanFormState } from "../actions"
+import { offlineRepayLoan } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -53,16 +55,27 @@ export function RepayDialog({
     repayLoanAction,
     INITIAL_FORM_STATE
   )
+  const db = usePowerSync()
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
-  // On success show receipt; on error show toast
   useEffect(() => {
-    if (state.success && state.receipt) {
-      setReceipt(state.receipt)
-      onClose()
-    }
+    if (offlineSuccess) { onClose(); return }
+    if (state.success && state.receipt) { setReceipt(state.receipt); onClose() }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      const amount = Number(fd.get("amount"))
+      if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return }
+      offlineRepayLoan(db, loan.sacco_id ?? "", loan.id, loan.member_id ?? "", amount)
+        .then(() => { toast.success("Repayment saved offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   return (
     <>
@@ -78,7 +91,7 @@ export function RepayDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form action={formAction} className="space-y-4">
+          <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
             <input type="hidden" name="loan_id" value={loan.id} />
 
             {/* Quick-reference payment amounts */}

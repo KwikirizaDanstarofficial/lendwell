@@ -3,9 +3,11 @@
 // Submits via server action; the action sends an SMS notification automatically.
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
 import { addFineAction } from "../actions"
+import { offlineAddFine } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -55,21 +57,48 @@ export function AddFineDialog({
   onClose,
   members,
   categories,
+  saccoId = "",
 }: {
   open:       boolean
   onClose:    () => void
   members:    any[]
   categories: any[]
+  saccoId?:   string
 }) {
+  const db = usePowerSync()
   const [state, formAction, isPending] = useActionState(addFineAction, INITIAL_ACTION_STATE)
+  const [offlineState, setOfflineState] = useState(INITIAL_ACTION_STATE)
+  const effectState = offlineState.success || offlineState.error ? offlineState : state
 
   useEffect(() => {
-    if (state.success) {
-      toast.success("Fine issued successfully! Member notified via SMS.")
+    if (effectState.success) {
+      toast.success(offlineState.success ? "Fine saved offline — will sync when connected." : "Fine issued successfully! Member notified via SMS.")
+      setOfflineState(INITIAL_ACTION_STATE)
       onClose()
     }
-    if (state.error) toast.error(state.error)
-  }, [state, onClose])
+    if (effectState.error) toast.error(effectState.error)
+  }, [effectState, onClose])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      const member_id = fd.get("member_id") as string
+      const amount = Number(fd.get("amount"))
+      const reason = fd.get("reason") as string
+      if (!member_id || !amount || !reason?.trim()) {
+        setOfflineState({ error: "Member, amount, and reason are required." })
+        return
+      }
+      offlineAddFine(db, saccoId, {
+        member_id, amount, reason,
+        category_id: (fd.get("category_id") as string) || null,
+        due_date: (fd.get("due_date") as string) || null,
+        notes: (fd.get("notes") as string) || null,
+      }).then(() => setOfflineState({ success: true }))
+        .catch(() => setOfflineState({ error: "Failed to save offline." }))
+    }
+  }
 
   const fieldError = (field: string) => state.fieldErrors?.[field]?.[0]
 
@@ -86,7 +115,7 @@ export function AddFineDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
           {/* Member */}
           <div className="space-y-1.5">
             <Label>Member *</Label>

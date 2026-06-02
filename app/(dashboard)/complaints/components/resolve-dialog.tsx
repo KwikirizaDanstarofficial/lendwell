@@ -1,7 +1,9 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
+import { offlineResolveComplaint } from "@/lib/powersync/offline-mutations"
 import { resolveComplaintAction } from "../actions"
 import {
   Dialog,
@@ -23,12 +25,12 @@ export function ResolveDialog({
   open: boolean
   onClose: () => void
 }) {
-  const [state, formAction, isPending] = useActionState(
-    resolveComplaintAction,
-    {}
-  )
+  const db = usePowerSync()
+  const [state, formAction, isPending] = useActionState(resolveComplaintAction, {})
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
   useEffect(() => {
+    if (offlineSuccess) { onClose(); return }
     if (state.success) {
       toast.success("Complaint resolved! SMS sent to member.")
       onClose()
@@ -49,7 +51,21 @@ export function ResolveDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form
+          action={formAction}
+          onSubmit={(e) => {
+            if (!navigator.onLine) {
+              e.preventDefault()
+              const fd = new FormData(e.currentTarget)
+              const notes = fd.get("resolution_notes") as string
+              if (!notes?.trim()) { toast.error("Resolution notes are required."); return }
+              offlineResolveComplaint(db, complaint.id, notes)
+                .then(() => { toast.success("Resolved offline — will sync when connected."); setOfflineSuccess(true) })
+                .catch(() => toast.error("Failed to save offline."))
+            }
+          }}
+          className="space-y-4"
+        >
           <input type="hidden" name="id" value={complaint.id} />
 
           <div className="space-y-1.5">

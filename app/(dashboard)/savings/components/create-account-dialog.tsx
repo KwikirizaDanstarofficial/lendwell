@@ -1,8 +1,10 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
 import { createSavingsAccountAction } from "../actions"
+import { offlineCreateSavingsAccount } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -28,24 +30,39 @@ export function CreateAccountDialog({
   onClose,
   members,
   categories,
+  saccoId = "",
 }: {
   open: boolean
   onClose: () => void
   members: any[]
   categories: any[]
+  saccoId?: string
 }) {
-  const [state, formAction, isPending] = useActionState(
-    createSavingsAccountAction,
-    {}
-  )
+  const db = usePowerSync()
+  const [state, formAction, isPending] = useActionState(createSavingsAccountAction, {})
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
   useEffect(() => {
-    if (state.success) {
-      toast.success("Savings account created!")
-      onClose()
-    }
+    if (offlineSuccess) { onClose(); return }
+    if (state.success) { toast.success("Savings account created!"); onClose() }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      const member_id = fd.get("member_id") as string
+      const category_id = fd.get("category_id") as string
+      if (!member_id || !category_id) { toast.error("Member and category are required."); return }
+      offlineCreateSavingsAccount(db, saccoId, {
+        member_id, category_id,
+        account_type: (fd.get("account_type") as string) || "regular",
+        initial_deposit: Number(fd.get("initial_deposit") ?? 0),
+      }).then(() => { toast.success("Account saved offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -60,7 +77,7 @@ export function CreateAccountDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Member *</Label>
             <SearchableSelect

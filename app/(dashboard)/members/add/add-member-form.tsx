@@ -2,9 +2,10 @@
 // 3-step form for creating a new member: photo upload → personal info → next of kin.
 // On success the member gets a welcome SMS and portal login credentials.
 "use client"
-import { useQuery } from "@powersync/react"
+import { useQuery, usePowerSync } from "@powersync/react"
+import { offlineAddMember } from "@/lib/powersync/offline-mutations"
 
-import { useActionState, useState, useRef, useEffect } from "react"
+import { useTransition, useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useDropzone } from "react-dropzone"
@@ -104,13 +105,12 @@ function Field({
 }
 
 export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoId: string; branches?: Branch[] }) {
+  const db = usePowerSync()
   const { data: branchRows = [] } = useQuery("SELECT id, sacco_id, name, code FROM branches WHERE sacco_id = ?", [saccoId])
   const branches = branchesProp.length > 0 ? branchesProp : (branchRows as any[]).map((r) => ({ id: r.id, saccoId: r.sacco_id, name: r.name, code: r.code }))
   const router = useRouter()
-  const [state, formAction, isPending] = useActionState(
-    addMemberAction,
-    INITIAL_FORM_STATE
-  )
+  const [state, setState] = useState<MemberFormState>(INITIAL_FORM_STATE)
+  const [isPending, startTransition] = useTransition()
   const [photoUrl, setPhotoUrl] = useState("")
   const [photoPreview, setPhotoPreview] = useState("")
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -137,7 +137,11 @@ export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoI
 
   useEffect(() => {
     if (state.success) {
-      toast.success("Member added successfully! Welcome SMS sent.")
+      if (state.offlineSaved) {
+        toast.success("Member saved offline — will sync when you reconnect.")
+      } else {
+        toast.success("Member added successfully! Welcome SMS sent.")
+      }
       setUploading(false)
       setUploadProgress(100)
       router.replace("/members")
@@ -189,10 +193,51 @@ export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoI
     },
   })
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    startTransition(async () => {
+      // Offline path: write directly to local PowerSync SQLite
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        try {
+          const full_name = formData.get("full_name") as string
+          if (!full_name?.trim()) {
+            setState({ error: "Full name is required.", fieldErrors: { full_name: ["Full name is required."] } })
+            return
+          }
+          await offlineAddMember(db, saccoId, {
+            full_name: full_name.trim(),
+            email:                    (formData.get("email") as string) || null,
+            phone:                    (formData.get("phone") as string) || "",
+            national_id:              (formData.get("national_id") as string) || null,
+            date_of_birth:            (formData.get("date_of_birth") as string) || null,
+            address:                  (formData.get("address") as string) || null,
+            next_of_kin:              (formData.get("next_of_kin") as string) || null,
+            next_of_kin_phone:        (formData.get("next_of_kin_phone") as string) || null,
+            next_of_kin_relationship: (formData.get("next_of_kin_relationship") as string) || null,
+            next_of_kin_address:      (formData.get("next_of_kin_address") as string) || null,
+            status:                   (formData.get("status") as string) || "active",
+          })
+          setState({ success: true, offlineSaved: true })
+        } catch (err) {
+          setState({ error: "Failed to save offline. Please try again." })
+        }
+        return
+      }
+      // Online path: call server action
+      try {
+        const result = await addMemberAction(state, formData)
+        setState(result)
+      } catch {
+        setState({ error: "Request failed. Check your connection and try again." })
+      }
+    })
+  }
+
   const fieldError = (field: string) => state.fieldErrors?.[field]?.[0]
 
   return (
-    <form ref={formRef} action={formAction} className="mx-auto max-w-2xl">
+    <form ref={formRef} onSubmit={handleSubmit} className="mx-auto max-w-2xl">
       <input type="hidden" name="photo_url" value={photoUrl} />
       <input
         type="file"

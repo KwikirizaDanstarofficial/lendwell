@@ -211,6 +211,7 @@ export function SavingsClient({ saccoId }: SavingsClientProps) {
         onClose={() => setCreateOpen(false)}
         members={members}
         categories={categories}
+        saccoId={saccoId}
       />
     </div>
   )

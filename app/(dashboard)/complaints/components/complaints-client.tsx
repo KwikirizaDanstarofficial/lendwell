@@ -450,6 +450,7 @@ export function ComplaintsClient({ saccoId }: ComplaintsClientProps) {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         members={members}
+        saccoId={saccoId}
       />
     </div>
   )

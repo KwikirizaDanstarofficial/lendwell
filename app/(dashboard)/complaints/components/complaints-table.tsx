@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteComplaint } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import {
   ColumnDef,
@@ -111,6 +113,7 @@ interface ComplaintsTableProps {
 }
 
 export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
+  const db = usePowerSync()
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -376,6 +379,13 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
             <AlertDialogAction
               onClick={async () => {
                 if (complaintToDelete) {
+                  if (!navigator.onLine) {
+                    await offlineDeleteComplaint(db, complaintToDelete).catch(() => {})
+                    toast.success("Complaint deleted offline — will sync when connected.")
+                    setDeleteDialogOpen(false)
+                    setComplaintToDelete(null)
+                    return
+                  }
                   const result = await deleteComplaintAction(complaintToDelete)
                   if (result.success) {
                     toast.success("Complaint deleted successfully")

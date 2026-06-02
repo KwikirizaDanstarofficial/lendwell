@@ -1,7 +1,9 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
+import { offlineAddComplaint } from "@/lib/powersync/offline-mutations"
 import { addComplaintAction, type ComplaintFormState } from "../actions"
 
 type MemberSelect = {
@@ -36,23 +38,39 @@ export function AddComplaintDialog({
   open,
   onClose,
   members,
+  saccoId = "",
 }: {
   open: boolean
   onClose: () => void
   members: MemberSelect[]
+  saccoId?: string
 }) {
-  const [state, formAction, isPending] = useActionState(
-    addComplaintAction,
-    initialState
-  )
+  const db = usePowerSync()
+  const [state, formAction, isPending] = useActionState(addComplaintAction, initialState)
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
   useEffect(() => {
-    if (state.success) {
-      toast.success("Complaint submitted! Member notified via SMS.")
-      onClose()
-    }
+    if (offlineSuccess) { onClose(); return }
+    if (state.success) { toast.success("Complaint submitted! Member notified via SMS."); onClose() }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (!navigator.onLine) {
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
+      const member_id = fd.get("member_id") as string
+      const subject = fd.get("subject") as string
+      const body = fd.get("body") as string
+      if (!member_id || !subject?.trim()) { toast.error("Member and subject are required."); return }
+      offlineAddComplaint(db, saccoId, {
+        member_id, subject, body: body || subject,
+        category: (fd.get("category") as string) || null,
+        priority: (fd.get("priority") as string) || null,
+      }).then(() => { toast.success("Complaint saved offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   const fieldError = (field: string) => state.fieldErrors?.[field]?.[0]
 
@@ -69,7 +87,7 @@ export function AddComplaintDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
           {/* Member */}
           <div className="space-y-1.5">
             <Label>Member (Optional)</Label>

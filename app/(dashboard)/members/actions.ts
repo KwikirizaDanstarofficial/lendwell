@@ -107,6 +107,7 @@ const memberSchema = z.object({
 /** Standard return type for member server actions. */
 export type MemberFormState = {
   success?: boolean
+  offlineSaved?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
 }

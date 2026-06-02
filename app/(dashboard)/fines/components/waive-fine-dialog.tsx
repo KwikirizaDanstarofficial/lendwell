@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
 import { waiveFineAction } from "../actions"
+import { offlineWaiveFine } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -28,12 +30,21 @@ export function WaiveFineDialog({
   const [reason, setReason] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const db = usePowerSync()
+
   const handleWaive = async () => {
     if (!reason.trim()) {
       toast.error("Please provide a reason for waiving")
       return
     }
     setLoading(true)
+    if (!navigator.onLine) {
+      await offlineWaiveFine(db, fine.id).catch(() => {})
+      setLoading(false)
+      toast.success("Fine waived offline — will sync when connected.")
+      onClose()
+      return
+    }
     const res = await waiveFineAction(fine.id, reason)
     setLoading(false)
     if (res.success) {

@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState, useCallback } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteLoan, offlineApproveLoan, offlineDisburseLoan } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/components/providers/theme-provider"
 import { AgGridReact } from "ag-grid-react"
@@ -91,7 +93,7 @@ const DateCell = (p: ICellRendererParams) => (
 )
 
 const LoanActionsCell = (p: ICellRendererParams) => {
-  const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan } = p.context
+  const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db } = p.context
   const loan = p.data
   return (
     <div className="flex items-center h-full">
@@ -115,6 +117,11 @@ const LoanActionsCell = (p: ICellRendererParams) => {
               <DropdownMenuItem
                 className="text-green-600"
                 onClick={async () => {
+                  if (!navigator.onLine) {
+                    await offlineApproveLoan(db, loan.id).catch(() => {})
+                    toast.success("Loan approved offline — will sync when connected.")
+                    return
+                  }
                   const res = await approveLoanAction(loan.id)
                   if (res.success) toast.success("Loan approved & disbursed")
                   else toast.error(res.error)
@@ -131,6 +138,11 @@ const LoanActionsCell = (p: ICellRendererParams) => {
             <DropdownMenuItem
               className="text-purple-600"
               onClick={async () => {
+                if (!navigator.onLine) {
+                  await offlineDisburseLoan(db, loan.id).catch(() => {})
+                  toast.success("Loan disbursed offline — will sync when connected.")
+                  return
+                }
                 const res = await disburseLoanAction(loan.id)
                 if (res.success) toast.success("Loan disbursed")
                 else toast.error(res.error)
@@ -200,14 +212,23 @@ export function LoansTable({ loans }: { loans: any[] }) {
 
   const theme = resolvedTheme === "dark" ? agDarkTheme : agLightTheme
 
+  const db = usePowerSync()
+
   const context = useMemo(
-    () => ({ router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan }),
-    [router]
+    () => ({ router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db }),
+    [router, db]
   )
 
   const handleDeleteLoan = async () => {
     if (!deleteLoan) return
     setDeleting(true)
+    if (!navigator.onLine) {
+      await offlineDeleteLoan(db, deleteLoan.id).catch(() => {})
+      setDeleting(false)
+      setDeleteLoan(null)
+      toast.success("Loan deleted offline — will sync when connected.")
+      return
+    }
     const res = await deleteLoanAction(deleteLoan.id)
     setDeleting(false)
     setDeleteLoan(null)

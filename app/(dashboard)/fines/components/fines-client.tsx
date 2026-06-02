@@ -208,6 +208,7 @@ export function FinesClient({ saccoId }: FinesClientProps) {
         onClose={() => setAddOpen(false)}
         members={members}
         categories={categories}
+        saccoId={saccoId}
       />
     </div>
   )

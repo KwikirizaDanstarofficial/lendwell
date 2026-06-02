@@ -1,6 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { usePowerSync } from "@powersync/react"
+import {
+  offlineUpdateMemberStatus, offlineAddFine,
+  offlineAddLoan, offlineCreateSavingsAccount,
+} from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -193,6 +198,7 @@ export function MemberProfile({
   stats,
 }: MemberProfileProps) {
   const router = useRouter()
+  const db = usePowerSync()
   const [isLoading, setIsLoading] = useState(false)
   const [loadingId, setLoadingId] = useState(false)
   const [loadingForm, setLoadingForm] = useState(false)
@@ -354,6 +360,12 @@ export function MemberProfile({
   ) => {
     setIsLoading(true)
     try {
+      if (!navigator.onLine) {
+        await offlineUpdateMemberStatus(db, member.id, status)
+        toast.success(`Status updated offline — will sync when connected.`)
+        router.refresh()
+        return
+      }
       const result = await updateMemberStatusAction(member.id, status)
       if (result.success) {
         toast.success(`Member status updated to ${status}`)
@@ -361,7 +373,7 @@ export function MemberProfile({
       } else {
         toast.error(result.error || "Failed to update status")
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setIsLoading(false)

@@ -8,11 +8,15 @@ import {
 import { supabase } from "@/lib/supabase/client"
 import { getClientConfig } from "@/lib/client-config"
 
+function opName(op: UpdateType): "PUT" | "PATCH" | "DELETE" {
+  if (op === UpdateType.PUT)    return "PUT"
+  if (op === UpdateType.PATCH)  return "PATCH"
+  return "DELETE"
+}
+
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw new Error("Not authenticated")
     return {
       endpoint: getClientConfig().powersyncUrl,
@@ -25,23 +29,24 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     if (!transaction) return
 
     try {
-      for (const op of transaction.crud) {
-        const { table, opData, op: operation, id } = op
+      const ops = transaction.crud.map(({ table, opData, op, id }) => ({
+        op: opName(op),
+        table,
+        id,
+        opData,
+      }))
 
-        if (operation === UpdateType.PUT) {
-          const { error } = await supabase.from(table).upsert({ id, ...opData })
-          if (error) throw error
-        } else if (operation === UpdateType.PATCH) {
-          const { error } = await supabase
-            .from(table)
-            .update(opData!)
-            .eq("id", id)
-          if (error) throw error
-        } else if (operation === UpdateType.DELETE) {
-          const { error } = await supabase.from(table).delete().eq("id", id)
-          if (error) throw error
-        }
+      const res = await fetch("/api/powersync/upload", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ops }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(`Upload failed: ${body.error ?? res.statusText}`)
       }
+
       await transaction.complete()
     } catch (err) {
       console.error("[PowerSync] Upload failed:", err)

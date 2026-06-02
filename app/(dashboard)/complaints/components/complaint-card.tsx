@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteComplaint, offlineUpdateComplaintStatus } from "@/lib/powersync/offline-mutations"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -46,6 +48,7 @@ import {
 import { type Complaint } from "./complaints-table"
 
 export function ComplaintCard({ complaint }: { complaint: Complaint }) {
+  const db = usePowerSync()
   const [detailOpen, setDetailOpen] = useState(false)
   const [resolveOpen, setResolveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -53,6 +56,13 @@ export function ComplaintCard({ complaint }: { complaint: Complaint }) {
 
   const handleDelete = async () => {
     setDeleting(true)
+    if (!navigator.onLine) {
+      await offlineDeleteComplaint(db, complaint.id).catch(() => {})
+      setDeleting(false)
+      toast.success("Complaint deleted offline — will sync when connected.")
+      setDeleteOpen(false)
+      return
+    }
     const res = await deleteComplaintAction(complaint.id)
     setDeleting(false)
     if (res.success) {
@@ -64,6 +74,11 @@ export function ComplaintCard({ complaint }: { complaint: Complaint }) {
   }
 
   const handleMarkInProgress = async () => {
+    if (!navigator.onLine) {
+      await offlineUpdateComplaintStatus(db, complaint.id, "in_progress").catch(() => {})
+      toast.success("Marked in progress offline — will sync when connected.")
+      return
+    }
     const res = await updateComplaintStatusAction(complaint.id, "in_progress")
     if (res.success) toast.success("Marked as in progress")
     else toast.error(res.error)

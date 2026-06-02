@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteFine } from "@/lib/powersync/offline-mutations"
 import { useTheme } from "@/components/providers/theme-provider"
 import { AgGridReact } from "ag-grid-react"
 import type { ColDef, ICellRendererParams } from "ag-grid-community"
@@ -159,9 +161,18 @@ export function FinesTable({ fines }: { fines: any[] }) {
 
   const theme = resolvedTheme === "dark" ? agDarkTheme : agLightTheme
 
+  const db = usePowerSync()
+
   const handleDelete = async () => {
     if (!deleteFine) return
     setDeleting(true)
+    if (!navigator.onLine) {
+      await offlineDeleteFine(db, deleteFine.id).catch(() => {})
+      setDeleting(false)
+      toast.success("Fine deleted offline — will sync when connected.")
+      setDeleteFine(null)
+      return
+    }
     const res = await deleteFineAction(deleteFine.id)
     setDeleting(false)
     if (res.success) {
