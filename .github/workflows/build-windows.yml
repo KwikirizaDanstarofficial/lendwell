@@ -28,6 +28,19 @@ jobs:
 
       - name: Build Next.js
         run: npm run build
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POWERSYNC_URL: ${{ secrets.POWERSYNC_URL }}
+          APP_URL: ${{ secrets.APP_URL }}
+          SACCO_NAME: ${{ secrets.SACCO_NAME }}
+          COMMS_SDK_USERNAME: ${{ secrets.COMMS_SDK_USERNAME }}
+          COMMS_SDK_API_KEY: ${{ secrets.COMMS_SDK_API_KEY }}
+          EGOSMS_SENDER_ID: ${{ secrets.EGOSMS_SENDER_ID }}
+          FLW_PUBLIC_KEY: ${{ secrets.FLW_PUBLIC_KEY }}
+          FLW_SECRET_KEY: ${{ secrets.FLW_SECRET_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
 
       - name: Compile Electron
         run: npm run electron:compile
