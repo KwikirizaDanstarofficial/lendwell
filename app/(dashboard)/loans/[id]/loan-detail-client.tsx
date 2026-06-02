@@ -216,14 +216,24 @@ function LoanDetailContent({ id }: { id: string }) {
     member_email: loanRow.member_email ?? null,
   }
 
+  // GuarantorsSection expects snake_case keys (full_name, member_code, member_id)
   const allMembers: any[] = (memberRows as any[]).map((r) => ({
-    id: r.id, fullName: r.full_name, memberCode: r.member_code, phone: r.phone,
+    id: r.id, full_name: r.full_name, member_code: r.member_code, phone: r.phone,
   }))
 
   const guarantors = (guarantorRows as any[]).map((r) => ({
-    id: r.id, loanId: r.loan_id, memberId: r.member_id, status: r.status,
-    memberName: r.member_name ?? "", memberCode: r.member_code ?? "",
-    createdAt: r.created_at,
+    id: r.id,
+    member_id: r.member_id,
+    status: r.status,
+    notes: r.notes ?? null,
+    created_at: r.created_at,
+    members: {
+      id: r.member_id,
+      full_name: r.member_name ?? "",
+      member_code: r.member_code ?? "",
+      phone: null,
+      photo_url: null,
+    },
   }))
 
   const schedule =
