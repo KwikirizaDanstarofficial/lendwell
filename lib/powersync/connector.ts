@@ -14,10 +14,34 @@ function opName(op: UpdateType): "PUT" | "PATCH" | "DELETE" {
   return "DELETE"
 }
 
+/** Decode a JWT payload without verifying the signature. */
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    return JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")))
+  } catch {
+    return {}
+  }
+}
+
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw new Error("Not authenticated")
+
+    // Guard: if the JWT doesn't contain a sacco_id root-level claim,
+    // the sync bucket will be empty and PowerSync will DELETE all local data.
+    // Refuse to connect until the Supabase custom_access_token_hook is active
+    // and the user has signed out/in to get a fresh JWT.
+    const payload = decodeJwtPayload(session.access_token)
+    if (!payload.sacco_id) {
+      console.error(
+        "[PowerSync] JWT is missing root-level sacco_id claim.\n" +
+        "Set up the Supabase custom_access_token_hook (see POWERSYNC_JWT_SETUP.md)\n" +
+        "then sign out and back in to get a valid JWT."
+      )
+      throw new Error("JWT missing sacco_id — sync blocked to protect local data. See POWERSYNC_JWT_SETUP.md.")
+    }
+
     return {
       endpoint: getClientConfig().powersyncUrl,
       token: session.access_token,
