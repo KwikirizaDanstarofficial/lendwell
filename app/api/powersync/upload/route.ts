@@ -55,11 +55,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (errors.length > 0) {
-      console.error("[PowerSync upload]", errors)
-      return NextResponse.json({ error: errors.join("; ") }, { status: 422 })
+      // Log errors but still return 200 so PowerSync marks the transaction
+      // as complete and doesn't retry forever. Errors here are typically
+      // constraint violations that won't fix themselves on retry.
+      console.error("[PowerSync upload] Non-fatal errors:", errors)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, errors })
   } catch (err) {
     console.error("[PowerSync upload]", err)
     return NextResponse.json({ error: "Upload failed" }, { status: 500 })

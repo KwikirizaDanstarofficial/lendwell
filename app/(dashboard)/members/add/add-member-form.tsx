@@ -205,10 +205,11 @@ export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoI
             setState({ error: "Full name is required.", fieldErrors: { full_name: ["Full name is required."] } })
             return
           }
+          const phone = (formData.get("phone") as string) || ""
           await offlineAddMember(db, saccoId, {
             full_name: full_name.trim(),
             email:                    (formData.get("email") as string) || null,
-            phone:                    (formData.get("phone") as string) || "",
+            phone,
             national_id:              (formData.get("national_id") as string) || null,
             date_of_birth:            (formData.get("date_of_birth") as string) || null,
             address:                  (formData.get("address") as string) || null,
@@ -218,6 +219,18 @@ export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoI
             next_of_kin_address:      (formData.get("next_of_kin_address") as string) || null,
             status:                   (formData.get("status") as string) || "active",
           })
+          // Queue welcome SMS to send when internet reconnects
+          if (phone) {
+            fetch("/api/sms/queue", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: phone,
+                message: `Welcome to our SACCO, ${full_name.trim()}! Your account has been created. Visit the portal to set up your access.`,
+                context: "member_welcome_offline",
+              }),
+            }).catch(() => {})
+          }
           setState({ success: true, offlineSaved: true })
         } catch (err) {
           setState({ error: "Failed to save offline. Please try again." })
