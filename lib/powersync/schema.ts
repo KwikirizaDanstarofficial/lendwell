@@ -128,6 +128,16 @@ const interest_rates = new Table({
   updated_at: column.text,
 })
 
+const loan_guarantors = new Table({
+  loan_id: column.text,
+  member_id: column.text,
+  sacco_id: column.text,
+  status: column.text,
+  notes: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
 export const AppSchema = new Schema({
   members,
   loans,
@@ -138,6 +148,7 @@ export const AppSchema = new Schema({
   fines,
   fine_categories,
   interest_rates,
+  loan_guarantors,
 })
 
 export type Database = (typeof AppSchema)["types"]

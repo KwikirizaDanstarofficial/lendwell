@@ -176,12 +176,13 @@ function LoanDetailContent({ id }: { id: string }) {
       WHERE l.id = ? LIMIT 1`,
     [id]
   )
-  const { data: guarantorRows = [] } = useQuery(
+  const { data: guarantorRows = [], error: guarantorError } = useQuery(
     `SELECT g.*, m.full_name AS member_name, m.member_code
       FROM loan_guarantors g LEFT JOIN members m ON m.id = g.member_id
       WHERE g.loan_id = ?`,
     [id]
   )
+  if (guarantorError) console.warn("[LoanDetail] loan_guarantors not yet synced:", guarantorError)
   const { data: memberRows = [] } = useQuery(
     "SELECT id, full_name, member_code, phone FROM members LIMIT 1000"
   )

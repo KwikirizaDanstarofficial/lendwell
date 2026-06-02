@@ -42,4 +42,8 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     "id","sacco_id","min_amount","max_amount","rate","rate_type",
     "is_active","created_at","updated_at",
   ],
+  loan_guarantors: [
+    "id","loan_id","member_id","sacco_id","status","notes",
+    "created_at","updated_at",
+  ],
 }
