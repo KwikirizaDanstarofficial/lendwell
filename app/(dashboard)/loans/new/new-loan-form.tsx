@@ -8,7 +8,7 @@ import { useQuery, usePowerSync } from "@powersync/react"
 import { useActionState, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { addLoanAction, LoanFormState } from "../actions"
+import { addLoanAction, getActiveInterestRatesAction, LoanFormState } from "../actions"
 import { offlineAddLoan } from "@/lib/powersync/offline-mutations"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { formatUGX } from "@/lib/utils/format"
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Loader2, ArrowLeft, Search, Plus, X } from "lucide-react"
 import Link from "next/link"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,9 @@ const DROPDOWN_MAX_HEIGHT = "max-h-64"
 
 /** Multiplier to convert displayed UGX amounts to stored cents. */
 const CENTS_PER_UNIT = 100
+
+/** Format a raw UGX amount (interest rate ranges are stored in UGX, not cents). */
+const fmtUGX = (ugx: number) => `UGX ${Math.round(ugx).toLocaleString("en-UG")}`
 
 // ─── Initial state ────────────────────────────────────────────────────────────
 
@@ -170,8 +174,33 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
   const [durationMonths,   setDurationMonths]   = useState(DEFAULT_DURATION_MONTHS)
   const { data: memberRows = [] } = useQuery("SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC", [saccoId])
   const { data: rateRows = [] } = useQuery("SELECT id, min_amount, max_amount, rate, rate_type FROM interest_rates WHERE sacco_id = ? AND is_active = 1", [saccoId])
+
+  // Fetched from the server action when both page-props and local DB rates are empty.
+  const [fetchedRates, setFetchedRates] = useState<any[]>([])
+
+  const localRatesMapped = (rateRows as any[]).map((r) => ({
+    id: r.id, minAmount: Number(r.min_amount), maxAmount: Number(r.max_amount),
+    rate: r.rate, rateType: r.rate_type,
+  }))
+
+  // Priority: server-side props (online) → PowerSync local DB → server action fetch
+  const interestRates =
+    ratesProp.length      > 0 ? ratesProp :
+    localRatesMapped.length > 0 ? localRatesMapped :
+    fetchedRates
+
+  // When no rates are available from props or local DB, try fetching from server.
+  useEffect(() => {
+    if (ratesProp.length === 0 && (rateRows as any[]).length === 0) {
+      getActiveInterestRatesAction().then(setFetchedRates).catch((err) => {
+        console.error("[LoanForm] Failed to fetch interest rates:", err)
+        toast.error("Could not load interest rates from server.")
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratesProp.length, (rateRows as any[]).length])
+
   const members = membersProp.length > 0 ? membersProp : (memberRows as any[]).map((r) => ({ id: r.id, full_name: r.full_name, member_code: r.member_code, phone: r.phone ?? null }))
-  const interestRates = ratesProp.length > 0 ? ratesProp : (rateRows as any[]).map((r) => ({ id: r.id, minAmount: Number(r.min_amount), maxAmount: Number(r.max_amount), rate: r.rate, rateType: r.rate_type }))
   const [selectedMemberId, setSelectedMemberId] = useState("")
   const [dueDate,          setDueDate]          = useState("")
   const [notes,            setNotes]            = useState("")
@@ -190,11 +219,35 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
   useEffect(() => {
     if (offlineSuccess) { router.push("/loans"); return }
     if (state.success) { toast.success("Loan application submitted successfully!"); router.push("/loans"); router.refresh() }
-    if (state.error) toast.error(state.error)
-  }, [state, router, offlineSuccess])
+    if (state.offline) {
+      // Server couldn't reach Supabase — save to local SQLite
+      // DB stores amounts in cents; amountVal is raw UGX — multiply by 100
+      const fd = new FormData(document.querySelector("form") as HTMLFormElement)
+      const member_id = fd.get("member_id") as string
+      const amountVal = Number(fd.get("amount"))
+      const amountCents = Math.round(amountVal * 100)
+      const interest_rate = (fd.get("interest_rate") as string) || "0"
+      const interest_type = (fd.get("interest_type") as string) || "monthly"
+      const duration_months = Number(fd.get("duration_months") || 1)
+      if (member_id && amountVal) {
+        offlineAddLoan(db, saccoId, {
+          member_id, amount: amountCents, interest_rate, interest_type, duration_months,
+          due_date: (fd.get("due_date") as string) || null,
+          notes: (fd.get("notes") as string) || null,
+          expected_received: Number(fd.get("expected_received") || amountCents),
+          daily_payment: Number(fd.get("daily_payment") || 0),
+          monthly_payment: Number(fd.get("monthly_payment") || 0),
+          late_penalty_fee: Number(fd.get("late_penalty_fee") || 0),
+        }).then(() => { toast.success("Loan saved offline — will sync when reconnected"); setOfflineSuccess(true) })
+          .catch(() => toast.error("Failed to save offline"))
+      }
+    } else if (state.error) {
+      toast.error(state.error)
+    }
+  }, [state, router, offlineSuccess, db, saccoId])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       e.preventDefault()
       const fd = new FormData(e.currentTarget)
       const member_id = fd.get("member_id") as string
@@ -203,11 +256,13 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
       const interest_type = (fd.get("interest_type") as string) || "monthly"
       const duration_months = Number(fd.get("duration_months") || 1)
       if (!member_id || !amountVal || !interest_rate) { toast.error("Member, amount, and interest rate are required."); return }
+      // DB stores amounts in cents; amountVal is raw UGX — multiply by 100
+      const amountCents = Math.round(amountVal * 100)
       offlineAddLoan(db, saccoId, {
-        member_id, amount: amountVal, interest_rate, interest_type, duration_months,
+        member_id, amount: amountCents, interest_rate, interest_type, duration_months,
         due_date: (fd.get("due_date") as string) || null,
         notes: (fd.get("notes") as string) || null,
-        expected_received: Number(fd.get("expected_received") || amountVal),
+        expected_received: Number(fd.get("expected_received") || amountCents),
         daily_payment: Number(fd.get("daily_payment") || 0),
         monthly_payment: Number(fd.get("monthly_payment") || 0),
         late_penalty_fee: Number(fd.get("late_penalty_fee") || 0),
@@ -240,19 +295,20 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
     )
   })
 
-  // Look up the interest rate tier that covers the entered amount
+  // Look up the interest rate tier that covers the entered amount.
+  // Interest rate ranges are stored as raw UGX (no cents conversion).
   const getInterestInfo = () => {
     if (!amount || Number(amount) <= 0) return null
-    const amountCents = Number(amount) * CENTS_PER_UNIT
+    const amountUGX = Number(amount)
     const matchingRate = interestRates.find(
-      (rate) => amountCents >= rate.minAmount && amountCents <= rate.maxAmount
+      (rate) => amountUGX >= rate.minAmount && amountUGX <= rate.maxAmount
     )
     if (!matchingRate) return null
     return {
       rate:      Number(matchingRate.rate),
       rateType:  matchingRate.rateType,
-      minAmount: matchingRate.minAmount / CENTS_PER_UNIT,
-      maxAmount: matchingRate.maxAmount / CENTS_PER_UNIT,
+      minAmount: matchingRate.minAmount,
+      maxAmount: matchingRate.maxAmount,
     }
   }
 
@@ -355,7 +411,7 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
             label="Loan Amount (UGX)"
             required
             error={
-              !isAmountValid && amount
+              !isAmountValid && amount && interestRates.length > 0
                 ? "Amount must be within a valid interest rate range"
                 : fieldError("amount")
             }
@@ -363,8 +419,8 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
               isAmountValid && interestInfo
                 ? `Rate: ${interestInfo.rate}% ${interestInfo.rateType}`
                 : interestRates.length > 0
-                  ? `Min: ${formatUGX(interestRates[0].min_amount / CENTS_PER_UNIT)}`
-                  : undefined
+                  ? `Range: ${fmtUGX(interestRates[0].minAmount)} – ${fmtUGX(interestRates[interestRates.length - 1].maxAmount)}`
+                  : "No interest rates loaded — sync required"
             }
           >
             <Input
@@ -512,7 +568,7 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
           <SectionHeader
             step={4}
             title="Calculation Summary"
-            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${formatUGX(interestInfo.minAmount)} – ${formatUGX(interestInfo.maxAmount)}.`}
+            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${fmtUGX(interestInfo.minAmount)} – ${fmtUGX(interestInfo.maxAmount)}.`}
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard label="Principal"      value={formatUGX(calculation.principal)} />
@@ -589,12 +645,18 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
       </div>
 
       {/* Hidden fields carry form state to the server action */}
-      <input type="hidden" name="member_id"       value={selectedMemberId} />
-      <input type="hidden" name="amount"           value={amount} />
-      <input type="hidden" name="duration_months"  value={durationMonths} />
-      <input type="hidden" name="due_date"         value={dueDate} />
-      <input type="hidden" name="notes"            value={notes} />
-      <input type="hidden" name="guarantor_ids"    value={JSON.stringify(guarantors.map((g) => g.id))} />
+      <input type="hidden" name="member_id"        value={selectedMemberId} />
+      <input type="hidden" name="amount"            value={amount} />
+      <input type="hidden" name="duration_months"   value={durationMonths} />
+      <input type="hidden" name="due_date"          value={dueDate} />
+      <input type="hidden" name="notes"             value={notes} />
+      <input type="hidden" name="guarantor_ids"     value={JSON.stringify(guarantors.map((g) => g.id))} />
+      <input type="hidden" name="interest_rate"     value={interestInfo?.rate?.toString() ?? ""} />
+      <input type="hidden" name="interest_type"     value={interestInfo?.rateType ?? "monthly"} />
+      <input type="hidden" name="expected_received" value={calculation?.totalExpectedReceived?.toString() ?? ""} />
+      <input type="hidden" name="daily_payment"     value={calculation?.dailyPayment?.toString() ?? "0"} />
+      <input type="hidden" name="monthly_payment"   value={calculation?.monthlyPayment?.toString() ?? "0"} />
+      <input type="hidden" name="late_penalty_fee"  value={calculation?.latePenaltyFee?.toString() ?? "0"} />
     </form>
   )
 }

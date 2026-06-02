@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useMemo, useState, useCallback } from "react"
 import { usePowerSync } from "@powersync/react"
@@ -36,6 +37,7 @@ import { WithdrawDialog } from "./withdraw-dialog"
 import { LockDialog } from "./lock-dialog"
 import { TrimLoanDialog } from "./trim-loan-dialog"
 import { AccountDetailDialog } from "./account-detail-dialog"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ── Cell Renderers ─────────────────────────────────────────────────────────
 
@@ -183,7 +185,7 @@ export function SavingsTable({
   const db = usePowerSync()
 
   const handleUnlock = useCallback(async (id: string) => {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineUnlockAccount(db, id).catch(() => {})
       toast.success("Account unlocked offline — will sync when connected.")
       return
@@ -196,7 +198,7 @@ export function SavingsTable({
   const handleDelete = async () => {
     if (!deleteAccount) return
     setDeleting(true)
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineDeleteSavingsAccount(db, deleteAccount.id).catch(() => {})
       setDeleting(false)
       toast.success("Account deleted offline — will sync when connected.")

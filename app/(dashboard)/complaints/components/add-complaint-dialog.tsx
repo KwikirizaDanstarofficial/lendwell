@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/select"
 import { Loader2, MessageSquare } from "lucide-react"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { isOffline } from "@/lib/utils/is-offline"
 
 const initialState: ComplaintFormState = {}
 
@@ -56,7 +58,7 @@ export function AddComplaintDialog({
   }, [state, onClose, offlineSuccess])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       e.preventDefault()
       const fd = new FormData(e.currentTarget)
       const member_id = fd.get("member_id") as string

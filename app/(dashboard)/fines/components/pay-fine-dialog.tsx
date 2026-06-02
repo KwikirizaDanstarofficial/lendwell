@@ -1,8 +1,10 @@
 "use client"
 
-import { useActionState, useEffect, useState } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
 import { markFinePaidAction } from "../actions"
+import { offlineMarkFinePaid } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -24,6 +26,7 @@ import { formatUGX } from "@/lib/utils/format"
 import { Loader2, CheckCircle } from "lucide-react"
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog"
 import type { ReceiptData } from "@/types/receipt"
+import { isOffline } from "@/lib/utils/is-offline"
 
 export function PayFineDialog({
   fine,
@@ -34,16 +37,34 @@ export function PayFineDialog({
   open: boolean
   onClose: () => void
 }) {
-  const [state, formAction, isPending] = useActionState(markFinePaidAction, {} as { success?: boolean; error?: string; receipt?: ReceiptData })
+  const db = usePowerSync()
+  const [state, formAction, isPending] = useActionState(markFinePaidAction, {} as { success?: boolean; error?: string; offline?: boolean; receipt?: ReceiptData })
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
+  const lastMethodRef = useRef<string>("cash")
 
   useEffect(() => {
-    if (state.success && state.receipt) {
-      setReceipt(state.receipt)
-      onClose()
+    if (offlineSuccess) { onClose(); return }
+    if (state.offline) {
+      offlineMarkFinePaid(db, fine.id, lastMethodRef.current)
+        .then(() => { toast.success("Fine marked as paid offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+      return
     }
+    if (state.success && state.receipt) { setReceipt(state.receipt); onClose() }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess, db, fine])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const fd = new FormData(e.currentTarget)
+    lastMethodRef.current = (fd.get("payment_method") as string) || "cash"
+    if (isOffline()) {
+      e.preventDefault()
+      offlineMarkFinePaid(db, fine.id, lastMethodRef.current)
+        .then(() => { toast.success("Fine marked as paid offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   return (
     <>
@@ -62,7 +83,7 @@ export function PayFineDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form action={formAction} className="space-y-4">
+          <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
             <input type="hidden" name="fine_id" value={fine.id} />
 
             <div className="space-y-1.5">

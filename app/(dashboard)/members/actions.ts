@@ -108,6 +108,7 @@ const memberSchema = z.object({
 export type MemberFormState = {
   success?: boolean
   offlineSaved?: boolean
+  offline?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
 }
@@ -304,7 +305,7 @@ export async function addMemberAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to add member. Please try again." }
   }
 }
@@ -419,7 +420,7 @@ export async function editMemberAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to update member. Please try again." }
   }
 }
@@ -531,7 +532,7 @@ export async function deleteMemberAction(id: string): Promise<MemberFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to delete member." }
   }
 }
@@ -602,7 +603,7 @@ export async function updateMemberStatusAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to update member status." }
   }
 }
@@ -669,7 +670,7 @@ export async function sendMemberSmsAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to send SMS." }
   }
 }
@@ -922,7 +923,7 @@ export async function assignLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to assign loan." }
   }
 }
@@ -1055,7 +1056,7 @@ export async function addSavingsAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to add savings." }
   }
 }
@@ -1174,7 +1175,7 @@ export async function importMembersAction(
     }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to import members." }
   }
 }

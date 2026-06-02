@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useMemo, useState, useCallback } from "react"
 import { usePowerSync } from "@powersync/react"
@@ -45,6 +46,7 @@ import { RepayDialog } from "./repay-dialog"
 import { DeclineDialog } from "./decline-dialog"
 import { TopUpDialog } from "./top-up-dialog"
 import { LoanPdfButton } from "./loan-pdf-button"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ── Status badge helper ────────────────────────────────────────────────────
 
@@ -117,14 +119,17 @@ const LoanActionsCell = (p: ICellRendererParams) => {
               <DropdownMenuItem
                 className="text-green-600"
                 onClick={async () => {
-                  if (!navigator.onLine) {
+                  if (isOffline()) {
                     await offlineApproveLoan(db, loan.id).catch(() => {})
                     toast.success("Loan approved offline — will sync when connected.")
                     return
                   }
                   const res = await approveLoanAction(loan.id)
                   if (res.success) toast.success("Loan approved & disbursed")
-                  else toast.error(res.error)
+                  else if (res.offline) {
+                    await offlineApproveLoan(db, loan.id).catch(() => {})
+                    toast.success("Loan approved offline — will sync when connected.")
+                  } else toast.error(res.error)
                 }}
               >
                 <CheckCircle className="mr-2 h-4 w-4" /> Approve & Disburse
@@ -138,7 +143,7 @@ const LoanActionsCell = (p: ICellRendererParams) => {
             <DropdownMenuItem
               className="text-purple-600"
               onClick={async () => {
-                if (!navigator.onLine) {
+                if (isOffline()) {
                   await offlineDisburseLoan(db, loan.id).catch(() => {})
                   toast.success("Loan disbursed offline — will sync when connected.")
                   return
@@ -222,7 +227,7 @@ export function LoansTable({ loans }: { loans: any[] }) {
   const handleDeleteLoan = async () => {
     if (!deleteLoan) return
     setDeleting(true)
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineDeleteLoan(db, deleteLoan.id).catch(() => {})
       setDeleting(false)
       setDeleteLoan(null)

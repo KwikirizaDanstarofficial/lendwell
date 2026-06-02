@@ -15,6 +15,7 @@ import { z } from "zod"
 import type { ReceiptData } from "@/types/receipt"
 
 export type FineFormState = {
+  offline?: boolean
   success?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
@@ -141,7 +142,7 @@ export async function addFineAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to add fine." }
   }
 }
@@ -261,7 +262,7 @@ export async function markFinePaidAction(
     }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to mark fine as paid." }
   }
 }
@@ -324,7 +325,7 @@ export async function waiveFineAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to waive fine." }
   }
 }
@@ -359,7 +360,7 @@ export async function deleteFineAction(id: string): Promise<FineFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to delete fine." }
   }
 }

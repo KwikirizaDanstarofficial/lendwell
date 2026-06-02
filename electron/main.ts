@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from "electron"
+import { app, BrowserWindow, dialog, shell, ipcMain, net as electronNet } from "electron"
 import path from "path"
 import { createServer } from "http"
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs"
@@ -46,6 +46,23 @@ function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Find the first free TCP port starting from `start`
+// ---------------------------------------------------------------------------
+function findFreePort(start: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = require("net").createServer()
+    server.listen(start, "127.0.0.1", () => {
+      const { port } = server.address() as net.AddressInfo
+      server.close(() => resolve(port))
+    })
+    server.on("error", () => {
+      // Port is in use — try the next one
+      findFreePort(start + 1).then(resolve).catch(reject)
+    })
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Wait until a TCP port accepts connections
 // ---------------------------------------------------------------------------
 function waitForPort(port: number, timeoutMs = 30_000): Promise<void> {
@@ -70,8 +87,9 @@ function waitForPort(port: number, timeoutMs = 30_000): Promise<void> {
 // ---------------------------------------------------------------------------
 // Start the Next.js standalone server in production
 // ---------------------------------------------------------------------------
+let activePort = PORT
+
 async function startNextServer(): Promise<void> {
-  // Standalone build outputs a self-contained server.js
   const serverScript = path.join(
     process.resourcesPath,
     "nextapp",
@@ -87,7 +105,10 @@ async function startNextServer(): Promise<void> {
     return
   }
 
-  process.env.PORT = String(PORT)
+  // Pick a free port so we never crash with EADDRINUSE
+  activePort = await findFreePort(PORT)
+
+  process.env.PORT = String(activePort)
   process.env.HOSTNAME = "127.0.0.1"
 
   // Next.js standalone server.js resolves files relative to cwd
@@ -96,7 +117,7 @@ async function startNextServer(): Promise<void> {
   // Run server.js in the same Node.js process (Electron main == Node.js)
   require(serverScript)
 
-  await waitForPort(PORT)
+  await waitForPort(activePort)
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +148,7 @@ function createWindow(): BrowserWindow {
   // In dev, Next.js dev server is already running on 3000
   const url = isDev
     ? "http://localhost:3000"
-    : `http://127.0.0.1:${PORT}`
+    : `http://127.0.0.1:${activePort}`
 
   win.loadURL(url)
 
@@ -145,6 +166,11 @@ function createWindow(): BrowserWindow {
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
+// Renderer asks main process for OS-level connectivity (electronNet is main-process-only).
+ipcMain.on("net:is-online", (event) => {
+  try { event.returnValue = electronNet.isOnline() } catch { event.returnValue = true }
+})
+
 app.whenReady().then(async () => {
   loadEnv()
 

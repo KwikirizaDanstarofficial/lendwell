@@ -1,8 +1,9 @@
 // app/(dashboard)/loans/components/top-up-dialog.tsx
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { usePowerSync } from "@powersync/react"
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,9 @@ import { formatUGX } from "@/lib/utils/format"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { topUpLoanAction, LoanFormState } from "../actions"
+import { offlineTopUpLoan } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
+
 type Loan = {
   id: string
   saccoId: string
@@ -59,18 +63,48 @@ interface TopUpDialogProps {
 const initialState: LoanFormState = {}
 
 export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
+  const db = usePowerSync()
   const [state, formAction, isPending] = useActionState(
     topUpLoanAction,
     initialState
   )
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
+  const lastSubmitRef = useRef<{ amount: number; reason?: string } | null>(null)
 
   useEffect(() => {
+    if (offlineSuccess) { onClose(); return }
     if (state.success) {
       toast.success("Top up recorded successfully!")
       onClose()
     }
+    if (state.offline) {
+      // lastSubmitRef.current.amount is raw UGX; DB stores cents — multiply by 100
+      const { amount = 0, reason } = lastSubmitRef.current ?? {}
+      if (amount > 0 && loan) {
+        offlineTopUpLoan(db, loan.saccoId, loan.id, loan.memberId, Math.round(amount * 100), reason)
+          .then(() => { toast.success("Top-up saved offline — will sync when connected."); setOfflineSuccess(true) })
+          .catch(() => toast.error("Failed to save offline."))
+      }
+      return
+    }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess, db, loan])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const fd = new FormData(e.currentTarget)
+    const amount = Number(fd.get("amount"))
+    const reason = (fd.get("reason") as string) || undefined
+    lastSubmitRef.current = { amount, reason }
+    if (isOffline()) {
+      e.preventDefault()
+      if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return }
+      if (!loan) return
+      // DB stores amounts in cents; user enters UGX — multiply by 100
+      offlineTopUpLoan(db, loan.saccoId, loan.id, loan.memberId, Math.round(amount * 100), reason)
+        .then(() => { toast.success("Top-up saved offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   if (!loan) return null
 
@@ -87,7 +121,7 @@ export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="loan_id" value={loan.id} />
 
           <div className="grid grid-cols-3 gap-3 text-center text-sm">

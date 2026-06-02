@@ -13,6 +13,16 @@ function uuid() { return crypto.randomUUID() }
 
 // ─── Members ─────────────────────────────────────────────────────────────────
 
+const MEMBER_CODE_PREFIX = "MBR"
+const SACCO_SHORT_ID_LENGTH = 4
+const SEQUENCE_PAD_WIDTH = 5
+
+function buildCodePrefix(saccoId: string): string {
+  const year = new Date().getFullYear()
+  const saccoShort = saccoId.slice(0, SACCO_SHORT_ID_LENGTH).toUpperCase()
+  return `${MEMBER_CODE_PREFIX}-${year}-${saccoShort}-`
+}
+
 export async function offlineAddMember(
   db: AbstractPowerSyncDatabase,
   saccoId: string,
@@ -31,12 +41,18 @@ export async function offlineAddMember(
   }
 ): Promise<string> {
   const id = uuid()
+  const prefix = buildCodePrefix(saccoId)
   const result = await db.execute(
-    "SELECT COUNT(*) as count FROM members WHERE sacco_id = ?",
-    [saccoId]
+    "SELECT member_code FROM members WHERE sacco_id = ? AND member_code LIKE ? ORDER BY member_code DESC LIMIT 1",
+    [saccoId, `${prefix}%`]
   )
-  const count = Number((result.rows?.item(0) as any)?.count ?? 0)
-  const member_code = `M${String(count + 1).padStart(4, "0")}`
+  let nextSeq = 1
+  const row = result.rows?.item(0) as any
+  if (row?.member_code) {
+    const lastSeq = parseInt(row.member_code.slice(prefix.length), 10) || 0
+    nextSeq = lastSeq + 1
+  }
+  const member_code = `${prefix}${String(nextSeq).padStart(SEQUENCE_PAD_WIDTH, "0")}`
   const ts = now()
 
   await db.execute(
@@ -125,12 +141,7 @@ export async function offlineAddLoan(
   }
 ): Promise<string> {
   const id = uuid()
-  const result = await db.execute(
-    "SELECT COUNT(*) as count FROM loans WHERE sacco_id = ?",
-    [saccoId]
-  )
-  const count = Number((result.rows?.item(0) as any)?.count ?? 0)
-  const loan_ref = `LN${String(count + 1).padStart(5, "0")}`
+  const loan_ref = `LN-${Date.now()}`
   const ts = now()
 
   await db.execute(
@@ -198,6 +209,33 @@ export async function offlineDeleteLoan(
   await db.execute("DELETE FROM loans WHERE id = ?", [id])
 }
 
+export async function offlineTopUpLoan(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  loanId: string,
+  memberId: string,
+  amount: number,
+  reason?: string
+): Promise<void> {
+  const ts = now()
+  await db.execute(
+    "UPDATE loans SET balance = balance + ?, updated_at = ? WHERE id = ?",
+    [amount, ts, loanId]
+  )
+  const result = await db.execute(
+    "SELECT balance FROM loans WHERE id = ?", [loanId]
+  )
+  const newBalance = Number((result.rows?.item(0) as any)?.balance ?? 0)
+  await db.execute(
+    `INSERT INTO transactions
+       (id, sacco_id, member_id, type, amount, balance_after, reference_id,
+        narration, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [uuid(), saccoId, memberId, "loan_disbursement", amount, newBalance, loanId,
+     `Loan top-up${reason ? ` - ${reason}` : ""}`, ts]
+  )
+}
+
 // ─── Savings ─────────────────────────────────────────────────────────────────
 
 export async function offlineCreateSavingsAccount(
@@ -205,27 +243,22 @@ export async function offlineCreateSavingsAccount(
   saccoId: string,
   data: {
     member_id: string
-    category_id: string
+    category_id: string | null
     account_type?: string
     initial_deposit?: number
   }
 ): Promise<string> {
   const id = uuid()
-  const result = await db.execute(
-    "SELECT COUNT(*) as count FROM savings_accounts WHERE sacco_id = ?",
-    [saccoId]
-  )
-  const count = Number((result.rows?.item(0) as any)?.count ?? 0)
-  const account_number = `SAV${String(count + 1).padStart(5, "0")}`
+  const account_number = `SAV-${Date.now()}`
   const ts = now()
-  const initial = data.initial_deposit ?? 0
+  const initial = (data.initial_deposit ?? 0) * 100
 
   await db.execute(
     `INSERT INTO savings_accounts
        (id, sacco_id, member_id, category_id, account_number, balance,
         account_type, is_locked, created_at, updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [id, saccoId, data.member_id, data.category_id, account_number,
+    [id, saccoId, data.member_id, data.category_id || null, account_number,
      initial, data.account_type ?? "regular", 0, ts, ts]
   )
 
@@ -359,6 +392,47 @@ export async function offlineDeleteFine(
   await db.execute("DELETE FROM fines WHERE id = ?", [id])
 }
 
+export async function offlineTrimToLoan(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  accountId: string,
+  memberId: string,
+  loanId: string,
+  amount: number
+): Promise<void> {
+  const ts = now()
+  await db.execute(
+    "UPDATE savings_accounts SET balance = MAX(0, balance - ?), updated_at = ? WHERE id = ?",
+    [amount, ts, accountId]
+  )
+  const savingsResult = await db.execute(
+    "SELECT balance FROM savings_accounts WHERE id = ?", [accountId]
+  )
+  const newSavingsBalance = Number((savingsResult.rows?.item(0) as any)?.balance ?? 0)
+  await db.execute(
+    "UPDATE loans SET balance = MAX(0, balance - ?), updated_at = ? WHERE id = ?",
+    [amount, ts, loanId]
+  )
+  const loanResult = await db.execute(
+    "SELECT balance FROM loans WHERE id = ?", [loanId]
+  )
+  const newLoanBalance = Number((loanResult.rows?.item(0) as any)?.balance ?? 0)
+  if (newLoanBalance === 0) {
+    await db.execute(
+      "UPDATE loans SET status = 'settled', settled_at = ?, updated_at = ? WHERE id = ?",
+      [ts, ts, loanId]
+    )
+  }
+  await db.execute(
+    `INSERT INTO transactions
+       (id, sacco_id, member_id, type, amount, balance_after, reference_id,
+        narration, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [uuid(), saccoId, memberId, "loan_repayment", amount, newSavingsBalance, loanId,
+     "Loan repayment from savings", ts]
+  )
+}
+
 // ─── Savings account management ──────────────────────────────────────────────
 
 export async function offlineLockAccount(
@@ -470,5 +544,16 @@ export async function offlineDisburseLoan(
   await db.execute(
     "UPDATE loans SET status = 'active', disbursed_at = ?, updated_at = ? WHERE id = ?",
     [now(), now(), id]
+  )
+}
+
+export async function offlineDeclineLoan(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  reason: string
+): Promise<void> {
+  await db.execute(
+    "UPDATE loans SET status = 'declined', decline_reason = ?, updated_at = ? WHERE id = ?",
+    [reason, now(), id]
   )
 }

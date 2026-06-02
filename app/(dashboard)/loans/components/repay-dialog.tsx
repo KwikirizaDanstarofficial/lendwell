@@ -1,3 +1,4 @@
+"use client"
 // app/(dashboard)/loans/components/repay-dialog.tsx
 // Dialog for recording a loan repayment instalment.
 // Submits via server action and shows a receipt on success.
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/select"
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog"
 import type { ReceiptData } from "@/types/receipt"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,12 +68,13 @@ export function RepayDialog({
   }, [state, onClose, offlineSuccess])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       e.preventDefault()
       const fd = new FormData(e.currentTarget)
       const amount = Number(fd.get("amount"))
       if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return }
-      offlineRepayLoan(db, loan.sacco_id ?? "", loan.id, loan.member_id ?? "", amount)
+      // DB stores amounts in cents; user enters UGX — multiply by 100
+      offlineRepayLoan(db, loan.sacco_id ?? "", loan.id, loan.member_id ?? "", Math.round(amount * 100))
         .then(() => { toast.success("Repayment saved offline — will sync when connected."); setOfflineSuccess(true) })
         .catch(() => toast.error("Failed to save offline."))
     }

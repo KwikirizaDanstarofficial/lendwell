@@ -1,10 +1,12 @@
 "use client"
+"use client"
 
 import { useState } from "react"
 import { usePowerSync } from "@powersync/react"
 import {
   offlineUpdateMemberStatus, offlineAddFine,
   offlineAddLoan, offlineCreateSavingsAccount,
+  offlineDeposit, offlineTopUpLoan,
 } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -172,6 +174,7 @@ import { MemberIdCardDocument } from "@/lib/pdf/member-id-card"
 import { ApplicationFormDocument } from "@/lib/pdf/application-form"
 import { MemberTransactionsDocument } from "@/lib/pdf/member-transactions"
 import { MemberProfileDocument } from "@/lib/pdf/member-profile-document"
+import { isOffline } from "@/lib/utils/is-offline"
 
 interface MemberProfileProps {
   member: Member
@@ -360,7 +363,7 @@ export function MemberProfile({
   ) => {
     setIsLoading(true)
     try {
-      if (!navigator.onLine) {
+      if (isOffline()) {
         await offlineUpdateMemberStatus(db, member.id, status)
         toast.success(`Status updated offline — will sync when connected.`)
         router.refresh()
@@ -409,6 +412,25 @@ export function MemberProfile({
     }
     setIsLoading(true)
     try {
+      // Offline path: write directly to local SQLite (amounts in cents)
+      if (isOffline()) {
+        await offlineAddLoan(db, member.saccoId, {
+          member_id: member.id,
+          amount: Math.round(Number(loanAmount) * 100),
+          interest_rate: loanInterestRate,
+          interest_type: "monthly",
+          duration_months: 12,
+          due_date: loanDueDate,
+          notes: loanPurpose || null,
+        })
+        toast.success("Loan saved offline — will sync when connected.")
+        setShowLoanDialog(false)
+        setLoanAmount("")
+        setLoanInterestRate("")
+        setLoanDueDate("")
+        setLoanPurpose("")
+        return
+      }
       const formData = new FormData()
       formData.append("amount", loanAmount)
       formData.append("interest_rate", loanInterestRate)
@@ -423,10 +445,22 @@ export function MemberProfile({
         setLoanDueDate("")
         setLoanPurpose("")
         router.refresh()
+      } else if (result.offline) {
+        await offlineAddLoan(db, member.saccoId, {
+          member_id: member.id,
+          amount: Math.round(Number(loanAmount) * 100),
+          interest_rate: loanInterestRate,
+          interest_type: "monthly",
+          duration_months: 12,
+          due_date: loanDueDate,
+          notes: loanPurpose || null,
+        })
+        toast.success("Loan saved offline — will sync when connected.")
+        setShowLoanDialog(false)
       } else {
         toast.error(result.error || "Failed to assign loan")
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setIsLoading(false)
@@ -440,6 +474,25 @@ export function MemberProfile({
     }
     setIsLoading(true)
     try {
+      const amountCents = Math.round(Number(savingsAmount) * 100)
+      if (isOffline()) {
+        // Deposit to first non-locked account; create one if none exists
+        const firstAccount = savings.find((s) => !s.isLocked)
+        if (firstAccount) {
+          await offlineDeposit(db, member.saccoId, firstAccount.id, member.id, amountCents, savingsNarration || "Deposit")
+        } else {
+          await offlineCreateSavingsAccount(db, member.saccoId, {
+            member_id: member.id,
+            category_id: null,
+            initial_deposit: amountCents,
+          })
+        }
+        toast.success("Savings saved offline — will sync when connected.")
+        setShowSavingsDialog(false)
+        setSavingsAmount("")
+        setSavingsNarration("")
+        return
+      }
       const formData = new FormData()
       formData.append("amount", savingsAmount)
       formData.append("narration", savingsNarration)
@@ -450,10 +503,23 @@ export function MemberProfile({
         setSavingsAmount("")
         setSavingsNarration("")
         router.refresh()
+      } else if (result.offline) {
+        const firstAccount = savings.find((s) => !s.isLocked)
+        if (firstAccount) {
+          await offlineDeposit(db, member.saccoId, firstAccount.id, member.id, amountCents, savingsNarration || "Deposit")
+        } else {
+          await offlineCreateSavingsAccount(db, member.saccoId, {
+            member_id: member.id,
+            category_id: null,
+            initial_deposit: amountCents,
+          })
+        }
+        toast.success("Savings saved offline — will sync when connected.")
+        setShowSavingsDialog(false)
       } else {
         toast.error(result.error || "Failed to add savings")
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setIsLoading(false)
@@ -467,6 +533,21 @@ export function MemberProfile({
     }
     setIsLoading(true)
     try {
+      const amountCents = Math.round(Number(fineAmount) * 100)
+      if (isOffline()) {
+        await offlineAddFine(db, member.saccoId, {
+          member_id: member.id,
+          amount: amountCents,
+          reason: fineReason,
+          notes: fineDescription || null,
+        })
+        toast.success("Fine saved offline — will sync when connected.")
+        setShowFineDialog(false)
+        setFineAmount("")
+        setFineReason("")
+        setFineDescription("")
+        return
+      }
       const formData = new FormData()
       formData.append("member_id", member.id)
       formData.append("amount", fineAmount)
@@ -480,10 +561,19 @@ export function MemberProfile({
         setFineReason("")
         setFineDescription("")
         router.refresh()
+      } else if (result.offline) {
+        await offlineAddFine(db, member.saccoId, {
+          member_id: member.id,
+          amount: amountCents,
+          reason: fineReason,
+          notes: fineDescription || null,
+        })
+        toast.success("Fine saved offline — will sync when connected.")
+        setShowFineDialog(false)
       } else {
         toast.error(result.error || "Failed to add fine")
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setIsLoading(false)
@@ -497,6 +587,18 @@ export function MemberProfile({
     }
     setIsLoading(true)
     try {
+      const amountCents = Math.round(Number(topUpAmount) * 100)
+      if (isOffline()) {
+        await offlineTopUpLoan(db, member.saccoId, selectedLoan.id, member.id, amountCents, topUpReason)
+        toast.success("Top-up saved offline — will sync when connected.")
+        setShowTopUpDialog(false)
+        setSelectedLoan(null)
+        setTopUpAmount("")
+        setTopUpReason("")
+        setTopUpPaymentMethod("cash")
+        setTopUpNotes("")
+        return
+      }
       const formData = new FormData()
       formData.append("loan_id", selectedLoan.id)
       formData.append("amount", topUpAmount)
@@ -513,10 +615,15 @@ export function MemberProfile({
         setTopUpPaymentMethod("cash")
         setTopUpNotes("")
         router.refresh()
+      } else if (result.offline) {
+        await offlineTopUpLoan(db, member.saccoId, selectedLoan.id, member.id, amountCents, topUpReason)
+        toast.success("Top-up saved offline — will sync when connected.")
+        setShowTopUpDialog(false)
+        setSelectedLoan(null)
       } else {
         toast.error(result.error || "Failed to process top-up")
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred")
     } finally {
       setIsLoading(false)

@@ -1,8 +1,10 @@
 "use client"
 
-import { useActionState, useEffect, useState } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { usePowerSync } from "@powersync/react"
 import { trimToLoanAction } from "../actions"
+import { offlineTrimToLoan } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -23,6 +25,7 @@ import {
 import { formatUGX } from "@/lib/utils/format"
 import { Loader2, Scissors } from "lucide-react"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { isOffline } from "@/lib/utils/is-offline"
 
 export function TrimLoanDialog({
   account,
@@ -35,16 +38,46 @@ export function TrimLoanDialog({
   open: boolean
   onClose: () => void
 }) {
-  const [state, formAction, isPending] = useActionState(trimToLoanAction, {} as { success?: boolean; error?: string })
+  const db = usePowerSync()
+  const [state, formAction, isPending] = useActionState(trimToLoanAction, {} as { success?: boolean; error?: string; offline?: boolean })
   const [selectedLoan, setSelectedLoan] = useState<any>(null)
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
+  const lastSubmitRef = useRef<{ loan_id?: string; amount?: number } | null>(null)
 
   useEffect(() => {
+    if (offlineSuccess) { onClose(); return }
     if (state.success) {
       toast.success("Savings trimmed to loan successfully!")
       onClose()
     }
+    if (state.offline) {
+      // lastSubmitRef.current.amount is raw UGX; DB stores cents — multiply by 100
+      const { loan_id, amount = 0 } = lastSubmitRef.current ?? {}
+      if (amount > 0 && loan_id) {
+        offlineTrimToLoan(db, account.sacco_id ?? "", account.id, account.member_id ?? account.memberId ?? "", loan_id, Math.round(amount * 100))
+          .then(() => { toast.success("Trim saved offline — will sync when connected."); setOfflineSuccess(true) })
+          .catch(() => toast.error("Failed to save offline."))
+      }
+      return
+    }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess, db, account])
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const fd = new FormData(e.currentTarget)
+    const loan_id = fd.get("loan_id") as string
+    const amount = Number(fd.get("amount"))
+    lastSubmitRef.current = { loan_id, amount }
+    if (isOffline()) {
+      e.preventDefault()
+      if (!loan_id) { toast.error("Please select a loan."); return }
+      if (!amount || amount <= 0) { toast.error("Enter a valid amount."); return }
+      // DB stores amounts in cents; user enters UGX — multiply by 100
+      offlineTrimToLoan(db, account.sacco_id ?? "", account.id, account.member_id ?? account.memberId ?? "", loan_id, Math.round(amount * 100))
+        .then(() => { toast.success("Trim saved offline — will sync when connected."); setOfflineSuccess(true) })
+        .catch(() => toast.error("Failed to save offline."))
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -59,7 +92,7 @@ export function TrimLoanDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="account_id" value={account.id} />
 
           {/* Savings Balance */}

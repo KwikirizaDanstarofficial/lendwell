@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 import { usePowerSync } from "@powersync/react"
 import { createSavingsAccountAction } from "../actions"
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Loader2, PiggyBank } from "lucide-react"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { isOffline } from "@/lib/utils/is-offline"
 
 export function CreateAccountDialog({
   open,
@@ -39,33 +40,78 @@ export function CreateAccountDialog({
   saccoId?: string
 }) {
   const db = usePowerSync()
-  const [state, formAction, isPending] = useActionState(createSavingsAccountAction, {})
-  const [offlineSuccess, setOfflineSuccess] = useState(false)
+  const [isPending, setIsPending] = useState(false)
 
-  useEffect(() => {
-    if (offlineSuccess) { onClose(); return }
-    if (state.success) { toast.success("Savings account created!"); onClose() }
-    if (state.error) toast.error(state.error)
-  }, [state, onClose, offlineSuccess])
+  // Track all form values as state — FormData from Radix/Shadcn components
+  // (Select, SearchableSelect) is unreliable inside a Dialog portal.
+  const [selectedMemberId,   setSelectedMemberId]   = useState("")
+  const [selectedCategoryId, setSelectedCategoryId] = useState("")
+  const [accountType,        setAccountType]        = useState("regular")
+  const [initialDeposit,     setInitialDeposit]     = useState("")
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!navigator.onLine) {
-      e.preventDefault()
-      const fd = new FormData(e.currentTarget)
-      const member_id = fd.get("member_id") as string
-      const category_id = fd.get("category_id") as string
-      if (!member_id || !category_id) { toast.error("Member and category are required."); return }
-      offlineCreateSavingsAccount(db, saccoId, {
-        member_id, category_id,
-        account_type: (fd.get("account_type") as string) || "regular",
-        initial_deposit: Number(fd.get("initial_deposit") ?? 0),
-      }).then(() => { toast.success("Account saved offline — will sync when connected."); setOfflineSuccess(true) })
-        .catch(() => toast.error("Failed to save offline."))
+  const resetForm = () => {
+    setSelectedMemberId("")
+    setSelectedCategoryId("")
+    setAccountType("regular")
+    setInitialDeposit("")
+  }
+
+  const handleClose = () => {
+    resetForm()
+    onClose()
+  }
+
+  const saveOffline = async () => {
+    if (!selectedMemberId) { toast.error("Please select a member."); return }
+    await offlineCreateSavingsAccount(db, saccoId, {
+      member_id:       selectedMemberId,
+      category_id:     selectedCategoryId || null,
+      account_type:    accountType || "regular",
+      initial_deposit: Number(initialDeposit) || 0,
+    })
+    toast.success("Savings account saved offline — will sync when reconnected")
+    handleClose()
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    if (!selectedMemberId) { toast.error("Please select a member."); return }
+
+    if (isOffline()) {
+      await saveOffline().catch(() => toast.error("Failed to save offline."))
+      return
+    }
+
+    setIsPending(true)
+    try {
+      // Build FormData from current state values (Radix components don't populate
+      // the native form's FormData automatically)
+      const fd = new FormData()
+      fd.set("member_id",       selectedMemberId)
+      fd.set("category_id",     selectedCategoryId)
+      fd.set("account_type",    accountType)
+      fd.set("initial_deposit", initialDeposit || "0")
+
+      const result = await createSavingsAccountAction({}, fd)
+      if (result.success) {
+        toast.success("Savings account created!")
+        handleClose()
+      } else if (result.offline) {
+        await saveOffline().catch(() => toast.error("Failed to save offline."))
+      } else {
+        toast.error(result.error || "Failed to create savings account")
+      }
+    } catch {
+      // Network/server error — fall back to offline save
+      await saveOffline().catch(() => toast.error("Failed to save offline."))
+    } finally {
+      setIsPending(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -77,12 +123,10 @@ export function CreateAccountDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Member *</Label>
             <SearchableSelect
-              name="member_id"
-              required
               placeholder="Select member"
               searchPlaceholder="Search by name or code..."
               options={members.map((m) => ({
@@ -90,6 +134,8 @@ export function CreateAccountDialog({
                 label: m.fullName,
                 sub: m.memberCode,
               }))}
+              value={selectedMemberId}
+              onChange={setSelectedMemberId}
             />
           </div>
 
@@ -97,7 +143,6 @@ export function CreateAccountDialog({
             <div className="space-y-1.5">
               <Label>Savings Category</Label>
               <SearchableSelect
-                name="category_id"
                 placeholder="Select category (optional)"
                 searchPlaceholder="Search category..."
                 options={categories.map((c) => ({
@@ -105,13 +150,15 @@ export function CreateAccountDialog({
                   label: c.name,
                   sub: c.interestRate ? `${c.interestRate}% interest` : undefined,
                 }))}
+                value={selectedCategoryId}
+                onChange={setSelectedCategoryId}
               />
             </div>
           )}
 
           <div className="space-y-1.5">
             <Label>Account Type</Label>
-            <Select name="account_type" defaultValue="regular">
+            <Select value={accountType} onValueChange={(v) => setAccountType(v ?? "regular")}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -125,14 +172,15 @@ export function CreateAccountDialog({
           <div className="space-y-1.5">
             <Label>Initial Deposit (UGX)</Label>
             <Input
-              name="initial_deposit"
               type="number"
               placeholder="e.g. 50000 (optional)"
+              value={initialDeposit}
+              onChange={(e) => setInitialDeposit(e.target.value)}
             />
           </div>
 
           <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={isPending}>

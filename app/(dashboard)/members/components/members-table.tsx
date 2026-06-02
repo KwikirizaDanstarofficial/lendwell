@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useMemo, useState, useCallback } from "react"
 import { usePowerSync } from "@powersync/react"
@@ -32,6 +33,7 @@ import { MoreHorizontal, Eye, Pencil, Trash2, Banknote, PiggyBank, Loader2 } fro
 import { formatDate, formatUGX } from "@/lib/utils/format"
 import { deleteMemberAction } from "../actions"
 import { toast } from "sonner"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ── Cell Renderers (defined at module level for stable references) ──────────
 
@@ -233,7 +235,7 @@ export function MembersTable({ members }: { members: Member[] }) {
   const handleDelete = async () => {
     if (!memberToDelete) return
     setDeleting(true)
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineDeleteMember(db, memberToDelete.id).catch(() => {})
       setDeleting(false)
       setMemberToDelete(null)

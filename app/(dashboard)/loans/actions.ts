@@ -70,6 +70,7 @@ function parseSaccoSettings(raw: string | null | undefined): Record<string, any>
 export type LoanFormState = {
   success?: boolean
   error?: string
+  offline?: boolean
   receipt?: ReceiptData
   fieldErrors?: Record<string, string[]>
 }
@@ -112,48 +113,59 @@ export async function addLoanAction(
       }
     }
 
-    // Fetch the member to validate existence and get contact info
-    const { data: member, error: memberError } = await supabaseAdmin
+    // Fetch the member for SMS notification — non-fatal if not found
+    // (member may have been created offline and not yet synced to Supabase)
+    const { data: member } = await supabaseAdmin
       .from('members')
       .select('full_name, phone')
       .eq('id', parsed.data.member_id)
       .single()
 
-    if (memberError || !member) return { error: "Member not found." }
-
-    // Convert UGX to cents for storage (avoids floating-point precision issues)
+    // Convert UGX to cents for storage
     const amountInCents = Math.floor(parsed.data.amount * 100)
 
-    // Look up the applicable interest rate tier for this amount
-    const { data: interestRatesList, error: ratesError } = await supabaseAdmin
-      .from('interest_rates')
-      .select('*')
-      .eq('sacco_id', user.saccoId)
-      .eq('is_active', true)
+    // Use interest rate values the client already computed (from hidden form fields).
+    // The client validated the rate is applicable (showed the Calculation Summary),
+    // so we trust it and avoid a second Supabase round-trip that may fail or differ.
+    const clientRate     = Number(formData.get("interest_rate") || "0")
+    const clientType     = (formData.get("interest_type") as string) || "monthly"
+    const clientExpected = Number(formData.get("expected_received") || "0")
+    const clientDaily    = Number(formData.get("daily_payment") || "0")
+    const clientMonthly  = Number(formData.get("monthly_payment") || "0")
+    const clientPenalty  = Number(formData.get("late_penalty_fee") || "0")
 
-    if (ratesError) {
-      console.error('Error fetching interest rates:', ratesError)
-      return { error: "Failed to fetch interest rates." }
+    // If the client didn't send a rate, fall back to Supabase lookup
+    let interestRate = clientRate
+    let interestType: "daily" | "monthly" | "annual" = clientType as "daily" | "monthly" | "annual"
+
+    if (!clientRate) {
+      // Interest rates are stored as raw UGX — compare against raw UGX loan amount
+      const { data: interestRatesList } = await supabaseAdmin
+        .from('interest_rates')
+        .select('*')
+        .eq('sacco_id', user.saccoId)
+        .eq('is_active', true)
+      try {
+        const found = getInterestRateForAmount(parsed.data.amount, interestRatesList ?? [])
+        interestRate = found.rate
+        interestType = found.rateType
+      } catch { /* no matching tier — proceed with 0% */ }
     }
 
-    const { rate: interestRate, rateType: interestType } =
-      getInterestRateForAmount(amountInCents, interestRatesList || [])
-
-    // Compute repayment schedule, daily/monthly payment amounts, and penalty fees
-    const calc = calculateLoan({
+    // Recalculate if client didn't send computed values
+    const calc = (clientExpected > 0) ? {
+      totalExpectedReceived: clientExpected,
+      dailyPayment: clientDaily,
+      monthlyPayment: clientMonthly,
+      latePenaltyFee: clientPenalty,
+    } : calculateLoan({
       principal: amountInCents,
-      interestRate: interestRate,
+      interestRate,
       interestType: interestType as "daily" | "monthly" | "annual",
       durationMonths: parsed.data.duration_months,
     })
 
     const loan_ref = `${LOAN_REF_PREFIX}-${Date.now()}`
-
-    // Find the exact interest rate tier that matches this amount range
-    const applicableRate = (interestRatesList || []).find(
-      (rate) =>
-        amountInCents >= rate.min_amount && amountInCents <= rate.max_amount
-    )
 
     // Insert the loan record with pending status
     const { data: loan, error: insertError } = await supabaseAdmin
@@ -161,7 +173,6 @@ export async function addLoanAction(
       .insert({
         sacco_id: user.saccoId,
         member_id: parsed.data.member_id,
-        interest_rate_id: applicableRate?.id,
         loan_ref,
         amount: amountInCents,
         expected_received: calc.totalExpectedReceived,
@@ -180,8 +191,9 @@ export async function addLoanAction(
       .single()
 
     if (insertError) {
-      console.error('Supabase insert error:', insertError)
-      return { error: "Failed to add loan. Please try again." }
+      console.error('Supabase loan insert error:', insertError)
+      if (isOfflineError(insertError)) return { offline: true, error: "offline" }
+      return { error: `Failed to add loan: ${insertError.message}` }
     }
 
     // Insert guarantors if any were selected
@@ -209,11 +221,11 @@ export async function addLoanAction(
     }
 
     // Notify the member — SMS failure is non-fatal for loan creation
-    if (member.phone) {
+    if (member?.phone) {
       try {
         await sendSmsOrQueue({
           to: member.phone,
-          message: `Dear ${member.full_name}, your loan application of UGX ${(amountInCents / 100).toLocaleString()} has been submitted. Ref: ${loan_ref}. Expected to receive: UGX ${(calc.totalExpectedReceived / 100).toLocaleString()}. Awaiting approval. - SACCO`,
+          message: `Dear ${member?.full_name ?? "Member"}, your loan application of UGX ${(amountInCents / 100).toLocaleString()} has been submitted. Ref: ${loan_ref}. Expected to receive: UGX ${(calc.totalExpectedReceived / 100).toLocaleString()}. Awaiting approval. - SACCO`,
         })
       } catch (smsError) {
         console.error("[Loan] SMS notification failed:", smsError)
@@ -225,7 +237,7 @@ export async function addLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to add loan. Please try again." }
   }
 }
@@ -250,9 +262,11 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
       .eq('id', id)
       .single()
 
-    if (loanError || !loan) {
+    if (loanError) {
+      if (isOfflineError(loanError)) return { offline: true, error: "offline" }
       return { error: "Loan not found." }
     }
+    if (!loan) return { error: "Loan not found." }
 
     // Only pending loans can be approved
     if (loan.status !== "pending") {
@@ -293,7 +307,7 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to approve loan." }
   }
 }
@@ -369,7 +383,7 @@ export async function declineLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to decline loan." }
   }
 }
@@ -494,7 +508,7 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to disburse loan." }
   }
 }
@@ -651,7 +665,7 @@ export async function repayLoanAction(
     }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to record repayment." }
   }
 }
@@ -772,7 +786,7 @@ export async function topUpLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to process loan top-up." }
   }
 }
@@ -816,8 +830,40 @@ export async function deleteLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to delete loan." }
+  }
+}
+
+// ─── Interest Rate Helpers ────────────────────────────────────────────────────
+
+/**
+ * Fetch active interest rates for the current sacco from Supabase.
+ * Used by the loan form as a client-side fallback when the PowerSync local DB
+ * has not yet been synced (e.g. first offline launch).
+ */
+export async function getActiveInterestRatesAction(): Promise<
+  { id: string; minAmount: number; maxAmount: number; rate: string; rateType: string }[]
+> {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return []
+    const { data, error } = await supabaseAdmin
+      .from("interest_rates")
+      .select("id, min_amount, max_amount, rate, rate_type")
+      .eq("sacco_id", user.saccoId)
+      .eq("is_active", true)
+      .order("min_amount", { ascending: true })
+    if (error) return []
+    return (data ?? []).map((r) => ({
+      id:        r.id,
+      minAmount: Number(r.min_amount),
+      maxAmount: Number(r.max_amount),
+      rate:      r.rate,
+      rateType:  r.rate_type,
+    }))
+  } catch {
+    return []
   }
 }
 

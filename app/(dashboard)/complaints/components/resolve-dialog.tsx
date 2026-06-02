@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -15,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { CheckCircle, Loader2 } from "lucide-react"
+import { isOffline } from "@/lib/utils/is-offline"
 
 export function ResolveDialog({
   complaint,
@@ -54,7 +56,7 @@ export function ResolveDialog({
         <form
           action={formAction}
           onSubmit={(e) => {
-            if (!navigator.onLine) {
+            if (isOffline()) {
               e.preventDefault()
               const fd = new FormData(e.currentTarget)
               const notes = fd.get("resolution_notes") as string

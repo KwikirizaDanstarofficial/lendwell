@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useMemo, useState } from "react"
 import { usePowerSync } from "@powersync/react"
@@ -33,6 +34,7 @@ import { deleteFineAction } from "../actions"
 import { PayFineDialog } from "./pay-fine-dialog"
 import { WaiveFineDialog } from "./waive-fine-dialog"
 import { priorityColors, statusConfig } from "./fines-client"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ── Cell Renderers ─────────────────────────────────────────────────────────
 
@@ -166,7 +168,7 @@ export function FinesTable({ fines }: { fines: any[] }) {
   const handleDelete = async () => {
     if (!deleteFine) return
     setDeleting(true)
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineDeleteFine(db, deleteFine.id).catch(() => {})
       setDeleting(false)
       toast.success("Fine deleted offline — will sync when connected.")

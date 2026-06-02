@@ -3,13 +3,14 @@
 // Manages search filtering, Excel export, and the create-account dialog.
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search, Download } from "lucide-react"
 import { SavingsTable } from "./savings-table"
 import { CreateAccountDialog } from "./create-account-dialog"
+import { getMembersForSavings, getSavingsCategoriesForSelect } from "../actions"
 import ExcelJS from "exceljs"
 import { toast } from "sonner"
 
@@ -50,6 +51,10 @@ export function SavingsClient({ saccoId }: SavingsClientProps) {
   const [createOpen, setCreateOpen] = useState(false)
   const [search,     setSearch]     = useState("")
 
+  // Server-side fallback data for when local SQLite is not yet populated.
+  const [serverMembers,    setServerMembers]    = useState<any[]>([])
+  const [serverCategories, setServerCategories] = useState<any[]>([])
+
   const { data: accountRows = [] } = useQuery(
     `SELECT s.id, s.account_number, s.balance, s.account_type, s.is_locked,
             s.lock_until, s.lock_reason, s.created_at, s.updated_at,
@@ -79,6 +84,25 @@ export function SavingsClient({ saccoId }: SavingsClientProps) {
     [saccoId]
   )
 
+  // When local SQLite has no members/categories yet, fetch from the server directly.
+  useEffect(() => {
+    if ((memberRows as any[]).length === 0) {
+      getMembersForSavings().then(setServerMembers).catch((err) => {
+        console.error("[Savings] Failed to fetch members from server:", err)
+        toast.error("Failed to load members — check your connection")
+      })
+    }
+  }, [(memberRows as any[]).length])
+
+  useEffect(() => {
+    if ((categoryRows as any[]).length === 0) {
+      getSavingsCategoriesForSelect().then(setServerCategories).catch((err) => {
+        console.error("[Savings] Failed to fetch categories from server:", err)
+        toast.error("Failed to load categories — check your connection")
+      })
+    }
+  }, [(categoryRows as any[]).length])
+
   const accounts = useMemo(() => (accountRows as any[]).map((r) => ({
     id:           r.id,
     accountNumber: r.account_number,
@@ -97,14 +121,23 @@ export function SavingsClient({ saccoId }: SavingsClientProps) {
     categoryName: r.category_name ?? "",
   })), [accountRows])
 
-  const members = useMemo(() => (memberRows as any[]).map((r) => ({
-    id: r.id, fullName: r.full_name, memberCode: r.member_code, phone: r.phone,
-  })), [memberRows])
+  const members = useMemo(() => {
+    const local = (memberRows as any[])
+    if (local.length > 0) {
+      return local.map((r) => ({ id: r.id, fullName: r.full_name, memberCode: r.member_code, phone: r.phone }))
+    }
+    // Fall back to server-fetched data when local SQLite is empty
+    return serverMembers.map((m) => ({ id: m.id, fullName: m.full_name, memberCode: m.member_code, phone: m.phone }))
+  }, [memberRows, serverMembers])
 
-  const categories = useMemo(() => (categoryRows as any[]).map((r) => ({
-    id: r.id, name: r.name, description: r.description,
-    interestRate: r.interest_rate, isFixed: Boolean(r.is_fixed),
-  })), [categoryRows])
+  const categories = useMemo(() => {
+    const local = (categoryRows as any[])
+    if (local.length > 0) {
+      return local.map((r) => ({ id: r.id, name: r.name, description: r.description, interestRate: r.interest_rate, isFixed: Boolean(r.is_fixed) }))
+    }
+    // Fall back to server-fetched data when local SQLite is empty
+    return serverCategories.map((c) => ({ id: c.id, name: c.name, description: c.description, interestRate: c.interestRate, isFixed: Boolean(c.isFixed) }))
+  }, [categoryRows, serverCategories])
 
   const activeLoans = useMemo(() => (activeLoanRows as any[]).map((r) => ({
     id: r.id, loan_ref: r.loan_ref, balance: Number(r.balance), member_id: r.member_id,

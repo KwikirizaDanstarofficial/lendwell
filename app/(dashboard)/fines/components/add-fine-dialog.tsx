@@ -1,3 +1,4 @@
+"use client"
 // app/(dashboard)/fines/components/add-fine-dialog.tsx
 // Dialog for issuing a fine to a member.
 // Submits via server action; the action sends an SMS notification automatically.
@@ -28,6 +29,7 @@ import {
 import { Loader2, AlertCircle } from "lucide-react"
 import { formatUGX } from "@/lib/utils/format"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -80,7 +82,7 @@ export function AddFineDialog({
   }, [effectState, onClose])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (!navigator.onLine) {
+    if (isOffline()) {
       e.preventDefault()
       const fd = new FormData(e.currentTarget)
       const member_id = fd.get("member_id") as string
@@ -90,8 +92,9 @@ export function AddFineDialog({
         setOfflineState({ error: "Member, amount, and reason are required." })
         return
       }
+      // DB stores amounts in cents; user enters UGX — multiply by 100
       offlineAddFine(db, saccoId, {
-        member_id, amount, reason,
+        member_id, amount: Math.round(amount * 100), reason,
         category_id: (fd.get("category_id") as string) || null,
         due_date: (fd.get("due_date") as string) || null,
         notes: (fd.get("notes") as string) || null,

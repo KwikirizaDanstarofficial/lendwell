@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useState } from "react"
 import { toast } from "sonner"
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatUGX } from "@/lib/utils/format"
 import { Loader2, XCircle } from "lucide-react"
+import { isOffline } from "@/lib/utils/is-offline"
 
 export function WaiveFineDialog({
   fine,
@@ -38,7 +40,7 @@ export function WaiveFineDialog({
       return
     }
     setLoading(true)
-    if (!navigator.onLine) {
+    if (isOffline()) {
       await offlineWaiveFine(db, fine.id).catch(() => {})
       setLoading(false)
       toast.success("Fine waived offline — will sync when connected.")

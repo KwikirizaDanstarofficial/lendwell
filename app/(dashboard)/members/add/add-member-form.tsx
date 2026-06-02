@@ -1,3 +1,4 @@
+"use client"
 // app/(dashboard)/members/add/add-member-form.tsx
 // 3-step form for creating a new member: photo upload → personal info → next of kin.
 // On success the member gets a welcome SMS and portal login credentials.
@@ -27,6 +28,7 @@ import {
 import { Camera, Loader2, ArrowLeft, User, Upload } from "lucide-react"
 import type { Branch } from "@/db/queries/branches"
 import { PHOTO_MAX_SIZE_BYTES, PHOTO_ACCEPTED_TYPES } from "@/lib/ui-styles"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -198,7 +200,7 @@ export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoI
     const formData = new FormData(e.currentTarget)
     startTransition(async () => {
       // Offline path: write directly to local PowerSync SQLite
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
+      if (isOffline()) {
         try {
           const full_name = formData.get("full_name") as string
           if (!full_name?.trim()) {
@@ -240,6 +242,45 @@ export function AddMemberForm({ saccoId, branches: branchesProp = [] }: { saccoI
       // Online path: call server action
       try {
         const result = await addMemberAction(state, formData)
+        if (result.offline) {
+          // Server action detected network failure — fall back to local SQLite
+          try {
+            const full_name = formData.get("full_name") as string
+            if (!full_name?.trim()) {
+              setState({ error: "Full name is required.", fieldErrors: { full_name: ["Full name is required."] } })
+              return
+            }
+            const phone = (formData.get("phone") as string) || ""
+            await offlineAddMember(db, saccoId, {
+              full_name: full_name.trim(),
+              email:                    (formData.get("email") as string) || null,
+              phone,
+              national_id:              (formData.get("national_id") as string) || null,
+              date_of_birth:            (formData.get("date_of_birth") as string) || null,
+              address:                  (formData.get("address") as string) || null,
+              next_of_kin:              (formData.get("next_of_kin") as string) || null,
+              next_of_kin_phone:        (formData.get("next_of_kin_phone") as string) || null,
+              next_of_kin_relationship: (formData.get("next_of_kin_relationship") as string) || null,
+              next_of_kin_address:      (formData.get("next_of_kin_address") as string) || null,
+              status:                   (formData.get("status") as string) || "active",
+            })
+            if (phone) {
+              fetch("/api/sms/queue", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  to: phone,
+                  message: `Welcome to our SACCO, ${full_name.trim()}! Your account has been created. Visit the portal to set up your access.`,
+                  context: "member_welcome_offline",
+                }),
+              }).catch(() => {})
+            }
+            setState({ success: true, offlineSaved: true })
+          } catch {
+            setState({ error: "Failed to save offline. Please try again." })
+          }
+          return
+        }
         setState(result)
       } catch {
         setState({ error: "Request failed. Check your connection and try again." })
