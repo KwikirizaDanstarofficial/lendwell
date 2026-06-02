@@ -4,7 +4,7 @@
 // theme toggle, notification bell, and user profile dropdown.
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "@/components/providers/theme-provider"
@@ -13,7 +13,11 @@ import {
   Settings, FileText, Bell, MessageSquare, UserCog, HelpCircle,
   ChevronDown, Menu, X, Sun, Moon, Monitor, LogOut,
   BookOpen, Activity, Trash2, WifiOff, Wifi,
+  CloudDownload, CloudUpload, Loader2,
 } from "lucide-react"
+import { usePowerSync } from "@powersync/react"
+import { UpdateType } from "@powersync/web"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -27,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { useTour } from "@/hooks/use-tour"
 import { useSmsQueue } from "@/hooks/use-sms-queue"
 import { AppTour } from "@/components/tour/app-tour"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 
@@ -124,7 +129,7 @@ const LOGO_LIGHT_MODE = "/lendwell-logo-dark.svg"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TopNavProps {
-  user: { fullName: string; email: string; role: string }
+  user: { fullName: string; email: string; role: string; saccoId?: string }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -132,18 +137,110 @@ interface TopNavProps {
 export function TopNav({ user }: TopNavProps) {
   const pathname = usePathname()
   const router   = useRouter()
+  const db       = usePowerSync()
   const { theme, resolvedTheme, setTheme } = useTheme()
-  const [mounted,    setMounted]    = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [isOnline,   setIsOnline]   = useState(true)
+  const [mounted,      setMounted]      = useState(false)
+  const [mobileOpen,   setMobileOpen]   = useState(false)
+  const [isOnline,     setIsOnline]     = useState(true)
+  const [fetching,     setFetching]     = useState(false)
+  const [syncing,      setSyncing]      = useState(false)
+
+  const isElectron = typeof window !== "undefined" && "electronApp" in window
+
+  const handleFetchOnline = useCallback(async () => {
+    if (!user.saccoId) {
+      toast.error("No sacco ID — cannot fetch data")
+      return
+    }
+    setFetching(true)
+    try {
+      const { pullFromSupabase, clearSyncTimestamp } = await import("@/lib/powersync/sync-engine")
+
+      // If the local DB appears empty, discard any stale timestamp so the
+      // next pull fetches everything rather than running an incremental diff
+      // against a baseline that was never populated.
+      const rows = await db.getAll("SELECT COUNT(*) as cnt FROM members")
+      const memberCount = Number((rows[0] as any)?.cnt ?? 0)
+      if (memberCount === 0) {
+        await clearSyncTimestamp(db)
+      }
+
+      const { total, errors } = await pullFromSupabase(db, user.saccoId)
+
+      if (errors.length > 0) {
+        console.error("[FetchOnline] Errors:", errors)
+        toast.warning(`Sync finished with errors — ${errors.length} table(s) failed. Check console.`)
+      } else if (total === 0) {
+        toast.warning("Server returned no data — check your Supabase connection and RLS policies")
+      } else {
+        toast.success(`Synced ${total} record${total !== 1 ? "s" : ""} from server`)
+      }
+    } catch (err) {
+      toast.error("Failed to fetch data")
+      console.error(err)
+    } finally {
+      setFetching(false)
+    }
+  }, [db, user.saccoId])
+
+  const handleSyncOnline = useCallback(async () => {
+    setSyncing(true)
+    let totalOps = 0
+    const uploadErrors: string[] = []
+    try {
+      while (true) {
+        const tx = await db.getNextCrudTransaction()
+        if (!tx) break
+        const ops = tx.crud.map(({ table, opData, op, id }) => ({
+          op: op === UpdateType.PUT ? "PUT" : op === UpdateType.PATCH ? "PATCH" : "DELETE" as const,
+          table, id, opData,
+        }))
+        const res = await fetch("/api/powersync/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ops }),
+        })
+        if (!res.ok) {
+          const body = await res.text()
+          throw new Error(body || `HTTP ${res.status}`)
+        }
+        const json = await res.json().catch(() => ({}))
+        if (Array.isArray(json.errors) && json.errors.length > 0) {
+          uploadErrors.push(...json.errors)
+          console.error("[SyncOnline] Partial upload errors:", json.errors)
+        }
+        await tx.complete()
+        totalOps += ops.length
+      }
+
+      if (totalOps === 0) {
+        toast.info("No pending changes to sync")
+      } else if (uploadErrors.length > 0) {
+        toast.warning(`Synced ${totalOps} operation${totalOps !== 1 ? "s" : ""} — ${uploadErrors.length} error(s). Check console.`)
+      } else {
+        toast.success(`Synced ${totalOps} operation${totalOps !== 1 ? "s" : ""} to server`)
+      }
+    } catch (err) {
+      toast.error("Sync failed — check connection and try again")
+      console.error("[SyncOnline]", err)
+    } finally {
+      setSyncing(false)
+    }
+  }, [db])
 
   useEffect(() => {
-    setIsOnline(navigator.onLine)
-    const up   = () => setIsOnline(true)
-    const down = () => setIsOnline(false)
-    window.addEventListener("online",  up)
-    window.addEventListener("offline", down)
-    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down) }
+    // Use isOffline() which calls electronNet.isOnline() via IPC in Electron
+    // for a reliable OS-level connectivity check rather than navigator.onLine.
+    const checkOnline = () => setIsOnline(!isOffline())
+    checkOnline()
+    window.addEventListener("online",  checkOnline)
+    window.addEventListener("offline", checkOnline)
+    const poll = setInterval(checkOnline, 15_000)
+    return () => {
+      window.removeEventListener("online",  checkOnline)
+      window.removeEventListener("offline", checkOnline)
+      clearInterval(poll)
+    }
   }, [])
   const { tourEnabled, shouldAutoStart, startTour, completeTour } = useTour()
   useSmsQueue()
@@ -295,6 +392,32 @@ export function TopNav({ user }: TopNavProps) {
                   <><WifiOff className="h-3.5 w-3.5" /> Offline</>
                 )}
               </div>
+            )}
+
+            {/* Electron-only sync buttons */}
+            {isElectron && (
+              <>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={handleFetchOnline}
+                  disabled={fetching || syncing}
+                  title="Pull all data from server to local database"
+                  className="hidden sm:inline-flex gap-1.5 text-xs"
+                >
+                  {fetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudDownload className="h-3.5 w-3.5" />}
+                  FETCH ONLINE
+                </Button>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={handleSyncOnline}
+                  disabled={fetching || syncing}
+                  title="Push local changes to server"
+                  className="hidden sm:inline-flex gap-1.5 text-xs"
+                >
+                  {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
+                  SYNC ONLINE
+                </Button>
+              </>
             )}
 
             <Button
