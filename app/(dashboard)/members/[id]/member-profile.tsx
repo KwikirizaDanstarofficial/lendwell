@@ -175,6 +175,7 @@ import { ApplicationFormDocument } from "@/lib/pdf/application-form"
 import { MemberTransactionsDocument } from "@/lib/pdf/member-transactions"
 import { MemberProfileDocument } from "@/lib/pdf/member-profile-document"
 import { isOffline } from "@/lib/utils/is-offline"
+import { fetchSaccoSettings } from "@/lib/utils/fetch-sacco-settings"
 
 interface MemberProfileProps {
   member: Member
@@ -287,8 +288,7 @@ export function MemberProfile({
   const downloadProfile = async () => {
     setLoadingProfile(true)
     try {
-      const saccoResponse = await fetch("/api/settings")
-      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
+      const rawSacco = await fetchSaccoSettings()
       const doc = (
         <MemberProfileDocument
           member={member}
@@ -326,8 +326,7 @@ export function MemberProfile({
   const downloadTransactions = async () => {
     setLoadingTx(true)
     try {
-      const saccoResponse = await fetch("/api/settings")
-      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
+      const rawSacco = await fetchSaccoSettings()
       const doc = (
         <MemberTransactionsDocument
           member={member}

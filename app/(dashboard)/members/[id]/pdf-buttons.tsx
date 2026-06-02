@@ -5,6 +5,7 @@ import { pdf } from "@react-pdf/renderer"
 import { Button } from "@/components/ui/button"
 import { FileText, CreditCard, Loader2 } from "lucide-react"
 import { MemberIdCardDocument } from "@/lib/pdf/member-id-card"
+import { fetchSaccoSettings } from "@/lib/utils/fetch-sacco-settings"
 
 interface Member {
   id: string
@@ -40,8 +41,7 @@ export function PdfButtons({ member }: PdfButtonsProps) {
   const downloadIdCard = async () => {
     setLoadingId(true)
     try {
-      const saccoResponse = await fetch("/api/settings")
-      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
+      const rawSacco = await fetchSaccoSettings()
 
       const doc = (
         <MemberIdCardDocument
@@ -71,14 +71,7 @@ export function PdfButtons({ member }: PdfButtonsProps) {
   const downloadApplicationForm = async () => {
     setLoadingForm(true)
     try {
-      // Fetch SACCO data
-      const saccoResponse = await fetch("/api/settings")
-      let sacco
-      if (saccoResponse.ok) {
-        sacco = await saccoResponse.json()
-      } else {
-        sacco = { name: "SACCO" }
-      }
+      const sacco = await fetchSaccoSettings()
 
       const doc = (
         <ApplicationFormDocument
