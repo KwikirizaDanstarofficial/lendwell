@@ -525,6 +525,44 @@ export async function offlineDeleteComplaint(
   await db.execute("DELETE FROM complaints WHERE id = ?", [id])
 }
 
+// ─── Loan guarantors ─────────────────────────────────────────────────────────
+
+export async function offlineAddGuarantor(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  loanId: string,
+  memberId: string,
+  notes?: string | null
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO loan_guarantors (id, loan_id, member_id, sacco_id, status, notes, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [id, loanId, memberId, saccoId, "pending", notes ?? null, ts, ts]
+  )
+  return id
+}
+
+export async function offlineRemoveGuarantor(
+  db: AbstractPowerSyncDatabase,
+  guarantorId: string
+): Promise<void> {
+  await db.execute("DELETE FROM loan_guarantors WHERE id = ?", [guarantorId])
+}
+
+export async function offlineUpdateGuarantorStatus(
+  db: AbstractPowerSyncDatabase,
+  guarantorId: string,
+  status: string,
+  notes?: string | null
+): Promise<void> {
+  await db.execute(
+    "UPDATE loan_guarantors SET status = ?, notes = ?, updated_at = ? WHERE id = ?",
+    [status, notes ?? null, now(), guarantorId]
+  )
+}
+
 // ─── Loan status updates ──────────────────────────────────────────────────────
 
 export async function offlineApproveLoan(

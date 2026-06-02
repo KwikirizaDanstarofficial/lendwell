@@ -68,12 +68,14 @@ export async function createSupabaseServerClient() {
  * Token refresh and session persistence are disabled because server-side
  * admin operations do not require them.
  */
-export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession:   false,
-  },
-})
+// Placeholder fallbacks so createClient doesn't throw during Next.js static
+// build on CI where env vars are not set. Real calls will fail at network
+// level (caught by try/catch in pages) — the client itself never crashes.
+export const supabaseAdmin = createClient(
+  SUPABASE_URL || "http://localhost:54321",
+  SUPABASE_SERVICE_ROLE_KEY || "placeholder-service-role-key",
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
 
 // ─── Appendix ─────────────────────────────────────────────────────────────────
 //
