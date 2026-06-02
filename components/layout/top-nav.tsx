@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useTour } from "@/hooks/use-tour"
+import { useSmsQueue } from "@/hooks/use-sms-queue"
 import { AppTour } from "@/components/tour/app-tour"
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
@@ -145,6 +146,7 @@ export function TopNav({ user }: TopNavProps) {
     return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down) }
   }, [])
   const { tourEnabled, shouldAutoStart, startTour, completeTour } = useTour()
+  useSmsQueue()
 
   // Prevent hydration mismatch for theme-dependent logo
   useEffect(() => { setMounted(true) }, [])

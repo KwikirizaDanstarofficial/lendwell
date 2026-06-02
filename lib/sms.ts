@@ -145,6 +145,44 @@ export async function sendSms(payload: SmsPayload): Promise<SmsResponse> {
   }
 }
 
+/**
+ * Send an SMS, automatically queuing it to disk if the network is unreachable.
+ * The queue is processed next time the client reports coming online via
+ * POST /api/sms/process-queue.
+ *
+ * Use this instead of sendSms() in server actions so notifications are never
+ * silently dropped when the device is offline.
+ */
+export async function sendSmsOrQueue(
+  payload: SmsPayload,
+  context?: string
+): Promise<SmsResponse> {
+  const result = await sendSms(payload)
+
+  if (!result.success) {
+    const isNetworkError =
+      !result.error ||
+      result.error.toLowerCase().includes("fetch") ||
+      result.error.toLowerCase().includes("network") ||
+      result.error.toLowerCase().includes("econnrefused") ||
+      result.error.toLowerCase().includes("failed to fetch") ||
+      result.error.toLowerCase().includes("enotfound")
+
+    if (isNetworkError) {
+      try {
+        const { enqueueSms } = await import("@/lib/sms-queue-store")
+        enqueueSms({ to: payload.to, message: payload.message, context })
+        console.log(`[SMS] Queued offline message to ${payload.to}`)
+        return { success: true, messageId: "queued-offline" }
+      } catch (qErr) {
+        console.error("[SMS] Failed to queue message:", qErr)
+      }
+    }
+  }
+
+  return result
+}
+
 export { getSmsTemplates, englishTemplates as smsTemplates } from "@/lib/sms-templates"
 export type { SmsLanguage } from "@/lib/sms-templates"
 

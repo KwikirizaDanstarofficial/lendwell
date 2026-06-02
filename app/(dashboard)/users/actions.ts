@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
-import { sendSms } from "@/lib/sms"
+import { sendSmsOrQueue, sendSms } from "@/lib/sms"
 import { generateEmail, generatePassword } from "@/lib/credentials"
 import { z } from "zod"
 
@@ -87,7 +87,7 @@ export async function createUserAction(
 
   // Send credentials via SMS (non-blocking)
   const appUrl = process.env.APP_URL ?? "the portal"
-  sendSms({
+  sendSmsOrQueue({
     to: parsed.data.phone,
     message: `Your SACCO staff account has been created.\nEmail: ${email}\nPassword: ${tempPassword}\nLogin at: ${appUrl}\nChange your password after signing in.`,
   }).catch((err) => console.error("[CREATE USER] SMS error:", err))

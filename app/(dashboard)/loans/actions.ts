@@ -18,7 +18,7 @@ import { isOfflineError } from "@/lib/offline-safe"
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { sendSms, getSmsTemplates } from "@/lib/sms"
+import { sendSmsOrQueue, sendSms, getSmsTemplates } from "@/lib/sms"
 import {
   calculateLoan,
   getInterestRateForAmount,
@@ -211,7 +211,7 @@ export async function addLoanAction(
     // Notify the member — SMS failure is non-fatal for loan creation
     if (member.phone) {
       try {
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: `Dear ${member.full_name}, your loan application of UGX ${(amountInCents / 100).toLocaleString()} has been submitted. Ref: ${loan_ref}. Expected to receive: UGX ${(calc.totalExpectedReceived / 100).toLocaleString()}. Awaiting approval. - SACCO`,
         })
@@ -356,7 +356,7 @@ export async function declineLoanAction(
       try {
         const saccoSettings = parseSaccoSettings(saccoLang?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: templates.loanDeclined(member.full_name, reason),
         })
@@ -477,7 +477,7 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
       try {
         const saccoSettings = parseSaccoSettings(saccoLangDisb?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: templates.loanDisbursed(
             member.full_name,
@@ -616,7 +616,7 @@ export async function repayLoanAction(
       try {
         const saccoSettings = parseSaccoSettings(sacco?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: templates.loanRepayment(
             member.full_name,
@@ -757,7 +757,7 @@ export async function topUpLoanAction(
     // Send SMS notification — non-fatal
     if (member?.phone) {
       try {
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: `Dear ${member.full_name}, your loan ${loan.loan_ref} has been topped up with UGX ${(amount / 100).toLocaleString()}. New balance: UGX ${(newBalance / 100).toLocaleString()}. - SACCO`,
         })

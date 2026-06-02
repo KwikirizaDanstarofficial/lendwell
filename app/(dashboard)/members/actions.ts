@@ -19,7 +19,7 @@ import { supabaseAdmin } from "@/lib/supabase/server"
 import { STORAGE_BUCKETS } from "@/lib/supabase/storage"
 import { revalidatePath } from "next/cache"
 import { generateMemberCode, generateMemberCodes } from "@/lib/member-code"
-import { sendSms, getSmsTemplates } from "@/lib/sms"
+import { sendSmsOrQueue, sendSms, getSmsTemplates } from "@/lib/sms"
 import { getCurrentUser } from "@/lib/auth"
 import { generateEmail, generatePassword } from "@/lib/credentials"
 import { z } from "zod"
@@ -291,7 +291,7 @@ export async function addMemberAction(
         const appUrl = process.env.APP_URL ?? ""
         const welcomeMsg = getSmsTemplates(saccoSettings?.sms?.language).welcome(parsed.data.full_name, member_code)
         const portalInfo = `\nPortal: ${appUrl}/portal\nUse your email and the forgot-password link to set your password.`
-        sendSms({
+        sendSmsOrQueue({
           to: parsed.data.phone,
           message: welcomeMsg + portalInfo,
         }).catch((err) => console.error("[Member] SMS error:", err))
@@ -405,7 +405,7 @@ export async function editMemberAction(
     // Notify the member if their phone number changed — non-fatal
     if (parsed.data.phone && parsed.data.phone !== existingMember.phone) {
       try {
-        await sendSms({
+        await sendSmsOrQueue({
           to: parsed.data.phone,
           message: `Dear ${parsed.data.full_name}, your SACCO profile has been updated. Member code: ${existingMember.member_code}. - SACCO`,
         })
@@ -588,7 +588,7 @@ export async function updateMemberStatusAction(
         exited: `Dear ${existing.full_name}, your SACCO membership has been closed. Thank you for being with us. - SACCO`,
       }
       try {
-        await sendSms({
+        await sendSmsOrQueue({
           to: existing.phone,
           message: messages[status],
         })
@@ -643,7 +643,7 @@ export async function sendMemberSmsAction(
 
     // Send the SMS
     try {
-      await sendSms({ to: member.phone, message })
+      await sendSmsOrQueue({ to: member.phone, message })
     } catch (smsError) {
       console.error('SMS sending failed:', smsError)
       return { error: "Failed to send SMS." }
@@ -907,7 +907,7 @@ export async function assignLoanAction(
     // Notify the member — non-fatal
     if (member.phone) {
       try {
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: `Dear ${member.full_name}, your loan application of UGX ${(amount / 100).toLocaleString()} has been submitted. Ref: ${loan_ref}. Await approval. - SACCO`,
         })
@@ -1035,7 +1035,7 @@ export async function addSavingsAction(
         const { data: saccoForSms } = await supabaseAdmin.from('saccos').select('settings').eq('id', user.saccoId).single()
         const saccoSettings = parseSaccoSettings(saccoForSms?.settings)
         const templates = getSmsTemplates(saccoSettings?.sms?.language)
-        await sendSms({
+        await sendSmsOrQueue({
           to: member.phone,
           message: templates.savingsDeposit(
             member.full_name,

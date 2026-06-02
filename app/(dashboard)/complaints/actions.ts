@@ -4,7 +4,7 @@ import { isOfflineError } from "@/lib/offline-safe"
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { sendSms } from "@/lib/sms"
+import { sendSmsOrQueue, sendSms } from "@/lib/sms"
 import { z } from "zod"
 
 export type ComplaintFormState = {
@@ -87,7 +87,7 @@ export async function addComplaintAction(
 
       if (member?.phone) {
         try {
-          await sendSms({
+          await sendSmsOrQueue({
             to: member.phone,
             message: `Dear ${member.full_name}, your complaint (Ref: ${complaint_ref}) has been received and is being reviewed. We will respond shortly. - SACCO`,
           })
@@ -162,7 +162,7 @@ export async function updateComplaintStatusAction(
 
       if (member?.phone) {
         try {
-          await sendSms({
+          await sendSmsOrQueue({
             to: member.phone,
             message: `Dear ${member.full_name}, your complaint (Ref: ${complaint.complaint_ref}) has been resolved. ${resolution_notes ? `Resolution: ${resolution_notes}` : ""} - SACCO`,
           })
