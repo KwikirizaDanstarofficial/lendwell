@@ -2,11 +2,8 @@
 import { useQuery } from "@powersync/react"
 import { EditMemberForm } from "./edit-member-form"
 
-export function EditPageClient({ id }: { id: string }) {
-  const { data: rows = [] } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
-  const m = rows[0] as any
-  if (!m) return <div className="p-6 text-sm text-muted-foreground">Member not found or not yet synced.</div>
-  const member = {
+function toMember(m: any) {
+  return {
     id: m.id, saccoId: m.sacco_id, memberCode: m.member_code, fullName: m.full_name,
     email: m.email, phone: m.phone, nationalId: m.national_id, photoUrl: m.photo_url,
     dateOfBirth: m.date_of_birth, address: m.address, nextOfKin: m.next_of_kin,
@@ -16,6 +13,13 @@ export function EditPageClient({ id }: { id: string }) {
     createdAt: m.created_at ? new Date(m.created_at) : null,
     updatedAt: m.updated_at ? new Date(m.updated_at) : null,
   }
+}
+
+export function EditPageClient({ id, initialMember }: { id: string; initialMember?: any }) {
+  const { data: rows = [] } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
+  const raw = (rows[0] as any) ?? initialMember
+  if (!raw) return <div className="p-6 text-sm text-muted-foreground">Member not found.</div>
+  const member = toMember(raw)
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>

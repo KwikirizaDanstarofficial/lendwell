@@ -218,23 +218,22 @@ export async function addInterestRate(
   saccoId: string
 ) {
   try {
-    // Convert amount from UGX to cents
-    const minAmountInCents = Math.floor(data.minAmount * 100)
-    const maxAmountInCents = Math.floor(data.maxAmount * 100)
+    // Store amounts as raw UGX (no cents conversion — Uganda shillings have no fractional units)
+    const minAmountUGX = Math.floor(data.minAmount)
+    const maxAmountUGX = Math.floor(data.maxAmount)
 
-    // Validate amounts
-    if (minAmountInCents >= maxAmountInCents) {
+    if (minAmountUGX >= maxAmountUGX) {
       throw new Error("Minimum amount must be less than maximum amount")
     }
 
-    if (minAmountInCents < 0 || maxAmountInCents < 0) {
+    if (minAmountUGX < 0 || maxAmountUGX < 0) {
       throw new Error("Amounts cannot be negative")
     }
 
     // Check for overlapping ranges
     const hasOverlap = await checkOverlappingRanges(
-      minAmountInCents,
-      maxAmountInCents,
+      minAmountUGX,
+      maxAmountUGX,
       saccoId
     )
     if (hasOverlap) {
@@ -246,8 +245,8 @@ export async function addInterestRate(
       .from('interest_rates')
       .insert({
         sacco_id: saccoId,
-        min_amount: minAmountInCents,
-        max_amount: maxAmountInCents,
+        min_amount: minAmountUGX,
+        max_amount: maxAmountUGX,
         rate: data.rate.toString(),
         rate_type: data.rateType,
         is_active: data.isActive !== undefined ? data.isActive : true,
@@ -295,21 +294,17 @@ export async function updateInterestRate(
       updated_at: new Date().toISOString(),
     }
 
-    // Handle amount updates (convert from UGX to cents)
+    // Store amounts as raw UGX (no cents conversion)
     if (data.minAmount !== undefined) {
-      const minAmountInCents = Math.floor(data.minAmount * 100)
-      if (minAmountInCents < 0) {
-        throw new Error("Minimum amount cannot be negative")
-      }
-      updateData.min_amount = minAmountInCents
+      const minAmountUGX = Math.floor(data.minAmount)
+      if (minAmountUGX < 0) throw new Error("Minimum amount cannot be negative")
+      updateData.min_amount = minAmountUGX
     }
 
     if (data.maxAmount !== undefined) {
-      const maxAmountInCents = Math.floor(data.maxAmount * 100)
-      if (maxAmountInCents < 0) {
-        throw new Error("Maximum amount cannot be negative")
-      }
-      updateData.max_amount = maxAmountInCents
+      const maxAmountUGX = Math.floor(data.maxAmount)
+      if (maxAmountUGX < 0) throw new Error("Maximum amount cannot be negative")
+      updateData.max_amount = maxAmountUGX
     }
 
     if (data.rate !== undefined) {

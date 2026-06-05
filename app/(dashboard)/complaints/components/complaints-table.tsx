@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useState } from "react"
 import { usePowerSync } from "@powersync/react"
@@ -52,6 +53,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { formatDate } from "@/lib/utils/format"
+import { isOffline } from "@/lib/utils/is-offline"
 
 const statusVariant: Record<
   string,
@@ -379,7 +381,7 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
             <AlertDialogAction
               onClick={async () => {
                 if (complaintToDelete) {
-                  if (!navigator.onLine) {
+                  if (isOffline()) {
                     await offlineDeleteComplaint(db, complaintToDelete).catch(() => {})
                     toast.success("Complaint deleted offline — will sync when connected.")
                     setDeleteDialogOpen(false)

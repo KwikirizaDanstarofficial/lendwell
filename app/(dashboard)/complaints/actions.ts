@@ -8,6 +8,7 @@ import { sendSmsOrQueue, sendSms } from "@/lib/sms"
 import { z } from "zod"
 
 export type ComplaintFormState = {
+  offline?: boolean
   success?: boolean
   error?: string
   fieldErrors?: Record<string, string[]>
@@ -102,7 +103,7 @@ export async function addComplaintAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to submit complaint." }
   }
 }
@@ -177,7 +178,7 @@ export async function updateComplaintStatusAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to update complaint status." }
   }
 }
@@ -220,7 +221,7 @@ export async function deleteComplaintAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to delete complaint." }
   }
 }
@@ -253,7 +254,7 @@ export async function submitRatingAction(
     return { success: true }
   } catch (err) {
     console.error(err)
-    if (isOfflineError(err)) return { error: "You\'re offline. Reconnect to perform this action." }
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: (err as any)?.message || "Failed to submit rating." }
   }
 }

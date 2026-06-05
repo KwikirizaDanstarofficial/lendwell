@@ -44,7 +44,10 @@
       {
         "from": ".next/standalone",
         "to": "nextapp",
-        "filter": ["**/*", "!node_modules/**"]
+        "filter": [
+          "**/*",
+          "!node_modules/**"
+        ]
       },
       {
         "from": ".next/standalone/node_modules",
@@ -61,15 +64,37 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icons/icon.ico"
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "build/icons/512x512.png",
       "category": "public.app-category.business",
@@ -78,8 +103,18 @@
     },
     "linux": {
       "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icons",
       "category": "Office"
@@ -120,7 +155,9 @@
     "drizzle-kit": "^0.18.1",
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
+    "got": "^11.8.6",
     "lucide-react": "^1.7.0",
+    "minimatch": "^9.0.5",
     "next": "^16.2.3",
     "next-pwa": "^2.0.2",
     "pg": "^8.20.0",
@@ -136,19 +173,18 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "electron": "^36.3.2",
-    "electron-builder": "^26.0.12",
-    "concurrently": "^9.1.2",
-    "wait-on": "^8.0.3",
-    "@types/electron": "^1.6.10",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/bcryptjs": "^2.4.6",
+    "@types/electron": "^1.6.10",
     "@types/node": "^25.5.0",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-pdf": "^5.0.7",
+    "concurrently": "^9.1.2",
+    "electron": "^36.3.2",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.1.7",
     "postcss": "^8",
@@ -159,6 +195,7 @@
     "supabase": "^2.101.0",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wait-on": "^8.0.3"
   }
 }

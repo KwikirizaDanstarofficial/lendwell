@@ -39,7 +39,7 @@ export default async function RootLayout({
     body = (
       <PowerSyncProvider>
         <div className="min-h-screen flex flex-col">
-          <TopNav user={user} />
+          <TopNav user={{ fullName: user.fullName, email: user.email, role: user.role, saccoId: user.saccoId }} />
           {user.hasTempPassword && <TempPasswordBanner />}
           <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
         </div>

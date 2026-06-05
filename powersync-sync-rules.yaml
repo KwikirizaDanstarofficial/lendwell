@@ -54,3 +54,9 @@ streams:
     query: >
       SELECT * FROM fine_categories
       WHERE fine_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  interest_rates:
+    auto_subscribe: true
+    query: >
+      SELECT * FROM interest_rates
+      WHERE interest_rates.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')

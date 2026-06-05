@@ -28,10 +28,11 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw new Error("Not authenticated")
 
-    // Guard: if the JWT doesn't contain a sacco_id root-level claim,
+    // Guard: the JWT MUST have sacco_id at root level for PowerSync Cloud
+    // to resolve token_parameters.sacco_id. Without this root-level claim
     // the sync bucket will be empty and PowerSync will DELETE all local data.
-    // Refuse to connect until the Supabase custom_access_token_hook is active
-    // and the user has signed out/in to get a fresh JWT.
+    // The root-level claim requires the Supabase custom_access_token_hook
+    // (see POWERSYNC_JWT_SETUP.md) and a fresh sign-in.
     const payload = decodeJwtPayload(session.access_token)
     if (!payload.sacco_id) {
       console.error(

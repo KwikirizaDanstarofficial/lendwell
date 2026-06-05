@@ -1,4 +1,5 @@
 "use client"
+"use client"
 
 import { useState } from "react"
 import Link from "next/link"
@@ -29,8 +30,11 @@ import { DepositDialog } from "../components/deposit-dialog"
 import { WithdrawDialog } from "../components/withdraw-dialog"
 import { LockDialog } from "../components/lock-dialog"
 import { unlockAccountAction } from "../actions"
+import { offlineUnlockAccount } from "@/lib/powersync/offline-mutations"
+import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { isOffline } from "@/lib/utils/is-offline"
 
 // ── Inline helpers matching loan/member detail design ─────────────────────────
 
@@ -156,6 +160,7 @@ export function SavingsDetailClient({
   transactions: Transaction[]
 }) {
   const router = useRouter()
+  const db = usePowerSync()
   const [depositOpen, setDepositOpen] = useState(false)
   const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [lockOpen, setLockOpen] = useState(false)
@@ -178,6 +183,18 @@ export function SavingsDetailClient({
 
   const handleUnlock = async () => {
     setUnlocking(true)
+    const offline = isOffline()
+    if (offline) {
+      try {
+        await offlineUnlockAccount(db, account.id)
+        toast.success("Account unlocked (offline — will sync later)")
+        router.refresh()
+      } catch {
+        toast.error("Failed to unlock offline")
+      }
+      setUnlocking(false)
+      return
+    }
     const res = await unlockAccountAction(account.id)
     setUnlocking(false)
     if (res.success) {
