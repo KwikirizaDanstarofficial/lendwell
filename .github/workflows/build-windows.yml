@@ -47,6 +47,9 @@ jobs:
       - name: Compile Electron
         run: npm run electron:compile
 
+      - name: Generate ICO for installer
+        run: node scripts/generate-ico.cjs
+
       - name: Package Windows
         run: npx electron-builder --win
         env:

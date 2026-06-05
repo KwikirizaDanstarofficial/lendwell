@@ -127,7 +127,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "build/icons/512x512.png"
+      "installerIcon": "build/icons/icon.ico"
     },
     "publish": null
   },
