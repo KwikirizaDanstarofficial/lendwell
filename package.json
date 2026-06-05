@@ -77,7 +77,7 @@
           ]
         }
       ],
-      "icon": "build/icons/icon.ico"
+      "icon": "build/icons/512x512.png"
     },
     "mac": {
       "target": [
@@ -127,7 +127,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "build/icons/icon.ico"
+      "installerIcon": "build/icons/512x512.png"
     },
     "publish": null
   },
