@@ -26,6 +26,19 @@ jobs:
       - name: Fix napi-postinstall
         run: npm install --ignore-scripts
 
+      - name: Inject Config Server URL
+        shell: pwsh
+        run: |
+          $url = "$env:CONFIG_SERVER_URL"
+          if ($url) {
+            (Get-Content electron/fetchConfig.ts) -replace "https://lendwell-config-server\.onrender\.com", $url | Set-Content electron/fetchConfig.ts
+            Write-Host "Injected CONFIG_SERVER_URL: $url"
+          } else {
+            Write-Host "No CONFIG_SERVER_URL set, using default placeholder"
+          }
+        env:
+          CONFIG_SERVER_URL: ${{ secrets.CONFIG_SERVER_URL }}
+
       - name: Build Next.js
         run: npm run build
         env:
@@ -41,20 +54,6 @@ jobs:
           FLW_PUBLIC_KEY: ${{ secrets.FLW_PUBLIC_KEY }}
           FLW_SECRET_KEY: ${{ secrets.FLW_SECRET_KEY }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-          RAILWAY_API_URL: ${{ secrets.RAILWAY_API_URL }}
-
-      - name: Inject Railway API URL
-        shell: pwsh
-        run: |
-          $url = "$env:RAILWAY_API_URL"
-          if ($url) {
-            (Get-Content electron/fetchConfig.ts) -replace "https://config-server-production\.up\.railway\.app", $url | Set-Content electron/fetchConfig.ts
-            Write-Host "Injected RAILWAY_API_URL: $url"
-          } else {
-            Write-Host "No RAILWAY_API_URL set, using default placeholder"
-          }
-        env:
-          RAILWAY_API_URL: ${{ secrets.RAILWAY_API_URL }}
 
       - name: Compile Electron
         run: npm run electron:compile
@@ -76,7 +75,6 @@ jobs:
             return
           }
           Write-Host "Build complete: $asarPath"
-          # Extract and verify no secrets in asar
           npx asar extract dist\win-unpacked\resources\app.asar dist\asar-extracted 2>$null
           $leaks = Select-String -Path "dist\asar-extracted\**\*.js" -Pattern "supabase\.co|egosms|flutterwave|powersync" -List
           if ($leaks) {
@@ -97,7 +95,6 @@ jobs:
             dist/*.exe.blockmap
           retention-days: 30
 
-  # Optional: create GitHub release on tags
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build

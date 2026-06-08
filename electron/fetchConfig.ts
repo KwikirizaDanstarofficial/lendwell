@@ -1,6 +1,6 @@
-// Railway API URL — not a secret, intentionally bundled.
-// Override via RAILWAY_API_URL env var during build for your actual URL.
-const API_URL = process.env.RAILWAY_API_URL || 'https://config-server-production.up.railway.app';
+// Config Server URL (Render/Railway/etc.) — not a secret, intentionally bundled.
+// Override via CONFIG_SERVER_URL env var during CI build or set it below.
+const API_URL = process.env.CONFIG_SERVER_URL || 'https://lendwell-config-server.onrender.com';
 
 interface LoginResponse {
   accessToken: string;
