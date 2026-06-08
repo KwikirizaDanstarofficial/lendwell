@@ -1,4 +1,4 @@
-name: Build Windows
+name: Build
 
 on:
   workflow_dispatch:
@@ -8,7 +8,19 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            artifact: Lendwell-Windows
+            ext: exe
+          - os: ubuntu-latest
+            platform: linux
+            artifact: Lendwell-Linux
+            ext: AppImage
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -26,16 +38,23 @@ jobs:
       - name: Fix napi-postinstall
         run: npm install --ignore-scripts
 
-      - name: Inject Config Server URL
+      - name: Inject Config Server URL (Windows)
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           $url = "$env:CONFIG_SERVER_URL"
           if ($url) {
             (Get-Content electron/fetchConfig.ts) -replace "https://lendwell-config-server\.onrender\.com", $url | Set-Content electron/fetchConfig.ts
-            Write-Host "Injected CONFIG_SERVER_URL: $url"
-          } else {
-            Write-Host "No CONFIG_SERVER_URL set, using default placeholder"
           }
+        env:
+          CONFIG_SERVER_URL: ${{ secrets.CONFIG_SERVER_URL }}
+
+      - name: Inject Config Server URL (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ -n "$CONFIG_SERVER_URL" ]; then
+            sed -i "s|https://lendwell-config-server\.onrender\.com|$CONFIG_SERVER_URL|g" electron/fetchConfig.ts
+          fi
         env:
           CONFIG_SERVER_URL: ${{ secrets.CONFIG_SERVER_URL }}
 
@@ -59,40 +78,42 @@ jobs:
         run: npm run electron:compile
 
       - name: Generate ICO for installer
+        if: matrix.os == 'windows-latest'
         run: node scripts/generate-ico.cjs
 
-      - name: Package Windows
-        run: npx electron-builder --win --publish never
+      - name: Package ${{ matrix.platform }}
+        run: npx electron-builder --${{ matrix.platform }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Audit bundle for leaked secrets
+      - name: Audit bundle for leaked secrets (Windows)
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $asarPath = Get-ChildItem -Path "dist\*.exe" -Name | Select-Object -First 1
-          if (-not $asarPath) {
-            Write-Host "No .exe found, checking for asar in unpacked..."
-            return
-          }
-          Write-Host "Build complete: $asarPath"
           npx asar extract dist\win-unpacked\resources\app.asar dist\asar-extracted 2>$null
           $leaks = Select-String -Path "dist\asar-extracted\**\*.js" -Pattern "supabase\.co|egosms|flutterwave|powersync" -List
-          if ($leaks) {
-            Write-Host "WARNING: Potential secrets found in bundle:"
-            $leaks | ForEach-Object { Write-Host $_ }
-          } else {
-            Write-Host "PASS: No secrets detected in bundle"
-          }
+          if ($leaks) { Write-Host "WARNING: Secrets found in bundle"; $leaks | ForEach-Object { Write-Host $_ } }
+          else { Write-Host "PASS: No secrets detected in bundle" }
           Remove-Item -Recurse -Force dist\asar-extracted -ErrorAction SilentlyContinue
+
+      - name: Audit bundle for leaked secrets (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          asar e dist/linux-unpacked/resources/app.asar dist/asar-extracted 2>/dev/null || true
+          leaks=$(grep -rl "supabase\.co\|egosms\|flutterwave\|powersync" dist/asar-extracted/ 2>/dev/null || true)
+          if [ -n "$leaks" ]; then echo "WARNING: Secrets found: $leaks"; else echo "PASS: No secrets detected in bundle"; fi
+          rm -rf dist/asar-extracted
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: Lendwell-Windows
+          name: ${{ matrix.artifact }}
           path: |
-            dist/*.exe
+            dist/*.${{ matrix.ext }}
+            dist/*.AppImage
+            dist/*.deb
             dist/*.zip
-            dist/*.exe.blockmap
+            ${{ matrix.os == 'windows-latest' && 'dist/*.exe.blockmap' || '' }}
           retention-days: 30
 
   release:
@@ -100,14 +121,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: Lendwell-Windows
           path: artifacts
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: artifacts/**/*
           generate_release_notes: true
