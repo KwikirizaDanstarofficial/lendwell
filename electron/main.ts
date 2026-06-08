@@ -3,18 +3,61 @@ import path from "path"
 import { createServer } from "http"
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs"
 import * as net from "net"
+import { vaultExists, readVault, writeVault, clearVault } from "./vault"
+import { loginAndFetchConfig, getApiUrl } from "./fetchConfig"
 
 app.setName("Lendwell")
 
 const isDev = !app.isPackaged
-const PORT = 3123 // avoid conflict with Next.js dev server on 3000
+const PORT = 3123
 
 // ---------------------------------------------------------------------------
-// Env loading — sensitive vars live in userData, never in the app bundle
+// Offline queue — persists pending mutations when the network is unavailable
+// ---------------------------------------------------------------------------
+const QUEUE_PATH = path.join(app.getPath("userData"), "offline-queue.json")
+
+function loadOfflineQueue(): any[] {
+  try {
+    if (existsSync(QUEUE_PATH)) {
+      return JSON.parse(readFileSync(QUEUE_PATH, "utf-8"))
+    }
+  } catch { /* corrupt file — start fresh */ }
+  return []
+}
+
+function saveOfflineQueue(queue: any[]): void {
+  writeFileSync(QUEUE_PATH, JSON.stringify(queue, null, 2))
+}
+
+// ---------------------------------------------------------------------------
+// Env loading — from vault (preferred) or .env file (legacy fallback)
 // ---------------------------------------------------------------------------
 function loadEnv(): void {
-  if (isDev) return // Next.js loads .env.local automatically in dev
+  if (isDev) return
 
+  // Try vault first
+  if (vaultExists()) {
+    try {
+      const config = readVault()
+      const envMap: Record<string, string> = {
+        SUPABASE_URL: config.supabaseUrl,
+        SUPABASE_ANON_KEY: config.supabaseAnonKey,
+        POWERSYNC_URL: config.powersyncUrl,
+        FLW_PUBLIC_KEY: config.flutterwavePublicKey,
+        FLW_SECRET_KEY: config.flutterwaveSecretKey,
+        COMMS_SDK_USERNAME: config.egoSmsUsername,
+        COMMS_SDK_API_KEY: config.egoSmsApiKey,
+      }
+      for (const [key, val] of Object.entries(envMap)) {
+        if (val && !(key in process.env)) process.env[key] = val
+      }
+      return
+    } catch {
+      // Vault corrupted or decryption failed — fall through to .env
+    }
+  }
+
+  // Legacy .env fallback
   const userDataEnv = path.join(app.getPath("userData"), ".env")
   const resourcesEnv = path.join(process.resourcesPath, ".env")
 
@@ -25,12 +68,7 @@ function loadEnv(): void {
       : null
 
   if (!envFile) {
-    const configPath = userDataEnv
-    dialog.showErrorBox(
-      "Configuration missing",
-      `No .env file found.\n\nCreate one at:\n${configPath}\n\nSee .env.example in the source repo for required variables.`
-    )
-    app.quit()
+    console.log("[ENV] No .env or vault found — starting in first-launch mode. Login will use Railway API.")
     return
   }
 
@@ -56,7 +94,6 @@ function findFreePort(start: number): Promise<number> {
       server.close(() => resolve(port))
     })
     server.on("error", () => {
-      // Port is in use — try the next one
       findFreePort(start + 1).then(resolve).catch(reject)
     })
   })
@@ -105,16 +142,13 @@ async function startNextServer(): Promise<void> {
     return
   }
 
-  // Pick a free port so we never crash with EADDRINUSE
   activePort = await findFreePort(PORT)
 
   process.env.PORT = String(activePort)
   process.env.HOSTNAME = "127.0.0.1"
 
-  // Next.js standalone server.js resolves files relative to cwd
   process.chdir(path.dirname(serverScript))
 
-  // Run server.js in the same Node.js process (Electron main == Node.js)
   require(serverScript)
 
   await waitForPort(activePort)
@@ -140,19 +174,16 @@ function createWindow(): BrowserWindow {
     },
   })
 
-  // Show as soon as the page is painted, or after 10s as a safety fallback
   win.once("ready-to-show", () => win.show())
   win.webContents.once("did-fail-load", () => win.show())
   setTimeout(() => { if (!win.isVisible()) win.show() }, 10_000)
 
-  // In dev, Next.js dev server is already running on 3000
   const url = isDev
     ? "http://localhost:3000"
     : `http://127.0.0.1:${activePort}`
 
   win.loadURL(url)
 
-  // Open external links in the OS browser, not in the app
   win.webContents.setWindowOpenHandler(({ url: href }) => {
     shell.openExternal(href)
     return { action: "deny" }
@@ -164,14 +195,113 @@ function createWindow(): BrowserWindow {
 }
 
 // ---------------------------------------------------------------------------
+// IPC Handlers
+// ---------------------------------------------------------------------------
+function registerIpcHandlers(): void {
+  // Existing network check
+  ipcMain.on("net:is-online", (event) => {
+    try { event.returnValue = electronNet.isOnline() } catch { event.returnValue = true }
+  })
+
+  // Vault — check if vault exists (for startup routing)
+  ipcMain.handle("vault-exists", () => vaultExists())
+
+  // Login — fetch config from Railway and store in vault
+  ipcMain.handle("login", async (_event, email: string, password: string) => {
+    const { accessToken, refreshToken, config } = await loginAndFetchConfig(email, password)
+    writeVault({ ...config, accessToken, refreshToken })
+    // Refresh env so Next.js server picks up the new config
+    const envMap: Record<string, string> = {
+      SUPABASE_URL: config.supabaseUrl,
+      SUPABASE_ANON_KEY: config.supabaseAnonKey,
+      POWERSYNC_URL: config.powersyncUrl,
+      FLW_PUBLIC_KEY: config.flutterwavePublicKey,
+      FLW_SECRET_KEY: config.flutterwaveSecretKey,
+      COMMS_SDK_USERNAME: config.egoSmsUsername,
+      COMMS_SDK_API_KEY: config.egoSmsApiKey,
+    }
+    for (const [key, val] of Object.entries(envMap)) {
+      if (val) process.env[key] = val
+    }
+    return { success: true }
+  })
+
+  // Get full config from vault
+  ipcMain.handle("get-config", () => readVault())
+
+  // Clear vault (logout)
+  ipcMain.handle("clear-vault", () => {
+    clearVault()
+    return { success: true }
+  })
+
+  // Flutterwave payment verification
+  ipcMain.handle("verify-payment", async (_event, transactionId: string) => {
+    const config = readVault()
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch(
+        `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+        {
+          headers: { Authorization: `Bearer ${config.flutterwaveSecretKey}` },
+          signal: controller.signal,
+        }
+      )
+      return response.json()
+    } finally {
+      clearTimeout(timeout)
+    }
+  })
+
+  // Send SMS via EgoSMS
+  ipcMain.handle("send-sms", async (_event, to: string, message: string) => {
+    const config = readVault()
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch('https://www.egosms.co/api/v1/plain/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: config.egoSmsUsername,
+          password: config.egoSmsApiKey,
+          number: to,
+          message,
+          sender: 'Lendwell',
+        }),
+        signal: controller.signal,
+      })
+      return response.json()
+    } finally {
+      clearTimeout(timeout)
+    }
+  })
+
+  // Offline queue — persist mutations when offline
+  ipcMain.handle("offline-queue:get", () => loadOfflineQueue())
+
+  ipcMain.handle("offline-queue:add", (_event, item: any) => {
+    const queue = loadOfflineQueue()
+    queue.push({ ...item, timestamp: Date.now() })
+    saveOfflineQueue(queue)
+    return { success: true }
+  })
+
+  ipcMain.handle("offline-queue:clear", () => {
+    saveOfflineQueue([])
+    return { success: true }
+  })
+
+  // Platform info
+  ipcMain.handle("get-platform", () => process.platform)
+}
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
-// Renderer asks main process for OS-level connectivity (electronNet is main-process-only).
-ipcMain.on("net:is-online", (event) => {
-  try { event.returnValue = electronNet.isOnline() } catch { event.returnValue = true }
-})
-
 app.whenReady().then(async () => {
+  registerIpcHandlers()
   loadEnv()
 
   if (!isDev) {

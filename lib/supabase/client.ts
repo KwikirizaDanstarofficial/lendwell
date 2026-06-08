@@ -1,13 +1,14 @@
 import { createBrowserClient } from "@supabase/ssr"
 import { getClientConfig } from "@/lib/client-config"
 
-// Lazy singleton — created on first access so config is available in both
-// SSR (reads process.env) and browser (reads window.__CONFIG__).
 let _client: ReturnType<typeof createBrowserClient> | null = null
 
 function getClient() {
   if (!_client) {
     const { supabaseUrl, supabaseAnonKey } = getClientConfig()
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase not configured — please log in first.")
+    }
     _client = createBrowserClient(supabaseUrl, supabaseAnonKey)
   }
   return _client

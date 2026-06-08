@@ -13,7 +13,6 @@ type BranchItem = { id: string; name: string; code: string; address: string | nu
 interface LoginFormProps {
   className?: string
   branches?: BranchItem[]
-  /** Pre-selected branch code — used on /branch/[code]/login */
   branchCode?: string
 }
 
@@ -77,12 +76,34 @@ function LoginCredentialsForm({
   const [error, setError] = useState("")
   const [isPending, startTransition] = useTransition()
 
+  const isElectron = typeof window !== "undefined" && "electron" in window
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     if (!email || !password) { setError("Please enter your email and password."); return }
     startTransition(async () => {
       try {
+        if (isElectron) {
+          // Check online status first
+          const isOnline = (window as any).electronApp?.isOnline?.()
+          if (isOnline === false) {
+            // Try cached vault — if exists, user may have an active session
+            const hasVault = await window.electron.vaultExists()
+            if (hasVault) {
+              window.location.href = "/dashboard"
+              return
+            }
+            setError("You are offline. Please connect to the internet to sign in.")
+            return
+          }
+          // Electron: use IPC → Railway backend
+          await window.electron.login(email.trim().toLowerCase(), password)
+          window.location.href = "/dashboard"
+          return
+        }
+
+        // Web: use existing API route
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -101,8 +122,8 @@ function LoginCredentialsForm({
           const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard"
           window.location.href = safeRedirect
         }
-      } catch {
-        setError("Something went wrong. Please try again.")
+      } catch (err: any) {
+        setError(err.message || "Something went wrong. Please try again.")
       }
     })
   }
@@ -147,8 +168,21 @@ export function LoginForm({ className, branches = [], branchCode }: LoginFormPro
   const redirect = searchParams.get("redirect") ?? "/dashboard"
   const hasBranches = branches.length > 0
   const [tab, setTab] = useState<"main" | "branch">("main")
+  const isElectron = typeof window !== "undefined" && "electron" in window
 
-  // If a branch code is forced (branch-specific login page), skip tab UI
+  // Electron: always show main login, no branch selection
+  if (isElectron) {
+    return (
+      <div className={cn("flex flex-col gap-6", className)}>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h1 className="text-2xl font-bold">Sign in to your account</h1>
+          <p className="text-sm text-muted-foreground">Enter your email and password</p>
+        </div>
+        <LoginCredentialsForm redirect={redirect} />
+      </div>
+    )
+  }
+
   if (branchCode) {
     const branch = branches.find((b) => b.code === branchCode)
     return (

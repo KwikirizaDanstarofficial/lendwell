@@ -5,7 +5,17 @@ import { Button } from "@/components/ui/button"
 
 export function BranchLogoutButton() {
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" })
+    try {
+      if (typeof window !== "undefined" && "electron" in window) {
+        // Electron: clear vault first, then attempt Supabase signOut
+        const { electronLogout } = await import("@/lib/electron/login")
+        await electronLogout()
+      } else {
+        await fetch("/api/auth/logout", { method: "POST" })
+      }
+    } catch {
+      // Always redirect to login regardless of errors
+    }
     window.location.href = "/auth/login"
   }
 

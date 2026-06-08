@@ -8,6 +8,7 @@ import { TempPasswordBanner } from "@/components/layout/temp-password-banner"
 import { PowerSyncProvider } from "@/lib/powersync/provider"
 import "./globals.css"
 import { cn } from "@/lib/utils"
+import { ElectronStartupCheck } from "@/components/layout/electron-startup-check"
 
 export const metadata: Metadata = {
   title: { default: "Lendwell", template: "%s — Lendwell" },
@@ -50,7 +51,6 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={cn("antialiased")}>
       <head>
-        {/* Inject server-side config before hydration — no NEXT_PUBLIC_ vars needed */}
         <script dangerouslySetInnerHTML={{ __html: `window.__CONFIG__=${JSON.stringify({
           supabaseUrl: process.env.SUPABASE_URL ?? "",
           supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
@@ -64,6 +64,7 @@ export default async function RootLayout({
       <body className="font-sans" suppressHydrationWarning>
         <Suspense fallback={null}>
           <ThemeProvider>
+            <ElectronStartupCheck />
             {body}
             <Toaster richColors position="top-right" />
           </ThemeProvider>

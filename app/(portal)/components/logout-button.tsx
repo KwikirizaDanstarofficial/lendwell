@@ -3,7 +3,16 @@ import { LogOut } from "lucide-react"
 
 export function LogoutButton() {
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" })
+    try {
+      if (typeof window !== "undefined" && "electron" in window) {
+        const { electronLogout } = await import("@/lib/electron/login")
+        await electronLogout()
+      } else {
+        await fetch("/api/auth/logout", { method: "POST" })
+      }
+    } catch {
+      // Always redirect to login regardless of errors
+    }
     window.location.href = "/auth/login"
   }
 

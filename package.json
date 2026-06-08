@@ -38,7 +38,12 @@
     "files": [
       "electron/dist/**",
       "!electron/dist/**/*.ts",
-      "!electron/dist/**/*.map"
+      "!electron/dist/**/*.map",
+      "!.env",
+      "!**/.env",
+      "!**/.env.*",
+      "!**/secrets*",
+      "!config-server/**"
     ],
     "extraResources": [
       {

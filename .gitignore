@@ -28,6 +28,15 @@
 /dist-electron
 /release
 
+# Vault (OS-encrypted credentials)
+*.enc
+vault.enc
+
+# config-server (deployed separately to Railway)
+/config-server/.env
+/config-server/venv/
+/config-server/__pycache__/
+
 # misc
 .DS_Store
 *.pem
