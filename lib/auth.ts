@@ -8,7 +8,6 @@
  * the session is fetched at most once per server-render pass.
  */
 
-import { cache } from "react"
 import type { User } from "@supabase/supabase-js"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
@@ -45,7 +44,7 @@ export interface SessionData {
  *          authenticated, the token is stale, or the user metadata lacks a
  *          valid role.
  */
-export const getCurrentUser = cache(async (): Promise<SessionData | null> => {
+export async function getCurrentUser(): Promise<SessionData | null> {
   try {
     const supabase = await createSupabaseServerClient()
 
@@ -73,7 +72,7 @@ export const getCurrentUser = cache(async (): Promise<SessionData | null> => {
   } catch {
     return null
   }
-})
+}
 
 function buildSessionData(user: User | null): SessionData | null {
   if (!user) return null

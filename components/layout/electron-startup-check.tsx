@@ -21,10 +21,15 @@ export function ElectronStartupCheck() {
 
       try {
         const hasVault = await window.electron.vaultExists()
+        let hasSession = false
+        if (hasVault) {
+          const config = await window.electron.getConfig()
+          hasSession = !!(config.accessToken && config.refreshToken)
+        }
         if (!hasVault && !PUBLIC_PATHS.includes(pathname)) {
           router.push("/auth/login")
-        } else if (hasVault && (pathname === "/auth/login" || pathname === "/")) {
-          // Vault exists — redirect to dashboard
+        } else if (hasSession && (pathname === "/auth/login" || pathname === "/")) {
+          // Vault has valid session tokens — redirect to dashboard
           router.push("/dashboard")
         }
       } catch {

@@ -85,10 +85,8 @@ function LoginCredentialsForm({
     startTransition(async () => {
       try {
         if (isElectron) {
-          // Check online status first
           const isOnline = (window as any).electronApp?.isOnline?.()
           if (isOnline === false) {
-            // Try cached vault — if exists, user may have an active session
             const hasVault = await window.electron.vaultExists()
             if (hasVault) {
               window.location.href = "/dashboard"
@@ -97,9 +95,26 @@ function LoginCredentialsForm({
             setError("You are offline. Please connect to the internet to sign in.")
             return
           }
-          // Electron: use IPC → Railway backend
+          // Authenticate and store session in vault
           await window.electron.login(email.trim().toLowerCase(), password)
-          window.location.href = "/dashboard"
+          // Set session cookies for server-side auth
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+          })
+          const data = await res.json()
+          if (!res.ok) { setError(data.error ?? "Invalid email or password."); return }
+          if (data.role === "member") {
+            window.location.href = "/portal"
+          } else if (data.role === "branch_admin" && data.branchCode) {
+            window.location.href = `/branch/${data.branchCode}/dashboard`
+          } else if (!data.hasSaccoId) {
+            window.location.href = "/onboarding"
+          } else {
+            const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard"
+            window.location.href = safeRedirect
+          }
           return
         }
 

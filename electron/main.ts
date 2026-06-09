@@ -1,12 +1,10 @@
-import { app, BrowserWindow, dialog, shell, ipcMain, net as electronNet } from "electron"
+import { app, BrowserWindow, dialog, shell, ipcMain, net as electronNet, session } from "electron"
 import path from "path"
 import { createServer } from "http"
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from "fs"
+import { existsSync, readFileSync, writeFileSync } from "fs"
+import { pathToFileURL } from "url"
 import * as net from "net"
 import { vaultExists, readVault, writeVault, clearVault } from "./vault"
-import { loginAndFetchConfig, getApiUrl } from "./fetchConfig"
-
-app.setName("Lendwell")
 
 const isDev = !app.isPackaged
 const PORT = 3123
@@ -32,54 +30,85 @@ function saveOfflineQueue(queue: any[]): void {
 // ---------------------------------------------------------------------------
 // Env loading — from vault (preferred) or .env file (legacy fallback)
 // ---------------------------------------------------------------------------
+function applyEnv(config: Record<string, string>): void {
+  const envMap: Record<string, string> = {
+    SUPABASE_URL: config.supabaseUrl,
+    SUPABASE_ANON_KEY: config.supabaseAnonKey,
+    SUPABASE_SERVICE_ROLE_KEY: config.serviceRoleKey,
+    POWERSYNC_URL: config.powersyncUrl,
+    FLW_PUBLIC_KEY: config.flutterwavePublicKey,
+    FLW_SECRET_KEY: config.flutterwaveSecretKey,
+    COMMS_SDK_USERNAME: config.egoSmsUsername,
+    COMMS_SDK_API_KEY: config.egoSmsApiKey,
+  }
+  for (const [key, val] of Object.entries(envMap)) {
+    if (val && !(key in process.env)) process.env[key] = val
+  }
+}
+
 function loadEnv(): void {
   if (isDev) return
 
-  // Try vault first
   if (vaultExists()) {
     try {
       const config = readVault()
-      const envMap: Record<string, string> = {
-        SUPABASE_URL: config.supabaseUrl,
-        SUPABASE_ANON_KEY: config.supabaseAnonKey,
-        POWERSYNC_URL: config.powersyncUrl,
-        FLW_PUBLIC_KEY: config.flutterwavePublicKey,
-        FLW_SECRET_KEY: config.flutterwaveSecretKey,
-        COMMS_SDK_USERNAME: config.egoSmsUsername,
-        COMMS_SDK_API_KEY: config.egoSmsApiKey,
-      }
-      for (const [key, val] of Object.entries(envMap)) {
-        if (val && !(key in process.env)) process.env[key] = val
+      applyEnv(config)
+
+      // If the vault was created before serviceRoleKey was added,
+      // supplement it from .env so the app doesn't break.
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        supplementFromEnv("SUPABASE_SERVICE_ROLE_KEY")
       }
       return
     } catch {
-      // Vault corrupted or decryption failed — fall through to .env
+      console.error("[ENV] Vault corrupted — will try .env fallback.")
     }
   }
 
-  // Legacy .env fallback
-  const userDataEnv = path.join(app.getPath("userData"), ".env")
-  const resourcesEnv = path.join(process.resourcesPath, ".env")
+  // Look for .env file — check userData, then project root
+  // (Packaged resources deliberately excluded — secrets must not be bundled)
+  const candidates = [
+    path.join(app.getPath("userData"), ".env"),
+    path.join(app.getPath("userData"), ".env.local"),
+    path.join(process.cwd(), ".env.local"),
+    path.join(process.cwd(), ".env"),
+  ]
 
-  const envFile = existsSync(userDataEnv)
-    ? userDataEnv
-    : existsSync(resourcesEnv)
-      ? resourcesEnv
-      : null
-
-  if (!envFile) {
-    console.log("[ENV] No .env or vault found — starting in first-launch mode. Login will use Railway API.")
-    return
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      console.log("[ENV] No vault found — seeding from", candidate)
+      seedVaultFromEnv(candidate)
+      const config = readVault()
+      applyEnv(config)
+      return
+    }
   }
 
-  for (const line of readFileSync(envFile, "utf-8").split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eq = trimmed.indexOf("=")
-    if (eq === -1) continue
-    const key = trimmed.slice(0, eq).trim()
-    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "")
-    if (key && !(key in process.env)) process.env[key] = val
+  console.log("[ENV] No vault or .env found — starting in first-launch mode.")
+}
+
+/** Read a single key from the first available .env file and set it on process.env. */
+function supplementFromEnv(key: string): void {
+  const candidates = [
+    path.join(app.getPath("userData"), ".env"),
+    path.join(app.getPath("userData"), ".env.local"),
+    path.join(process.cwd(), ".env.local"),
+    path.join(process.cwd(), ".env"),
+  ]
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue
+    const content = readFileSync(candidate, "utf-8")
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eq = trimmed.indexOf("=")
+      if (eq === -1) continue
+      const k = trimmed.slice(0, eq).trim()
+      if (k === key) {
+        process.env[key] = trimmed.slice(eq + 1).trim()
+        return
+      }
+    }
   }
 }
 
@@ -149,7 +178,8 @@ async function startNextServer(): Promise<void> {
 
   process.chdir(path.dirname(serverScript))
 
-  require(serverScript)
+  const dynamicImport = new Function("specifier", "return import(specifier)")
+  await dynamicImport(pathToFileURL(serverScript).href)
 
   await waitForPort(activePort)
 }
@@ -206,24 +236,67 @@ function registerIpcHandlers(): void {
   // Vault — check if vault exists (for startup routing)
   ipcMain.handle("vault-exists", () => vaultExists())
 
-  // Login — fetch config from Railway and store in vault
+  // Login — authenticate against Supabase directly and store session in vault
   ipcMain.handle("login", async (_event, email: string, password: string) => {
-    const { accessToken, refreshToken, config } = await loginAndFetchConfig(email, password)
-    writeVault({ ...config, accessToken, refreshToken })
-    // Refresh env so Next.js server picks up the new config
-    const envMap: Record<string, string> = {
-      SUPABASE_URL: config.supabaseUrl,
-      SUPABASE_ANON_KEY: config.supabaseAnonKey,
-      POWERSYNC_URL: config.powersyncUrl,
-      FLW_PUBLIC_KEY: config.flutterwavePublicKey,
-      FLW_SECRET_KEY: config.flutterwaveSecretKey,
-      COMMS_SDK_USERNAME: config.egoSmsUsername,
-      COMMS_SDK_API_KEY: config.egoSmsApiKey,
+    const config = vaultExists() ? readVault() : null
+    const supabaseUrl = process.env.SUPABASE_URL || config?.supabaseUrl
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || config?.supabaseAnonKey
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase credentials not configured. Run scripts/setup-env.sh first.")
     }
-    for (const [key, val] of Object.entries(envMap)) {
-      if (val) process.env[key] = val
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: {
+          apikey: supabaseAnonKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const body: any = await response.json().catch(() => ({}))
+        throw new Error(body?.error_description || body?.msg || "Invalid email or password.")
+      }
+
+      const session = (await response.json()) as { access_token: string; refresh_token: string }
+
+      // Read existing vault config (keep previously stored keys)
+      const vaultConfig = vaultExists() ? readVault() : {}
+      writeVault({
+        supabaseUrl: supabaseUrl,
+        supabaseAnonKey: supabaseAnonKey,
+        serviceRoleKey: vaultConfig.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+        powersyncUrl: vaultConfig.powersyncUrl || process.env.POWERSYNC_URL || "",
+        flutterwavePublicKey: vaultConfig.flutterwavePublicKey || process.env.FLW_PUBLIC_KEY || "",
+        flutterwaveSecretKey: vaultConfig.flutterwaveSecretKey || process.env.FLW_SECRET_KEY || "",
+        egoSmsUsername: vaultConfig.egoSmsUsername || process.env.COMMS_SDK_USERNAME || "",
+        egoSmsApiKey: vaultConfig.egoSmsApiKey || process.env.COMMS_SDK_API_KEY || "",
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      })
+
+      // Refresh env so Next.js server picks up the new config
+      applyEnv({
+        supabaseUrl,
+        supabaseAnonKey,
+        serviceRoleKey: vaultConfig.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+        powersyncUrl: vaultConfig.powersyncUrl || process.env.POWERSYNC_URL || "",
+        flutterwavePublicKey: vaultConfig.flutterwavePublicKey || process.env.FLW_PUBLIC_KEY || "",
+        flutterwaveSecretKey: vaultConfig.flutterwaveSecretKey || process.env.FLW_SECRET_KEY || "",
+        egoSmsUsername: vaultConfig.egoSmsUsername || process.env.COMMS_SDK_USERNAME || "",
+        egoSmsApiKey: vaultConfig.egoSmsApiKey || process.env.COMMS_SDK_API_KEY || "",
+      })
+
+      return { success: true }
+    } finally {
+      clearTimeout(timeout)
     }
-    return { success: true }
   })
 
   // Get full config from vault
@@ -295,30 +368,94 @@ function registerIpcHandlers(): void {
 
   // Platform info
   ipcMain.handle("get-platform", () => process.platform)
+
+  // Graceful database flush — renderer calls this back after closing PowerSync
+  ipcMain.handle("db:flushed", () => {
+    // Main process proceeds with quit
+  })
+
+  // Expose the persistent data path to the renderer
+  ipcMain.handle("get-data-path", () => app.getPath("userData"))
+}
+
+// ---------------------------------------------------------------------------
+// Vault seeding from .env file (headless)
+// ---------------------------------------------------------------------------
+function seedVaultFromEnv(envPath: string): void {
+  const envMap: Record<string, string> = {}
+  const content = readFileSync(envPath, "utf-8")
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+    const eq = trimmed.indexOf("=")
+    if (eq === -1) continue
+    envMap[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+  }
+
+  const vaultData: Record<string, string> = {
+    supabaseUrl: envMap.SUPABASE_URL ?? "",
+    supabaseAnonKey: envMap.SUPABASE_ANON_KEY ?? "",
+    serviceRoleKey: envMap.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    powersyncUrl: envMap.POWERSYNC_URL ?? "",
+    flutterwavePublicKey: envMap.FLW_PUBLIC_KEY ?? "",
+    flutterwaveSecretKey: envMap.FLW_SECRET_KEY ?? "",
+    egoSmsUsername: envMap.COMMS_SDK_USERNAME ?? "",
+    egoSmsApiKey: envMap.COMMS_SDK_API_KEY ?? "",
+    accessToken: "",
+    refreshToken: "",
+  }
+
+  writeVault(vaultData)
+  console.log("[VAULT] Seeded successfully from", envPath)
 }
 
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
-app.whenReady().then(async () => {
-  registerIpcHandlers()
-  loadEnv()
-
-  if (!isDev) {
-    await startNextServer().catch((err) => {
-      console.error("Failed to start server:", err)
-      dialog.showErrorBox("Server error", String(err))
-      app.quit()
-    })
-  }
-
-  createWindow()
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+const seedIndex = process.argv.indexOf("--seed-vault")
+if (seedIndex !== -1 && process.argv[seedIndex + 1]) {
+  app.whenReady().then(() => {
+    seedVaultFromEnv(process.argv[seedIndex + 1])
+    app.quit()
   })
-})
+} else {
+  app.whenReady().then(async () => {
+    registerIpcHandlers()
+    loadEnv()
+
+    if (!isDev) {
+      await startNextServer().catch((err) => {
+        console.error("Failed to start server:", err)
+        dialog.showErrorBox("Server error", String(err))
+        app.quit()
+      })
+    }
+
+    createWindow()
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit()
+})
+
+// Graceful shutdown — tell the renderer to flush PowerSync before quitting.
+app.on("before-quit", () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("db:flush")
+  }
+})
+
+app.on("will-quit", () => {
+  // Force-sync any remaining pending data to disk
+  try {
+    session.defaultSession.flushStorageData()
+  } catch {
+    // Not available in all Electron versions
+  }
 })

@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   ColumnDef,
@@ -27,17 +26,34 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   MoreHorizontal,
   Eye,
   Pencil,
+  Trash2,
+  Banknote,
+  PiggyBank,
   ArrowUpDown,
   Phone,
   Mail,
+  Loader2,
 } from "lucide-react"
+import { deleteMemberAction } from "../actions"
 import { formatDate, formatUGX } from "@/lib/utils/format"
+import { toast } from "sonner"
 
 type Member = {
   id: string
@@ -62,15 +78,17 @@ type Member = {
   totalLoans?: number
 }
 
-const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
-  active: "default",
-  suspended: "secondary",
-  exited: "destructive",
+const STATUS_STYLES: Record<string, string> = {
+  active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  suspended: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+  exited: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 }
 
 export function MembersTable({ members }: { members: Member[] }) {
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const columns: ColumnDef<Member>[] = [
     {
@@ -139,9 +157,9 @@ export function MembersTable({ members }: { members: Member[] }) {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant={statusVariant[row.original.status] ?? "outline"}>
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[row.original.status] ?? ""}`}>
           {row.original.status}
-        </Badge>
+        </span>
       ),
     },
     {
@@ -200,28 +218,42 @@ export function MembersTable({ members }: { members: Member[] }) {
     },
     {
       id: "actions",
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground">
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Actions</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => router.push(`/members/${row.original.id}`)}
-            >
-              <Eye className="mr-2 h-4 w-4" />
-              View
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => router.push(`/members/${row.original.id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: ({ row }) => {
+        const member = row.original
+        return (
+          <div className="flex items-center h-full">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => router.push(`/members/${member.id}`)}>
+                  <Eye className="mr-2 h-4 w-4" /> View Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/members/${member.id}/edit`)}>
+                  <Pencil className="mr-2 h-4 w-4" /> Edit Member
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/loans?member=${member.id}`)}>
+                  <Banknote className="mr-2 h-4 w-4" /> Assign Loan
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/savings?member=${member.id}`)}>
+                  <PiggyBank className="mr-2 h-4 w-4" /> Add Savings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setMemberToDelete(member)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Remove Member
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
     },
   ]
 
@@ -236,45 +268,82 @@ export function MembersTable({ members }: { members: Member[] }) {
     initialState: { pagination: { pageSize: 10 } },
   })
 
+  const handleDelete = async () => {
+    if (!memberToDelete) return
+    setDeleting(true)
+    const res = await deleteMemberAction(memberToDelete.id)
+    setDeleting(false)
+    setMemberToDelete(null)
+    if (res.success) toast.success("Member removed")
+    else toast.error(res.error)
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id}>
-                {hg.headers.map((h) => (
-                  <TableHead key={h.id}>
-                    {h.isPlaceholder
-                      ? null
-                      : flexRender(h.column.columnDef.header, h.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+    <>
+      <AlertDialog
+        open={!!memberToDelete}
+        onOpenChange={(open) => { if (!open) setMemberToDelete(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {memberToDelete?.fullName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this member and all their associated data
+              including loans, savings, fines, and transactions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting…</> : "Yes, Delete Member"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="space-y-4">
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((h) => (
+                    <TableHead key={h.id}>
+                      {h.isPlaceholder
+                        ? null
+                        : flexRender(h.column.columnDef.header, h.getContext())}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No members found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No members found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <DataTablePagination table={table} />
       </div>
-      <DataTablePagination table={table} />
-    </div>
+    </>
   )
 }

@@ -19,6 +19,14 @@ declare global {
       clearVault:    () => Promise<{ success: boolean }>;
       verifyPayment: (transactionId: string) => Promise<any>;
       sendSms:       (to: string, message: string) => Promise<any>;
+      getOfflineQueue:     () => Promise<any[]>;
+      addToOfflineQueue:   (item: any) => Promise<{ success: boolean }>;
+      clearOfflineQueue:   () => Promise<{ success: boolean }>;
+      getPlatform:         () => Promise<string>;
+      getDataPath:         () => Promise<string>;
+      onFlushDb:           (cb: () => void) => void;
+      removeFlushDbListener: () => void;
+      dbFlushed:           () => Promise<void>;
     };
   }
 }

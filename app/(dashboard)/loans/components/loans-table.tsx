@@ -98,7 +98,23 @@ const LoanActionsCell = (p: ICellRendererParams) => {
   const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db } = p.context
   const loan = p.data
   return (
-    <div className="flex items-center h-full">
+    <div className="flex items-center h-full gap-0.5">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={(e) => { e.stopPropagation(); router.push(`/loans/${loan.id}`) }}
+      >
+        <Eye className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-destructive hover:text-destructive"
+        onClick={(e) => { e.stopPropagation(); setDeleteLoan(loan) }}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           onClick={(e) => e.stopPropagation()}
@@ -168,13 +184,6 @@ const LoanActionsCell = (p: ICellRendererParams) => {
           )}
           <DropdownMenuSeparator />
           <LoanPdfButton loan={loan} />
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={() => setDeleteLoan(loan)}
-          >
-            <Trash2 className="mr-2 h-4 w-4" /> Delete Loan
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
