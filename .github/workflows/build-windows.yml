@@ -3,8 +3,11 @@ name: Build
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - 'v*'
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -33,10 +36,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Fix napi-postinstall
-        run: npm install --ignore-scripts
+        run: npm ci
 
       - name: Inject Config Server URL (Windows)
         if: matrix.os == 'windows-latest'
@@ -61,6 +61,9 @@ jobs:
       - name: Build Next.js
         run: npm run build
         env:
+          NODE_OPTIONS: "--no-deprecation"
+          CI: "true"
+          npm_config_yes: "true"
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -73,6 +76,9 @@ jobs:
           FLW_PUBLIC_KEY: ${{ secrets.FLW_PUBLIC_KEY }}
           FLW_SECRET_KEY: ${{ secrets.FLW_SECRET_KEY }}
           NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: Compile Electron
         run: npm run electron:compile
@@ -104,16 +110,24 @@ jobs:
           if [ -n "$leaks" ]; then echo "WARNING: Secrets found: $leaks"; else echo "PASS: No secrets detected in bundle"; fi
           rm -rf dist/asar-extracted
 
-      - name: Upload packages
+      - name: Upload packages (Windows)
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: |
-            dist/*.${{ matrix.ext }}
+            dist/*.exe
+            dist/*.exe.blockmap
+          retention-days: 30
+
+      - name: Upload packages (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
             dist/*.AppImage
             dist/*.deb
-            dist/*.zip
-            ${{ matrix.os == 'windows-latest' && 'dist/*.exe.blockmap' || '' }}
           retention-days: 30
 
   release:
