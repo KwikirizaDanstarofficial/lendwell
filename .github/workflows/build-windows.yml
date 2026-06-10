@@ -59,11 +59,14 @@ jobs:
           CONFIG_SERVER_URL: ${{ secrets.CONFIG_SERVER_URL }}
 
       - name: Build Next.js
+        shell: bash
         run: npm run build
         env:
           NODE_OPTIONS: "--no-deprecation"
           CI: "true"
           npm_config_yes: "true"
+          NEXT_TELEMETRY_DISABLED: "1"
+          SENTRY_TELEMETRY: "false"
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -81,6 +84,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: Compile Electron
+        shell: bash
         run: npm run electron:compile
 
       - name: Generate ICO for installer
@@ -88,6 +92,7 @@ jobs:
         run: node scripts/generate-ico.cjs
 
       - name: Package ${{ matrix.platform }}
+        shell: bash
         run: npx electron-builder --${{ matrix.platform }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
