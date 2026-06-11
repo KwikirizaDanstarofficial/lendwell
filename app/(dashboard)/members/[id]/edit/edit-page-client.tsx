@@ -17,7 +17,7 @@ function toMember(m: any) {
 }
 
 export function EditPageClient({ id, initialMember }: { id: string; initialMember?: any }) {
-  const { data: rows = [], loading } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
+  const { data: rows = [], isLoading: loading } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
   const raw = (rows[0] as any) ?? initialMember
   if (loading && !raw) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading member…</div>
   if (!raw) return <div className="p-6 text-sm text-muted-foreground">Member not found.</div>

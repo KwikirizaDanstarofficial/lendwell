@@ -28,7 +28,7 @@ function toLoan(r: any) {
 }
 
 export function EditPageClient({ id, initialLoan }: { id: string; initialLoan?: any }) {
-  const { data: rows = [], loading } = useQuery(
+  const { data: rows = [], isLoading: loading } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code
      FROM loans l LEFT JOIN members m ON m.id = l.member_id
      WHERE l.id = ? LIMIT 1`,
