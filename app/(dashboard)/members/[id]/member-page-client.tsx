@@ -1,15 +1,17 @@
 "use client"
 import { useQuery } from "@powersync/react"
+import { Loader2 } from "lucide-react"
 import { MemberProfile } from "./member-profile"
 
 export function MemberPageClient({ id }: { id: string }) {
-  const { data: memberRows = [] } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
+  const { data: memberRows = [], isLoading: loadingMembers } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
   const { data: loanRows = [] } = useQuery("SELECT * FROM loans WHERE member_id = ? ORDER BY created_at DESC", [id])
   const { data: savingsRows = [] } = useQuery("SELECT * FROM savings_accounts WHERE member_id = ? ORDER BY created_at DESC", [id])
   const { data: fineRows = [] } = useQuery("SELECT * FROM fines WHERE member_id = ? ORDER BY created_at DESC", [id])
   const { data: txRows = [] } = useQuery("SELECT * FROM transactions WHERE member_id = ? ORDER BY created_at DESC LIMIT 50", [id])
 
   const m = memberRows[0] as any
+  if (loadingMembers && !m) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading member…</div>
   if (!m) return <div className="p-6 text-sm text-muted-foreground">Member not found or not yet synced.</div>
 
   const member = {
