@@ -8,6 +8,19 @@ import {
 import { supabase } from "@/lib/supabase/client"
 import { getClientConfig } from "@/lib/client-config"
 
+/** Try to get the Supabase access token from the Electron vault. */
+async function electronAccessToken(): Promise<string | null> {
+  try {
+    if (typeof window === "undefined") return null
+    const el = (window as any).electron
+    if (!el?.getConfig) return null
+    const config = await el.getConfig()
+    return config?.accessToken ?? null
+  } catch {
+    return null
+  }
+}
+
 function opName(op: UpdateType): "PUT" | "PATCH" | "DELETE" {
   if (op === UpdateType.PUT)    return "PUT"
   if (op === UpdateType.PATCH)  return "PATCH"
@@ -25,7 +38,23 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
-    const { data: { session } } = await supabase.auth.getSession()
+    // Try browser Supabase client first (works in web / Next.js server)
+    let { data: { session } } = await supabase.auth.getSession()
+
+    // Fallback: read access token from Electron vault
+    if (!session) {
+      const token = await electronAccessToken()
+      if (token) {
+        // Set the session on the browser client so subsequent calls also work
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: token,
+        })
+        const { data: { session: s } } = await supabase.auth.getSession()
+        session = s
+      }
+    }
+
     if (!session) throw new Error("Not authenticated")
 
     // Guard: the JWT MUST have sacco_id at root level for PowerSync Cloud
