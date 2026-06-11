@@ -1,10 +1,13 @@
-## Seed vault
+# Lendwell – Environment Setup for Windows
 
-Edit `.env.local` with your keys, then run in **Command Prompt**:
+## Step 1 – Edit keys
+Create `.env.local` in this folder with your API keys.
 
-```bat
-copy "%USERPROFILE%\Desktop\env-setup\.env.local" "%APPDATA%\lendwell\.env"
-"%PROGRAMFILES%\Lendwell\Lendwell.exe" --seed-vault "%APPDATA%\lendwell\.env"
-```
+## Step 2 – Run the batch file
+Double-click `seed-vault.bat`. It will:
 
-Then launch `Lendwell.exe` normally.
+1. Copy `.env.local` → `%APPDATA%\lendwell\.env`
+2. Auto-detect and run `Lendwell.exe --seed-vault`
+3. Launch the app
+
+If the .exe isn't found automatically, drag-and-drop `Lendwell.exe` onto `seed-vault.bat`.
