@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { UpdatePasswordForm } from "./update-password-form"
 import { LogoMark } from "@/components/logo"
 
+export const dynamic = "force-dynamic"
 export const metadata: Metadata = { title: "Set New Password — Lendwell" }
 
 export default function UpdatePasswordPage() {
