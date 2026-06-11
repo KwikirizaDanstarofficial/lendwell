@@ -132,7 +132,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "build/icons/icon.ico"
+      "installerIcon": "build/icons/icon.ico",
+      "deleteAppDataOnUninstall": true
     },
     "publish": null
   },
