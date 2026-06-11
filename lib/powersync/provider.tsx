@@ -7,6 +7,7 @@ import { AppSchema } from "./schema"
 import { SupabaseConnector } from "./connector"
 import { pullFromSupabase } from "./sync-engine"
 import { supabase } from "@/lib/supabase/client"
+import { isOffline } from "@/lib/utils/is-offline"
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 
@@ -32,7 +33,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
 
   const doSync = useCallback(async () => {
     if (syncingRef.current) return
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (isOffline()) {
       console.log("[PowerSync] Skipping sync — offline")
       return
     }
