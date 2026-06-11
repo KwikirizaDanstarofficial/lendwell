@@ -32,6 +32,10 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
 
   const doSync = useCallback(async () => {
     if (syncingRef.current) return
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      console.log("[PowerSync] Skipping sync — offline")
+      return
+    }
     syncingRef.current = true
     setSyncErrors([])
     try {
