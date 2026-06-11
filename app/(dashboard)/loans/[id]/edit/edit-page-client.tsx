@@ -1,5 +1,6 @@
 "use client"
 import { useQuery } from "@powersync/react"
+import { Loader2 } from "lucide-react"
 import { EditLoanForm } from "./edit-loan-form"
 
 function toLoan(r: any) {
@@ -27,13 +28,14 @@ function toLoan(r: any) {
 }
 
 export function EditPageClient({ id, initialLoan }: { id: string; initialLoan?: any }) {
-  const { data: rows = [] } = useQuery(
+  const { data: rows = [], loading } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code
      FROM loans l LEFT JOIN members m ON m.id = l.member_id
      WHERE l.id = ? LIMIT 1`,
     [id]
   )
   const raw = (rows[0] as any) ?? initialLoan
+  if (loading && !raw) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading loan…</div>
   if (!raw) return <div className="p-6 text-sm text-muted-foreground">Loan not found.</div>
   const loan = toLoan(raw)
   return (

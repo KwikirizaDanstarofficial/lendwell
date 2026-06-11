@@ -35,6 +35,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     if (syncingRef.current) return
     if (isOffline()) {
       console.log("[PowerSync] Skipping sync — offline")
+      setSyncErrors([])
       return
     }
     syncingRef.current = true
@@ -96,7 +97,8 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
 
     // Sync immediately when the network comes back online.
     window.addEventListener("online", doSync)
-    window.addEventListener("offline", disconnect)
+    const goOffline = () => { setSyncErrors([]); disconnect() }
+    window.addEventListener("offline", goOffline)
 
     // Sync on sign-in / session restore.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

@@ -56,8 +56,9 @@ export function LoansClient({ saccoId }: LoansClientProps) {
   const [search, setSearch] = useState("")
 
   const { data: rows = [] } = useQuery(
-    `SELECT l.id, l.loan_ref, l.amount, l.balance, l.interest_rate, l.interest_type,
-            l.duration_months, l.daily_payment, l.monthly_payment, l.late_penalty_fee,
+    `SELECT l.id, l.sacco_id, l.member_id, l.loan_ref, l.amount, l.balance,
+            l.interest_rate, l.interest_type, l.duration_months,
+            l.daily_payment, l.monthly_payment, l.late_penalty_fee,
             l.status, l.due_date, l.disbursed_at, l.settled_at, l.created_at,
             l.expected_received, l.notes, l.category_id,
             m.full_name AS member_name, m.member_code, m.phone AS member_phone
@@ -75,6 +76,8 @@ export function LoansClient({ saccoId }: LoansClientProps) {
 
   const loans = useMemo(() => (rows as any[]).map((r) => ({
     id:               r.id,
+    saccoId:          r.sacco_id,
+    memberId:         r.member_id,
     loanRef:          r.loan_ref,
     amount:           Number(r.amount),
     balance:          Number(r.balance),
