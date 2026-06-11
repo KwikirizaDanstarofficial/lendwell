@@ -28,6 +28,7 @@ import {
   CreditCard,
   Phone,
   Mail,
+  Loader2,
 } from "lucide-react"
 
 export function LoanDetailClient({ id }: { id: string }) {
@@ -169,7 +170,7 @@ function PaymentTile({
 // ── Main content ─────────────────────────────────────────────────────────────
 
 function LoanDetailContent({ id }: { id: string }) {
-  const { data: loanRows = [] } = useQuery(
+  const { data: loanRows = [], isLoading: loadingLoan } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code AS member_code_val,
              m.phone AS member_phone, m.email AS member_email
       FROM loans l LEFT JOIN members m ON m.id = l.member_id
@@ -188,6 +189,7 @@ function LoanDetailContent({ id }: { id: string }) {
   )
 
   const loanRow = loanRows[0] as any
+  if (loadingLoan && !loanRow) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading loan…</div>
   if (!loanRow) return <div className="p-6 text-sm text-muted-foreground">Loan not found or not yet synced.</div>
 
   const loan = {

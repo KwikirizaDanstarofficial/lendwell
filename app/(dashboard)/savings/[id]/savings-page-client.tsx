@@ -1,5 +1,6 @@
 "use client"
 import { useQuery } from "@powersync/react"
+import { Loader2 } from "lucide-react"
 import { SavingsDetailClient } from "./savings-detail-client"
 
 export function SavingsPageClient({
@@ -11,7 +12,7 @@ export function SavingsPageClient({
   initialAccount?: any
   initialTransactions?: any[]
 }) {
-  const { data: rows = [] } = useQuery(
+  const { data: rows = [], isLoading: loadingAccount } = useQuery(
     `SELECT s.*, m.full_name AS member_name, m.member_code, m.phone AS member_phone, m.id AS member_id_val
        FROM savings_accounts s LEFT JOIN members m ON m.id = s.member_id
        WHERE s.id = ? LIMIT 1`,
@@ -23,6 +24,7 @@ export function SavingsPageClient({
   )
 
   const r = (rows[0] as any) ?? initialAccount
+  if (loadingAccount && !r) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading account…</div>
   if (!r) return <div className="p-6 text-sm text-muted-foreground">Account not found.</div>
 
   const account = {

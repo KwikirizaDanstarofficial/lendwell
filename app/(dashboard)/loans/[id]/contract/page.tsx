@@ -35,7 +35,7 @@ export default function LoanContractPage() {
   const loanId = params.id as string
 
   // Load loan + member from local PowerSync SQLite — works offline
-  const { data: loanRows = [] } = useQuery(
+  const { data: loanRows = [], isLoading: loadingLoan } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code AS member_code_val,
              m.phone AS member_phone, m.national_id AS member_national_id,
              m.address AS member_address
@@ -52,6 +52,21 @@ export default function LoanContractPage() {
   }, [])
 
   const r = loanRows[0] as any
+
+  if (loadingLoan && !r) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 pt-6">
+        <Link href="/loans" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Loans
+        </Link>
+        <div className="flex items-center justify-center p-12 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Loading loan…
+        </div>
+      </div>
+    )
+  }
 
   if (!r) {
     return (
