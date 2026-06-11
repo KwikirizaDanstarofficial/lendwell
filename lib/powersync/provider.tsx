@@ -82,13 +82,38 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     const disconnect = () => db.disconnect()
     let destroyed = false
 
-    // Wait for the Supabase session to be restored before syncing.
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+    // Restore Supabase session from Electron vault so sync can authenticate.
+    const initSessionAndSync = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
       if (destroyed) return
       if (session) {
         doSync().then(() => { syncedRef.current = true })
+        return
       }
-    })
+      // Fallback: read access token from Electron vault
+      try {
+        const el = typeof window !== "undefined" ? (window as any).electron : undefined
+        if (el?.getConfig) {
+          const config = await el.getConfig()
+          if (destroyed) return
+          if (config?.accessToken) {
+            await supabase.auth.setSession({
+              access_token: config.accessToken,
+              refresh_token: config.refreshToken ?? config.accessToken,
+            })
+            const { data: { session: s } } = await supabase.auth.getSession()
+            if (destroyed) return
+            if (s) {
+              doSync().then(() => { syncedRef.current = true })
+            }
+          }
+        }
+      } catch {
+        // vault not available — stay offline
+      }
+    }
+
+    initSessionAndSync()
 
     // Re-sync periodically while the app is open.
     const periodicTimer = setInterval(() => {
