@@ -4,7 +4,7 @@ import { createServer } from "http"
 import { existsSync, readFileSync, writeFileSync } from "fs"
 import { pathToFileURL } from "url"
 import * as net from "net"
-import { vaultExists, readVault, writeVault, clearVault } from "./vault"
+import { vaultExists, readVault, writeVault, clearVault } from "./vault.js"
 
 const isDev = !app.isPackaged
 const PORT = 3123
@@ -117,7 +117,7 @@ function supplementFromEnv(key: string): void {
 // ---------------------------------------------------------------------------
 function findFreePort(start: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    const server = require("net").createServer()
+    const server = net.createServer()
     server.listen(start, "127.0.0.1", () => {
       const { port } = server.address() as net.AddressInfo
       server.close(() => resolve(port))
