@@ -385,6 +385,10 @@ function registerIpcHandlers(): void {
 // Vault seeding from .env file (headless)
 // ---------------------------------------------------------------------------
 function seedVaultFromEnv(envPath: string): void {
+  if (!existsSync(envPath)) {
+    console.warn("[VAULT] seed file not found:", envPath)
+    return
+  }
   const envMap: Record<string, string> = {}
   const content = readFileSync(envPath, "utf-8")
   for (const line of content.split("\n")) {
