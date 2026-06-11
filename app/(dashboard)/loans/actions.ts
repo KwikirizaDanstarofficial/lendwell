@@ -835,6 +835,101 @@ export async function deleteLoanAction(id: string): Promise<LoanFormState> {
   }
 }
 
+/**
+ * Updates an existing loan's core fields (amount, duration, interest, etc.)
+ * and recalculates the repayment schedule.
+ */
+const updateLoanSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be greater than 0"),
+  duration_months: z.coerce.number().min(1).default(12),
+  due_date: z.string().min(1, "Due date is required"),
+  notes: z.string().optional(),
+})
+
+export async function updateLoanAction(
+  id: string,
+  prevState: LoanFormState,
+  formData: FormData
+): Promise<LoanFormState> {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { error: "Not authenticated." }
+
+    const raw = {
+      amount: formData.get("amount") as string,
+      duration_months: formData.get("duration_months") as string,
+      due_date: formData.get("due_date") as string,
+      notes: formData.get("notes") as string,
+    }
+
+    const parsed = updateLoanSchema.safeParse(raw)
+    if (!parsed.success) {
+      return {
+        error: "Validation failed",
+        fieldErrors: parsed.error.flatten().fieldErrors,
+      }
+    }
+
+    const amountInCents = Math.floor(parsed.data.amount * 100)
+    const clientRate = Number(formData.get("interest_rate") || "0")
+    const clientType = (formData.get("interest_type") as string) || "monthly"
+    const clientExpected = Number(formData.get("expected_received") || "0")
+    const clientDaily = Number(formData.get("daily_payment") || "0")
+    const clientMonthly = Number(formData.get("monthly_payment") || "0")
+    const clientPenalty = Number(formData.get("late_penalty_fee") || "0")
+
+    let interestRate = clientRate
+    let interestType: "daily" | "monthly" | "annual" = clientType as "daily" | "monthly" | "annual"
+
+    // Recalculate if client didn't send computed values
+    const calc = (clientExpected > 0) ? {
+      totalExpectedReceived: clientExpected,
+      dailyPayment: clientDaily,
+      monthlyPayment: clientMonthly,
+      latePenaltyFee: clientPenalty,
+    } : calculateLoan({
+      principal: amountInCents,
+      interestRate,
+      interestType: interestType as "daily" | "monthly" | "annual",
+      durationMonths: parsed.data.duration_months,
+    })
+
+    const updateData: Record<string, any> = {
+      amount: amountInCents,
+      expected_received: calc.totalExpectedReceived,
+      balance: calc.totalExpectedReceived,
+      interest_rate: String(interestRate),
+      interest_type: interestType,
+      duration_months: parsed.data.duration_months,
+      late_penalty_fee: calc.latePenaltyFee,
+      daily_payment: calc.dailyPayment,
+      monthly_payment: calc.monthlyPayment,
+      due_date: parsed.data.due_date,
+      notes: parsed.data.notes || null,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('loans')
+      .update(updateData)
+      .eq('id', id)
+
+    if (updateError) {
+      console.error('Supabase loan update error:', updateError)
+      if (isOfflineError(updateError)) return { offline: true, error: "offline" }
+      return { error: `Failed to update loan: ${updateError.message}` }
+    }
+
+    revalidatePath("/loans")
+    revalidatePath(`/loans/${id}`)
+    return { success: true }
+  } catch (err) {
+    console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
+    return { error: (err as any)?.message || "Failed to update loan." }
+  }
+}
+
 // ─── Interest Rate Helpers ────────────────────────────────────────────────────
 
 /**

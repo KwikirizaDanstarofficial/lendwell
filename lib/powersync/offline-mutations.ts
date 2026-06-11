@@ -202,6 +202,33 @@ export async function offlineRepayLoan(
   )
 }
 
+export async function offlineEditLoan(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    amount?: number
+    duration_months?: number
+    due_date?: string | null
+    notes?: string | null
+    interest_rate?: string
+    interest_type?: string
+    expected_received?: number
+    daily_payment?: number
+    monthly_payment?: number
+    late_penalty_fee?: number
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  await db.execute(
+    `UPDATE loans SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
 export async function offlineDeleteLoan(
   db: AbstractPowerSyncDatabase,
   id: string

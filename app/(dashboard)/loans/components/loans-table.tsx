@@ -9,7 +9,6 @@ import { useTheme } from "@/components/providers/theme-provider"
 import { AgGridReact } from "ag-grid-react"
 import type { ColDef, ICellRendererParams, CellClickedEvent } from "ag-grid-community"
 import { agLightTheme, agDarkTheme } from "@/lib/ag-grid-theme"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +32,7 @@ import {
   XCircle,
   Send,
   Eye,
+  Pencil,
   Banknote,
   Trash2,
   FileText,
@@ -98,23 +98,7 @@ const LoanActionsCell = (p: ICellRendererParams) => {
   const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db } = p.context
   const loan = p.data
   return (
-    <div className="flex items-center h-full gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={(e) => { e.stopPropagation(); router.push(`/loans/${loan.id}`) }}
-      >
-        <Eye className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-destructive hover:text-destructive"
-        onClick={(e) => { e.stopPropagation(); setDeleteLoan(loan) }}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+    <div className="flex items-center h-full">
       <DropdownMenu>
         <DropdownMenuTrigger
           onClick={(e) => e.stopPropagation()}
@@ -124,66 +108,65 @@ const LoanActionsCell = (p: ICellRendererParams) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}`)}>
-            <Eye className="mr-2 h-4 w-4" /> View Details / Timesheet
+            <Eye className="mr-2 h-4 w-4" /> View Details
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/contract`)}>
             <FileText className="mr-2 h-4 w-4" /> View Contract
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/edit`)}>
+            <Pencil className="mr-2 h-4 w-4" /> Edit Loan
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {loan.status === "pending" && (
-            <>
-              <DropdownMenuItem
-                className="text-green-600"
-                onClick={async () => {
-                  if (isOffline()) {
-                    await offlineApproveLoan(db, loan.id).catch(() => {})
-                    toast.success("Loan approved offline — will sync when connected.")
-                    return
-                  }
-                  const res = await approveLoanAction(loan.id)
-                  if (res.success) toast.success("Loan approved & disbursed")
-                  else if (res.offline) {
-                    await offlineApproveLoan(db, loan.id).catch(() => {})
-                    toast.success("Loan approved offline — will sync when connected.")
-                  } else toast.error(res.error)
-                }}
-              >
-                <CheckCircle className="mr-2 h-4 w-4" /> Approve & Disburse
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-red-600" onClick={() => setDeclineLoan(loan)}>
-                <XCircle className="mr-2 h-4 w-4" /> Decline Loan
-              </DropdownMenuItem>
-            </>
-          )}
-          {loan.status === "approved" && (
-            <DropdownMenuItem
-              className="text-purple-600"
-              onClick={async () => {
-                if (isOffline()) {
-                  await offlineDisburseLoan(db, loan.id).catch(() => {})
-                  toast.success("Loan disbursed offline — will sync when connected.")
-                  return
-                }
-                const res = await disburseLoanAction(loan.id)
-                if (res.success) toast.success("Loan disbursed")
-                else toast.error(res.error)
-              }}
-            >
-              <Send className="mr-2 h-4 w-4" /> Disburse Loan
-            </DropdownMenuItem>
-          )}
-          {(loan.status === "active" || loan.status === "disbursed") && (
-            <>
-              <DropdownMenuItem className="text-blue-600" onClick={() => setRepayLoan(loan)}>
-                <Banknote className="mr-2 h-4 w-4" /> Record Repayment
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-green-600" onClick={() => setTopUpLoan(loan)}>
-                <Plus className="mr-2 h-4 w-4" /> Top Up Loan
-              </DropdownMenuItem>
-            </>
-          )}
+          <DropdownMenuItem
+            className="text-green-600"
+            onClick={async () => {
+              if (isOffline()) {
+                await offlineApproveLoan(db, loan.id).catch(() => {})
+                toast.success("Loan approved offline — will sync when connected.")
+                return
+              }
+              const res = await approveLoanAction(loan.id)
+              if (res.success) toast.success("Loan approved & disbursed")
+              else if (res.offline) {
+                await offlineApproveLoan(db, loan.id).catch(() => {})
+                toast.success("Loan approved offline — will sync when connected.")
+              } else toast.error(res.error)
+            }}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" /> Approve & Disburse
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-red-600" onClick={() => setDeclineLoan(loan)}>
+            <XCircle className="mr-2 h-4 w-4" /> Decline Loan
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-purple-600"
+            onClick={async () => {
+              if (isOffline()) {
+                await offlineDisburseLoan(db, loan.id).catch(() => {})
+                toast.success("Loan disbursed offline — will sync when connected.")
+                return
+              }
+              const res = await disburseLoanAction(loan.id)
+              if (res.success) toast.success("Loan disbursed")
+              else toast.error(res.error)
+            }}
+          >
+            <Send className="mr-2 h-4 w-4" /> Disburse Loan
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-blue-600" onClick={() => setRepayLoan(loan)}>
+            <Banknote className="mr-2 h-4 w-4" /> Record Repayment
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-green-600" onClick={() => setTopUpLoan(loan)}>
+            <Plus className="mr-2 h-4 w-4" /> Top Up Loan
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <LoanPdfButton loan={loan} />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => setDeleteLoan(loan)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Loan
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
