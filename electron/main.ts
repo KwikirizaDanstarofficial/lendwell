@@ -2,9 +2,12 @@ import { app, BrowserWindow, dialog, shell, ipcMain, net as electronNet, session
 import path from "path"
 import { createServer } from "http"
 import { existsSync, readFileSync, writeFileSync } from "fs"
-import { pathToFileURL } from "url"
+import { fileURLToPath, pathToFileURL } from "url"
 import * as net from "net"
 import { vaultExists, readVault, writeVault, clearVault } from "./vault.js"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const isDev = !app.isPackaged
 const PORT = 3123
