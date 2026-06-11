@@ -396,8 +396,8 @@ function seedVaultFromEnv(envPath: string): void {
   }
 
   const vaultData: Record<string, string> = {
-    supabaseUrl: envMap.SUPABASE_URL || envMap.NEXT_PUBLIC_SUPABASE_URL || "",
-    supabaseAnonKey: envMap.SUPABASE_ANON_KEY || envMap.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+    supabaseUrl: envMap.SUPABASE_URL ?? "",
+    supabaseAnonKey: envMap.SUPABASE_ANON_KEY ?? "",
     serviceRoleKey: envMap.SUPABASE_SERVICE_ROLE_KEY ?? "",
     powersyncUrl: envMap.POWERSYNC_URL ?? "",
     flutterwavePublicKey: envMap.FLW_PUBLIC_KEY ?? "",
