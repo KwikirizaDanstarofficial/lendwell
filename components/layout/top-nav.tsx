@@ -380,13 +380,13 @@ export function TopNav({ user }: TopNavProps) {
               </div>
             )}
 
-            {/* Sync button — manual trigger (no auto-sync) */}
+            {/* Sync button — pull latest from server */}
             <Button
               variant={jwtWarning ? "default" : "outline"} size="sm"
               onClick={handleSync}
               disabled={isSyncing}
               title="Sync data from server"
-              className="hidden sm:inline-flex gap-1.5 text-xs"
+              className="inline-flex gap-1.5 text-xs"
             >
               {isSyncing ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -396,19 +396,17 @@ export function TopNav({ user }: TopNavProps) {
               SYNC
             </Button>
 
-            {/* Electron-only upload button */}
-            {isElectron && (
-              <Button
-                variant="outline" size="sm"
-                onClick={handleSyncOnline}
-                disabled={syncing}
-                title="Push local changes to server"
-                className="hidden sm:inline-flex gap-1.5 text-xs"
-              >
-                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
-                UPLOAD
-              </Button>
-            )}
+            {/* Upload button — push local changes to server */}
+            <Button
+              variant="outline" size="sm"
+              onClick={handleSyncOnline}
+              disabled={syncing}
+              title="Push local changes to server"
+              className="inline-flex gap-1.5 text-xs"
+            >
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
+              UPLOAD
+            </Button>
 
             <Button
               id="tour-start-tour"

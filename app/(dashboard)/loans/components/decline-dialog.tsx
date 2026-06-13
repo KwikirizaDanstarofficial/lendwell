@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { declineLoanAction } from "../actions"
 import { offlineDeclineLoan } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ export function DeclineDialog({
   onClose: () => void
 }) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const [reason,  setReason]  = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -73,6 +75,7 @@ export function DeclineDialog({
     if (result.success) {
       toast.success("Loan declined")
       onClose()
+      syncNow()
     } else if (result.offline) {
       try {
         await offlineDeclineLoan(db, loan.id, reason)

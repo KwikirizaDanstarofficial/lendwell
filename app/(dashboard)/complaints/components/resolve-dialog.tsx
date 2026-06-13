@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { usePowerSync } from "@powersync/react"
 import { offlineResolveComplaint } from "@/lib/powersync/offline-mutations"
 import { resolveComplaintAction } from "../actions"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ export function ResolveDialog({
   onClose: () => void
 }) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const [state, formAction, isPending] = useActionState(resolveComplaintAction, {})
   const [offlineSuccess, setOfflineSuccess] = useState(false)
 
@@ -36,9 +38,10 @@ export function ResolveDialog({
     if (state.success) {
       toast.success("Complaint resolved! SMS sent to member.")
       onClose()
+      syncNow()
     }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, syncNow])
 
   return (
     <Dialog open={open} onOpenChange={onClose}>

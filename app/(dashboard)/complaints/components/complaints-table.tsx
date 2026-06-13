@@ -5,6 +5,7 @@ import { useState } from "react"
 import { usePowerSync } from "@powersync/react"
 import { offlineDeleteComplaint } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   ColumnDef,
   flexRender,
@@ -116,6 +117,7 @@ interface ComplaintsTableProps {
 
 export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -391,6 +393,7 @@ export function ComplaintsTable({ complaints }: ComplaintsTableProps) {
                   const result = await deleteComplaintAction(complaintToDelete)
                   if (result.success) {
                     toast.success("Complaint deleted successfully")
+                    syncNow()
                   } else {
                     toast.error(result.error || "Failed to delete complaint")
                   }

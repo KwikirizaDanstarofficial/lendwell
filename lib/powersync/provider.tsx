@@ -40,6 +40,26 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     []
   )
 
+  // Connect PowerSync on mount (required for useQuery reactivity)
+  const [connected, setConnected] = useState(false)
+  const initialSyncDone = useRef(false)
+  useEffect(() => {
+    if (connected) return
+    db.connect(connector)
+      .then(() => {
+        setConnected(true)
+        setJwtWarning(false)
+        // Auto-populate data on first connect
+        if (!initialSyncDone.current) {
+          initialSyncDone.current = true
+          pullFromSupabase(db, "").catch(() => {})
+        }
+      })
+      .catch((err: any) => {
+        if (String(err).includes("sacco_id")) setJwtWarning(true)
+      })
+  }, [db, connected])
+
   const syncNow = useCallback(async () => {
     if (syncingRef.current) return
     if (isOffline()) {
@@ -61,15 +81,6 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
       console.error("[PowerSync] Direct pull failed:", err)
     } finally {
       syncingRef.current = false
-    }
-
-    try {
-      await db.connect(connector)
-      setJwtWarning(false)
-    } catch (err: any) {
-      if (String(err).includes("sacco_id")) {
-        setJwtWarning(true)
-      }
     }
   }, [db])
 

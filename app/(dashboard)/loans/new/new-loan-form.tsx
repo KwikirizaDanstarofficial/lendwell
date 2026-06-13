@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { addLoanAction, LoanFormState } from "../actions"
 import { offlineAddLoan } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useSyncNow } from "@/lib/powersync/provider"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { formatUGX } from "@/lib/utils/format"
 import { Button } from "@/components/ui/button"
@@ -164,6 +165,7 @@ function StatCard({
 export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProps) {
   const db = usePowerSync()
   const router = useRouter()
+  const { syncNow } = useSyncNow()
   const [state, formAction, isPending] = useActionState(
     addLoanAction,
     INITIAL_FORM_STATE
@@ -204,6 +206,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
     if (offlineSuccess) { router.push("/loans"); router.refresh(); return }
     if (state.success) {
       toast.success("Loan application submitted successfully!")
+      syncNow()
       router.push("/loans")
       router.refresh()
     }

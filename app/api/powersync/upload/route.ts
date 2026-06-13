@@ -14,7 +14,7 @@ const ALLOWED_TABLES = new Set([
   "members", "loans", "savings_accounts", "transactions",
   "fines", "fine_categories", "loan_categories", "savings_categories",
   "interest_rates", "complaints", "documents", "notifications",
-  "loan_guarantors",
+  "loan_guarantors", "saccos", "branches",
 ])
 
 export async function POST(req: NextRequest) {

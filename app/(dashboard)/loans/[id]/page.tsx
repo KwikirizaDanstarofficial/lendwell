@@ -419,6 +419,7 @@ async function LoanDetailContent({ id }: { id: string }) {
       <GuarantorsSection
         loanId={id}
         loanRef={loan.loanRef}
+        saccoId={user.saccoId}
         guarantors={guarantors as any}
         members={allMembers ?? []}
         borrowerMemberId={loan.memberId}

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { usePowerSync } from "@powersync/react"
 import { offlineUpdateComplaintStatus } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ export function ComplaintDetailDialog({
   onClose: () => void
 }) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const [resolveOpen, setResolveOpen] = useState(false)
   const [hoveredRating, setHoveredRating] = useState(0)
   const [rating, setRating] = useState(complaint.satisfactionRating ?? 0)
@@ -63,7 +65,7 @@ export function ComplaintDetailDialog({
       return
     }
     const res = await updateComplaintStatusAction(complaint.id, "in_progress")
-    if (res.success) toast.success("Marked as in progress")
+    if (res.success) { toast.success("Marked as in progress"); syncNow() }
     else if (res.offline) {
       try {
         await offlineUpdateComplaintStatus(db, complaint.id, "in_progress")
@@ -92,7 +94,7 @@ export function ComplaintDetailDialog({
     }
     const res = await submitRatingAction(complaint.id, rating, feedback)
     setSubmittingRating(false)
-    if (res.success) toast.success("Rating submitted!")
+    if (res.success) { toast.success("Rating submitted!"); syncNow() }
     else if (res.offline) {
       try {
         await db.execute(

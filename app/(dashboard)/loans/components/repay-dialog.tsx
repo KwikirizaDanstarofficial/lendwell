@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { repayLoanAction, LoanFormState } from "../actions"
 import { offlineRepayLoan } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   Dialog,
   DialogContent,
@@ -53,6 +54,7 @@ export function RepayDialog({
   onClose: () => void
 }) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const [state, formAction, isPending] = useActionState(
     repayLoanAction,
     INITIAL_FORM_STATE
@@ -67,9 +69,10 @@ export function RepayDialog({
     if (state.success && state.receipt) {
       setReceipt(state.receipt)
       onClose()
+      syncNow()
     }
     if (state.error) toast.error(state.error)
-  }, [state, onClose, offlineSuccess])
+  }, [state, onClose, offlineSuccess, syncNow])
 
   return (
     <>

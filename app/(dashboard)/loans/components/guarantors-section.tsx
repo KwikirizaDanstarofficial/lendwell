@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
+import { useSyncNow } from "@/lib/powersync/provider"
 import { offlineAddGuarantor, offlineRemoveGuarantor, offlineUpdateGuarantorStatus } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
 import { Button } from "@/components/ui/button"
@@ -73,6 +74,7 @@ export function GuarantorsSection({
 }: GuarantorsSectionProps) {
   const db = usePowerSync()
   const router = useRouter()
+  const { syncNow } = useSyncNow()
   const [showAdd, setShowAdd] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<Guarantor | null>(null)
   const [search, setSearch] = useState("")
@@ -112,6 +114,7 @@ export function GuarantorsSection({
     setLoading(false)
     if (res.success) {
       toast.success("Guarantor added")
+      syncNow()
       setShowAdd(false)
       setSelectedMemberId("")
       setNotes("")
@@ -148,7 +151,11 @@ export function GuarantorsSection({
     const res = await removeGuarantorAction(removeTarget.id, loanId, loanRef)
     setLoading(false)
     setRemoveTarget(null)
-    if (res.success) { toast.success("Guarantor removed"); router.refresh() }
+    if (res.success) {
+      toast.success("Guarantor removed")
+      syncNow()
+      router.refresh()
+    }
     else if (res.offline) {
       try {
         await offlineRemoveGuarantor(db, removeTarget.id)

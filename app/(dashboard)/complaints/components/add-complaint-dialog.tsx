@@ -3,9 +3,11 @@
 import { useActionState, useEffect, useState } from "react"
 import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
+import { Loader2, MessageSquare } from "lucide-react"
 import { addComplaintAction } from "../actions"
 import { offlineAddComplaint } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   Dialog,
   DialogContent,
@@ -23,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MessageSquare, Loader2 } from "lucide-react"
+
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { categoryLabels } from "./complaints-client"
 
@@ -46,6 +48,7 @@ export function AddComplaintDialog({
   saccoId: string
 }) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const [state, formAction, isPending] = useActionState(addComplaintAction, {})
   const [offlineSuccess, setOfflineSuccess] = useState(false)
 
@@ -54,17 +57,19 @@ export function AddComplaintDialog({
     if (state.success) {
       toast.success("Complaint submitted successfully!")
       onClose()
+      syncNow()
     }
     if (state.offline || state.error === "offline") {
-      const memberId = state.memberId as string | undefined
-      const subject = state.subject as string | undefined
-      const body = state.body as string | undefined
+      const st = state as any
+      const memberId = st.memberId as string | undefined
+      const subject = st.subject as string | undefined
+      const body = st.body as string | undefined
       if (subject && body) {
         offlineAddComplaint(db, saccoId, {
           member_id: memberId ?? "",
           subject, body,
-          category: state.category as string | undefined,
-          priority: state.priority as string | undefined,
+          category: st.category as string | undefined,
+          priority: st.priority as string | undefined,
         })
           .then(() => { toast.success("Complaint saved offline — will sync"); onClose() })
           .catch(() => toast.error("Failed to save complaint offline."))

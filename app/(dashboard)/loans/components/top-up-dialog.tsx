@@ -6,6 +6,7 @@ import { usePowerSync } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { offlineTopUpLoan } from "@/lib/powersync/offline-mutations"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useSyncNow } from "@/lib/powersync/provider"
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ const initialState: LoanFormState = {}
 
 export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const [state, formAction, isPending] = useActionState(
     topUpLoanAction,
     initialState
@@ -74,9 +76,10 @@ export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
     if (state.success) {
       toast.success("Top up recorded successfully!")
       onClose()
+      syncNow()
     }
     if (state.error) toast.error(state.error)
-  }, [state, onClose, offlineSuccess])
+  }, [state, onClose, offlineSuccess, syncNow])
 
   if (!loan) return null
 

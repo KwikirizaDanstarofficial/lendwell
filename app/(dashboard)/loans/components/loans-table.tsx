@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { usePowerSync } from "@powersync/react"
 import { offlineDeleteLoan, offlineApproveLoan, offlineDisburseLoan, offlineMarkLoanAsActive } from "@/lib/powersync/offline-mutations"
+import { useSyncNow } from "@/lib/powersync/provider"
 import { useTheme } from "@/components/providers/theme-provider"
 import { isOffline } from "@/lib/utils/is-offline"
 import { AgGridReact } from "ag-grid-react"
@@ -94,7 +95,7 @@ const DateCell = (p: ICellRendererParams) => (
 )
 
 const LoanActionsCell = (p: ICellRendererParams) => {
-  const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan } = p.context
+  const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db, syncNow } = p.context
   const loan = p.data
   return (
     <div className="flex items-center h-full">
@@ -134,7 +135,7 @@ const LoanActionsCell = (p: ICellRendererParams) => {
                     return
                   }
                   const res = await approveLoanAction(loan.id)
-                  if (res.success) toast.success("Loan approved & disbursed")
+                  if (res.success) { toast.success("Loan approved & disbursed"); syncNow() }
                   else if (res.offline) {
                     try {
                       await offlineApproveLoan(db, loan.id)
@@ -167,7 +168,7 @@ const LoanActionsCell = (p: ICellRendererParams) => {
                   return
                 }
                 const res = await disburseLoanAction(loan.id)
-                if (res.success) toast.success("Loan disbursed")
+                if (res.success) { toast.success("Loan disbursed"); syncNow() }
                 else if (res.offline) {
                   try {
                     await offlineDisburseLoan(db, loan.id)
@@ -195,7 +196,7 @@ const LoanActionsCell = (p: ICellRendererParams) => {
                   return
                 }
                 const res = await markLoanAsActiveAction(loan.id)
-                if (res.success) toast.success("Loan marked as active")
+                if (res.success) { toast.success("Loan marked as active"); syncNow() }
                 else if (res.offline) {
                   try {
                     await offlineMarkLoanAsActive(db, loan.id)
@@ -261,6 +262,7 @@ const columnDefs: ColDef[] = [
 
 export function LoansTable({ loans }: { loans: any[] }) {
   const db = usePowerSync()
+  const { syncNow } = useSyncNow()
   const { resolvedTheme } = useTheme()
   const router = useRouter()
   const [repayLoan, setRepayLoan] = useState<any>(null)
@@ -272,8 +274,8 @@ export function LoansTable({ loans }: { loans: any[] }) {
   const theme = resolvedTheme === "dark" ? agDarkTheme : agLightTheme
 
   const context = useMemo(
-    () => ({ router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan }),
-    [router]
+    () => ({ router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db, syncNow }),
+    [router, db, syncNow]
   )
 
   const handleDeleteLoan = async () => {

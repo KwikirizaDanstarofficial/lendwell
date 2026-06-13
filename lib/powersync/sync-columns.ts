@@ -46,4 +46,28 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     "id","loan_id","member_id","sacco_id","status","notes",
     "created_at","updated_at",
   ],
+  complaints: [
+    "id","sacco_id","member_id","complaint_ref","subject","body","category",
+    "priority","status","assigned_to","resolution_notes","resolved_at",
+    "resolved_by","notes","satisfaction_rating","feedback","created_at","updated_at",
+  ],
+  documents: [
+    "id","sacco_id","member_id","loan_id","type","file_name","blob_url","created_at",
+  ],
+  notifications: [
+    "id","sacco_id","member_id","title","body","type","status","priority",
+    "channel","recipient_phone","recipient_email","reference_type","reference_id",
+    "metadata","retry_count","max_retries","error_message","scheduled_at",
+    "sent_at","delivered_at","read_at","created_at","updated_at",
+  ],
+  saccos: [
+    "id","name","code","logo_url","primary_color","contact_email","contact_phone",
+    "address","settings","is_active","created_at","updated_at","onboarding_completed",
+    "website","registration_number","slug","country","status","plan",
+    "trial_ends_at","subscription_ends_at","notes","created_by_cms","tagline",
+  ],
+  branches: [
+    "id","sacco_id","name","code","address","phone","email","manager_id",
+    "is_active","created_at","updated_at",
+  ],
 }

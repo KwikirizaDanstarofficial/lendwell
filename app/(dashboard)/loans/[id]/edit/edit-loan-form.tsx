@@ -6,6 +6,7 @@ import { usePowerSync } from "@powersync/react"
 import { offlineEditLoan } from "@/lib/powersync/offline-mutations"
 import { toast } from "sonner"
 import { editLoanAction, LoanFormState } from "../../actions"
+import { useSyncNow } from "@/lib/powersync/provider"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { formatUGX } from "@/lib/utils/format"
 import { Button } from "@/components/ui/button"
@@ -99,6 +100,7 @@ function StatCard({ label, value, sub, accent }: {
 export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
   const db = usePowerSync()
   const router = useRouter()
+  const { syncNow } = useSyncNow()
   const [state, setState] = useState<LoanFormState>(INITIAL_FORM_STATE)
   const [isPending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
@@ -173,6 +175,7 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
       try {
         const result = await editLoanAction(state, formData)
         if (!result.offline && !result.error) {
+          syncNow()
           setState(result)
           return
         }

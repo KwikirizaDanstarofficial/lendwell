@@ -138,6 +138,100 @@ const loan_guarantors = new Table({
   updated_at: column.text,
 })
 
+const complaints = new Table({
+  sacco_id: column.text,
+  member_id: column.text,
+  complaint_ref: column.text,
+  subject: column.text,
+  body: column.text,
+  category: column.text,
+  priority: column.text,
+  status: column.text,
+  assigned_to: column.text,
+  resolution_notes: column.text,
+  resolved_at: column.text,
+  resolved_by: column.text,
+  notes: column.text,
+  satisfaction_rating: column.integer,
+  feedback: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
+const documents = new Table({
+  sacco_id: column.text,
+  member_id: column.text,
+  loan_id: column.text,
+  type: column.text,
+  file_name: column.text,
+  blob_url: column.text,
+  created_at: column.text,
+})
+
+const notifications = new Table({
+  sacco_id: column.text,
+  member_id: column.text,
+  title: column.text,
+  body: column.text,
+  type: column.text,
+  status: column.text,
+  priority: column.text,
+  channel: column.text,
+  recipient_phone: column.text,
+  recipient_email: column.text,
+  reference_type: column.text,
+  reference_id: column.text,
+  metadata: column.text,
+  retry_count: column.integer,
+  max_retries: column.integer,
+  error_message: column.text,
+  scheduled_at: column.text,
+  sent_at: column.text,
+  delivered_at: column.text,
+  read_at: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
+const saccos = new Table({
+  name: column.text,
+  code: column.text,
+  logo_url: column.text,
+  primary_color: column.text,
+  contact_email: column.text,
+  contact_phone: column.text,
+  address: column.text,
+  settings: column.text,
+  is_active: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+  onboarding_completed: column.integer,
+  website: column.text,
+  registration_number: column.text,
+  slug: column.text,
+  country: column.text,
+  status: column.text,
+  plan: column.text,
+  trial_ends_at: column.text,
+  subscription_ends_at: column.text,
+  notes: column.text,
+  created_by_cms: column.text,
+  tagline: column.text,
+})
+
+const branches = new Table({
+  sacco_id: column.text,
+  name: column.text,
+  code: column.text,
+  address: column.text,
+  phone: column.text,
+  email: column.text,
+  manager_id: column.text,
+  is_active: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
 export const AppSchema = new Schema({
   members,
   loans,
@@ -149,6 +243,11 @@ export const AppSchema = new Schema({
   fine_categories,
   interest_rates,
   loan_guarantors,
+  complaints,
+  documents,
+  notifications,
+  saccos,
+  branches,
 })
 
 export type Database = (typeof AppSchema)["types"]

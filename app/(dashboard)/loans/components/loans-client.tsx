@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { useQuery } from "@powersync/react"
+import { useState, useMemo, useCallback } from "react"
+import { useQuery, usePowerSync } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Plus, Download, Percent } from "lucide-react"
+import { Search, Plus, Download, Percent, RefreshCw, CloudUpload, Loader2 } from "lucide-react"
 import { LoansTable } from "./loans-table"
+import { useSyncNow } from "@/lib/powersync/provider"
 import ExcelJS from "exceljs"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -40,7 +41,49 @@ interface LoansClientProps {
 }
 
 export function LoansClient({ saccoId }: LoansClientProps) {
+  const db = usePowerSync()
+  const { syncNow } = useSyncNow()
+  const [syncing, setSyncing] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [search, setSearch] = useState("")
+
+  const handleFetch = useCallback(async () => {
+    setSyncing(true)
+    try {
+      await syncNow()
+      toast.success("Loan data synced from server")
+    } catch {
+      toast.error("Sync failed")
+    }
+    setSyncing(false)
+  }, [syncNow])
+
+  const handleUpload = useCallback(async () => {
+    setUploading(true)
+    let count = 0
+    try {
+      while (true) {
+        const tx = await db.getNextCrudTransaction()
+        if (!tx) break
+        const ops = tx.crud.map(({ table, opData, op, id }) => ({
+          op: op === "PUT" ? "PUT" as const : op === "PATCH" ? "PATCH" as const : "DELETE" as const,
+          table, id, opData,
+        }))
+        const res = await fetch("/api/powersync/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ops }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error ?? "Upload failed")
+        await tx.complete()
+        count += ops.length
+      }
+      toast.success(count > 0 ? `${count} changes uploaded` : "No pending changes")
+    } catch (err: any) {
+      toast.error(err?.message ?? "Upload failed")
+    }
+    setUploading(false)
+  }, [db])
 
   const { data: rows = [], isLoading } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code AS member_code_val,
@@ -190,6 +233,14 @@ export function LoansClient({ saccoId }: LoansClientProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleFetch} disabled={syncing}>
+            {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Fetch
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleUpload} disabled={uploading}>
+            {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudUpload className="mr-2 h-4 w-4" />}
+            Upload
+          </Button>
           <Link href="/loans/interest-rates">
             <Button variant="outline" size="sm">
               <Percent className="mr-2 h-4 w-4" />
