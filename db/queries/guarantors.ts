@@ -44,7 +44,6 @@ export async function getGuarantorsByLoan(loanId: string) {
     .from("loan_guarantors")
     .select(GUARANTOR_SELECT_COLUMNS)
     .eq("loan_id", loanId)
-    .is("deleted_at", null)
     .order("created_at", { ascending: true })
 
   if (error) { if (isOfflineError(error)) return []; throw new Error(`Failed to fetch guarantors: ${error?.message}`) }
@@ -71,7 +70,6 @@ export async function addGuarantor(payload: {
     .select("id")
     .eq("loan_id",   payload.loanId)
     .eq("member_id", payload.memberId)
-    .is("deleted_at", null)
     .maybeSingle()
 
   if (existingGuarantor) {
@@ -95,16 +93,15 @@ export async function addGuarantor(payload: {
 }
 
 /**
- * Soft-delete a guarantor by setting `deleted_at` to now.
- * The row is preserved for audit history and can be restored if needed.
+ * Remove a guarantor.
  *
  * @param guarantorId - UUID of the loan_guarantors row to remove.
- * @throws If the database update fails.
+ * @throws If the database delete fails.
  */
 export async function removeGuarantor(guarantorId: string): Promise<void> {
   const { error } = await supabaseAdmin
     .from("loan_guarantors")
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq("id", guarantorId)
 
   if (error) throw new Error(`Failed to remove guarantor: ${error.message}`)
