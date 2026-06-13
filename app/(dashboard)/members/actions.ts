@@ -338,7 +338,11 @@ export async function editMemberAction(
       .eq('id', id)
       .single()
 
-    if (memberError || !existingMember) {
+    if (memberError) {
+      if (isOfflineError(memberError)) return { offline: true, error: "offline" }
+      return { error: "Member not found" }
+    }
+    if (!existingMember) {
       return { error: "Member not found" }
     }
 

@@ -5,9 +5,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { usePowerSync } from "@powersync/react"
 import { declineLoanAction } from "../actions"
-import { offlineDeclineLoan } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -20,7 +18,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 import { formatUGX } from "@/lib/utils/format"
-import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,7 +38,6 @@ export function DeclineDialog({
   open:    boolean
   onClose: () => void
 }) {
-  const db = usePowerSync()
   const [reason,  setReason]  = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -52,24 +48,11 @@ export function DeclineDialog({
     }
 
     setLoading(true)
-
-    if (isOffline()) {
-      await offlineDeclineLoan(db, loan.id, reason.trim())
-      setLoading(false)
-      toast.success("Loan declined offline — will sync when connected.")
-      onClose()
-      return
-    }
-
     const result = await declineLoanAction(loan.id, reason)
     setLoading(false)
 
     if (result.success) {
       toast.success("Loan declined")
-      onClose()
-    } else if (result.offline) {
-      await offlineDeclineLoan(db, loan.id, reason.trim())
-      toast.success("Loan declined offline — will sync when connected.")
       onClose()
     } else {
       toast.error(result.error)

@@ -450,7 +450,6 @@ function LoanDetailContent({ id }: { id: string }) {
       <GuarantorsSection
         loanId={id}
         loanRef={loan.loanRef}
-        saccoId={loanRow.sacco_id ?? ""}
         guarantors={guarantors as any}
         members={allMembers ?? []}
         borrowerMemberId={loan.memberId}

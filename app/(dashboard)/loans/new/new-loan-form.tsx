@@ -3,33 +3,31 @@
 // Handles member selection, loan detail entry, guarantor management,
 // live repayment calculation, and confirmation before server submission.
 "use client"
-import { useQuery, usePowerSync } from "@powersync/react"
 
 import { useActionState, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { addLoanAction, getActiveInterestRatesAction, LoanFormState } from "../actions"
-import { offlineAddLoan } from "@/lib/powersync/offline-mutations"
+import { addLoanAction, LoanFormState } from "../actions"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { formatUGX } from "@/lib/utils/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Loader2, ArrowLeft, Search, Plus, X } from "lucide-react"
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command"
+import { Loader2, ArrowLeft, Plus, X, ChevronsUpDown } from "lucide-react"
 import Link from "next/link"
-import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Default loan duration shown when the form first renders. */
-const DEFAULT_DURATION_MONTHS = "12"
+const DEFAULT_DURATION_MONTHS = "1"
 
 /** Maximum number of months allowed for a loan duration. */
 const MAX_DURATION_MONTHS = 60
@@ -39,9 +37,6 @@ const DROPDOWN_MAX_HEIGHT = "max-h-64"
 
 /** Multiplier to convert displayed UGX amounts to stored cents. */
 const CENTS_PER_UNIT = 100
-
-/** Format a raw UGX amount (interest rate ranges are stored in UGX, not cents). */
-const fmtUGX = (ugx: number) => `UGX ${Math.round(ugx).toLocaleString("en-UG")}`
 
 // ─── Initial state ────────────────────────────────────────────────────────────
 
@@ -57,9 +52,8 @@ interface MemberOption {
 }
 
 interface NewLoanFormProps {
-  saccoId: string
-  members?: MemberOption[]
-  interestRates?: any[]
+  members: MemberOption[]
+  interestRates: any[]
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -163,44 +157,16 @@ function StatCard({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function NewLoanForm({ saccoId, members: membersProp = [], interestRates: ratesProp = [] }: NewLoanFormProps) {
+export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
   const router = useRouter()
-  const db = usePowerSync()
-  const [state, formAction, isPending] = useActionState(addLoanAction, INITIAL_FORM_STATE)
-  const [offlineSuccess, setOfflineSuccess] = useState(false)
+  const [state, formAction, isPending] = useActionState(
+    addLoanAction,
+    INITIAL_FORM_STATE
+  )
 
   // Form field state
   const [amount,           setAmount]           = useState("")
   const [durationMonths,   setDurationMonths]   = useState(DEFAULT_DURATION_MONTHS)
-  const { data: memberRows = [] } = useQuery("SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC", [saccoId])
-  const { data: rateRows = [] } = useQuery("SELECT id, min_amount, max_amount, rate, rate_type FROM interest_rates WHERE sacco_id = ? AND is_active = 1", [saccoId])
-
-  // Fetched from the server action when both page-props and local DB rates are empty.
-  const [fetchedRates, setFetchedRates] = useState<any[]>([])
-
-  const localRatesMapped = (rateRows as any[]).map((r) => ({
-    id: r.id, minAmount: Number(r.min_amount), maxAmount: Number(r.max_amount),
-    rate: r.rate, rateType: r.rate_type,
-  }))
-
-  // Priority: server-side props (online) → PowerSync local DB → server action fetch
-  const interestRates =
-    ratesProp.length      > 0 ? ratesProp :
-    localRatesMapped.length > 0 ? localRatesMapped :
-    fetchedRates
-
-  // When no rates are available from props or local DB, try fetching from server.
-  useEffect(() => {
-    if (ratesProp.length === 0 && (rateRows as any[]).length === 0) {
-      getActiveInterestRatesAction().then(setFetchedRates).catch((err) => {
-        console.error("[LoanForm] Failed to fetch interest rates:", err)
-        toast.error("Could not load interest rates from server.")
-      })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ratesProp.length, (rateRows as any[]).length])
-
-  const members = membersProp.length > 0 ? membersProp : (memberRows as any[]).map((r) => ({ id: r.id, full_name: r.full_name, member_code: r.member_code, phone: r.phone ?? null }))
   const [selectedMemberId, setSelectedMemberId] = useState("")
   const [dueDate,          setDueDate]          = useState("")
   const [notes,            setNotes]            = useState("")
@@ -216,60 +182,25 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
   const [isGuarantorDropdownOpen, setIsGuarantorDropdownOpen] = useState(false)
   const [pendingGuarantorId,   setPendingGuarantorId]   = useState("")
 
+  // Auto-calculate due date when duration changes
   useEffect(() => {
-    if (offlineSuccess) { router.push("/loans"); return }
-    if (state.success) { toast.success("Loan application submitted successfully!"); router.push("/loans"); router.refresh() }
-    if (state.offline) {
-      // Server couldn't reach Supabase — save to local SQLite
-      // DB stores amounts in cents; amountVal is raw UGX — multiply by 100
-      const fd = new FormData(document.querySelector("form") as HTMLFormElement)
-      const member_id = fd.get("member_id") as string
-      const amountVal = Number(fd.get("amount"))
-      const amountCents = Math.round(amountVal * 100)
-      const interest_rate = (fd.get("interest_rate") as string) || "0"
-      const interest_type = (fd.get("interest_type") as string) || "monthly"
-      const duration_months = Number(fd.get("duration_months") || 1)
-      if (member_id && amountVal) {
-        offlineAddLoan(db, saccoId, {
-          member_id, amount: amountCents, interest_rate, interest_type, duration_months,
-          due_date: (fd.get("due_date") as string) || null,
-          notes: (fd.get("notes") as string) || null,
-          expected_received: Number(fd.get("expected_received") || amountCents),
-          daily_payment: Number(fd.get("daily_payment") || 0),
-          monthly_payment: Number(fd.get("monthly_payment") || 0),
-          late_penalty_fee: Number(fd.get("late_penalty_fee") || 0),
-        }).then(() => { toast.success("Loan saved offline — will sync when reconnected"); setOfflineSuccess(true) })
-          .catch(() => toast.error("Failed to save offline"))
-      }
-    } else if (state.error) {
-      toast.error(state.error)
+    const numMonths = parseInt(durationMonths)
+    if (numMonths > 0) {
+      const d = new Date()
+      d.setMonth(d.getMonth() + numMonths)
+      setDueDate(d.toISOString().split("T")[0])
     }
-  }, [state, router, offlineSuccess, db, saccoId])
+  }, [durationMonths])
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (isOffline()) {
-      e.preventDefault()
-      const fd = new FormData(e.currentTarget)
-      const member_id = fd.get("member_id") as string
-      const amountVal = Number(fd.get("amount"))
-      const interest_rate = fd.get("interest_rate") as string
-      const interest_type = (fd.get("interest_type") as string) || "monthly"
-      const duration_months = Number(fd.get("duration_months") || 1)
-      if (!member_id || !amountVal || !interest_rate) { toast.error("Member, amount, and interest rate are required."); return }
-      // DB stores amounts in cents; amountVal is raw UGX — multiply by 100
-      const amountCents = Math.round(amountVal * 100)
-      offlineAddLoan(db, saccoId, {
-        member_id, amount: amountCents, interest_rate, interest_type, duration_months,
-        due_date: (fd.get("due_date") as string) || null,
-        notes: (fd.get("notes") as string) || null,
-        expected_received: Number(fd.get("expected_received") || amountCents),
-        daily_payment: Number(fd.get("daily_payment") || 0),
-        monthly_payment: Number(fd.get("monthly_payment") || 0),
-        late_penalty_fee: Number(fd.get("late_penalty_fee") || 0),
-      }).then(() => { toast.success("Loan saved offline — will sync when connected."); setOfflineSuccess(true) })
-        .catch(() => toast.error("Failed to save offline."))
+  // Redirect on success, show error on failure
+  useEffect(() => {
+    if (state.success) {
+      toast.success("Loan application submitted successfully!")
+      router.push("/loans")
+      router.refresh()
     }
-  }
+    if (state.error) toast.error(state.error)
+  }, [state, router])
 
   // Filter members for the primary member dropdown
   const filteredMembers = members.filter((member) => {
@@ -295,20 +226,19 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
     )
   })
 
-  // Look up the interest rate tier that covers the entered amount.
-  // Interest rate ranges are stored as raw UGX (no cents conversion).
+  // Look up the interest rate tier that covers the entered amount
   const getInterestInfo = () => {
     if (!amount || Number(amount) <= 0) return null
-    const amountUGX = Number(amount)
+    const amountCents = Number(amount) * CENTS_PER_UNIT
     const matchingRate = interestRates.find(
-      (rate) => amountUGX >= rate.minAmount && amountUGX <= rate.maxAmount
+      (rate) => amountCents >= rate.minAmount && amountCents <= rate.maxAmount
     )
     if (!matchingRate) return null
     return {
       rate:      Number(matchingRate.rate),
       rateType:  matchingRate.rateType,
-      minAmount: matchingRate.minAmount,
-      maxAmount: matchingRate.maxAmount,
+      minAmount: matchingRate.minAmount / CENTS_PER_UNIT,
+      maxAmount: matchingRate.maxAmount / CENTS_PER_UNIT,
     }
   }
 
@@ -330,7 +260,7 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
   const selectedMember = members.find((m) => m.id === selectedMemberId)
 
   return (
-    <form action={formAction} onSubmit={handleSubmit} className="mx-auto max-w-2xl">
+    <form action={formAction} className="mx-auto max-w-2xl">
 
       {/* ── Step 1: Member selection ── */}
       <div className="mb-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
@@ -340,61 +270,65 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
           description="Choose the member this loan will be assigned to."
         />
         <Field id="member_id" label="Member" required error={fieldError("member_id")}>
-          <Select
-            value={selectedMemberId}
-            onValueChange={(value) => {
-              setSelectedMemberId(value ?? "")
-              setIsMemberDropdownOpen(false)
-              setMemberSearchQuery("")
-            }}
-            open={isMemberDropdownOpen}
-            onOpenChange={setIsMemberDropdownOpen}
-          >
-            <SelectTrigger id="member_id" className={`${"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"} w-full`}>
-              <SelectValue placeholder="Search and choose a member…">
-                {selectedMember && (
-                  <span className="flex flex-col items-start leading-tight">
-                    <span className="font-medium text-foreground">{selectedMember.full_name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedMember.member_code}
-                      {selectedMember.phone && ` · ${selectedMember.phone}`}
-                    </span>
+          <div className="relative">
+            <button
+              type="button"
+              id="member_id"
+              onClick={() => setIsMemberDropdownOpen(!isMemberDropdownOpen)}
+              className="flex h-10 w-full items-center justify-between rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
+            >
+              {selectedMember ? (
+                <span className="flex flex-col items-start leading-tight">
+                  <span className="font-medium text-foreground">{selectedMember.full_name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {selectedMember.member_code}
+                    {selectedMember.phone && ` · ${selectedMember.phone}`}
                   </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="p-0">
-              <div className="flex items-center gap-2 border-b px-3 py-2">
-                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, code, or phone…"
-                  className="h-8 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
-                  value={memberSearchQuery}
-                  onChange={(e) => setMemberSearchQuery(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-              <div className={`${DROPDOWN_MAX_HEIGHT} overflow-y-auto`}>
-                {filteredMembers.length === 0 ? (
-                  <div className="py-6 text-center text-sm text-muted-foreground">
-                    No member found.
-                  </div>
-                ) : (
-                  filteredMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.id} className="cursor-pointer">
-                      <span className="flex flex-col leading-tight">
-                        <span className="font-medium">{member.full_name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {member.member_code}
-                          {member.phone && ` · ${member.phone}`}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))
-                )}
-              </div>
-            </SelectContent>
-          </Select>
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Search and choose a member…</span>
+              )}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </button>
+            {isMemberDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsMemberDropdownOpen(false)} />
+                <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-md">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search by name, code, or phone…"
+                      value={memberSearchQuery}
+                      onValueChange={setMemberSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No member found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredMembers.map((member) => (
+                          <CommandItem
+                            key={member.id}
+                            value={member.id}
+                            onSelect={(value) => {
+                              setSelectedMemberId(value ?? "")
+                              setIsMemberDropdownOpen(false)
+                              setMemberSearchQuery("")
+                            }}
+                          >
+                            <span className="flex flex-col leading-tight">
+                              <span className="font-medium">{member.full_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {member.member_code}
+                                {member.phone && ` · ${member.phone}`}
+                              </span>
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </div>
+              </>
+            )}
+          </div>
         </Field>
       </div>
 
@@ -411,7 +345,7 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
             label="Loan Amount (UGX)"
             required
             error={
-              !isAmountValid && amount && interestRates.length > 0
+              !isAmountValid && amount
                 ? "Amount must be within a valid interest rate range"
                 : fieldError("amount")
             }
@@ -419,8 +353,8 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
               isAmountValid && interestInfo
                 ? `Rate: ${interestInfo.rate}% ${interestInfo.rateType}`
                 : interestRates.length > 0
-                  ? `Range: ${fmtUGX(interestRates[0].minAmount)} – ${fmtUGX(interestRates[interestRates.length - 1].maxAmount)}`
-                  : "No interest rates loaded — sync required"
+                  ? `Min: ${formatUGX(interestRates[0].min_amount / CENTS_PER_UNIT)}`
+                  : undefined
             }
           >
             <Input
@@ -431,14 +365,19 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
           </Field>
 
           <Field
-            id="duration_months" label="Duration (Months)" required
-            error={fieldError("duration_months")} hint="Repayment period in months"
+            id="duration_months" label="Duration" required
+            error={fieldError("duration_months")}
           >
-            <Input
-              id="duration_months" name="duration_months" type="number"
-              min={1} max={MAX_DURATION_MONTHS} className={"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
-              value={durationMonths} onChange={(e) => setDurationMonths(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                id="duration_months" name="duration_months" type="number"
+                min={1} max={MAX_DURATION_MONTHS} className={"h-10 rounded-lg border border-input bg-background px-3 pr-16 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"}
+                value={durationMonths} onChange={(e) => setDurationMonths(e.target.value)}
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+                month{parseInt(durationMonths || "0") !== 1 ? "s" : ""}
+              </span>
+            </div>
           </Field>
 
           <Field id="due_date" label="Expected Due Date" required error={fieldError("due_date")}>
@@ -467,50 +406,51 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
         />
         <div className="flex items-start gap-2">
           <div className="relative flex-1">
-            <Select
-              value={pendingGuarantorId}
-              onValueChange={(value) => {
-                setPendingGuarantorId(value ?? "")
-                setIsGuarantorDropdownOpen(false)
-                setGuarantorSearchQuery("")
-              }}
-              open={isGuarantorDropdownOpen}
-              onOpenChange={setIsGuarantorDropdownOpen}
+            <button
+              type="button"
+              onClick={() => setIsGuarantorDropdownOpen(!isGuarantorDropdownOpen)}
+              className="flex h-10 w-full items-center justify-between rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
             >
-              <SelectTrigger className={`${"h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"} w-full`}>
-                <SelectValue placeholder="Search and add a guarantor…" />
-              </SelectTrigger>
-              <SelectContent className="p-0">
-                <div className="flex items-center gap-2 border-b px-3 py-2">
-                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name, code, or phone…"
-                    className="h-8 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
-                    value={guarantorSearchQuery}
-                    onChange={(e) => setGuarantorSearchQuery(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+              <span className="text-muted-foreground">Search and add a guarantor…</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </button>
+            {isGuarantorDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsGuarantorDropdownOpen(false)} />
+                <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-md">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search by name, code, or phone…"
+                      value={guarantorSearchQuery}
+                      onValueChange={setGuarantorSearchQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No members available.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredGuarantorCandidates.map((m) => (
+                          <CommandItem
+                            key={m.id}
+                            value={m.id}
+                            onSelect={(value) => {
+                              setPendingGuarantorId(value ?? "")
+                              setIsGuarantorDropdownOpen(false)
+                              setGuarantorSearchQuery("")
+                            }}
+                          >
+                            <span className="flex flex-col leading-tight">
+                              <span className="font-medium">{m.full_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {m.member_code}{m.phone && ` · ${m.phone}`}
+                              </span>
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
                 </div>
-                <div className={`${DROPDOWN_MAX_HEIGHT} overflow-y-auto`}>
-                  {filteredGuarantorCandidates.length === 0 ? (
-                    <div className="py-6 text-center text-sm text-muted-foreground">
-                      No members available.
-                    </div>
-                  ) : (
-                    filteredGuarantorCandidates.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="cursor-pointer">
-                        <span className="flex flex-col leading-tight">
-                          <span className="font-medium">{m.full_name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {m.member_code}{m.phone && ` · ${m.phone}`}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))
-                  )}
-                </div>
-              </SelectContent>
-            </Select>
+              </>
+            )}
           </div>
           <Button
             type="button" variant="outline" size="icon"
@@ -568,7 +508,7 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
           <SectionHeader
             step={4}
             title="Calculation Summary"
-            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${fmtUGX(interestInfo.minAmount)} – ${fmtUGX(interestInfo.maxAmount)}.`}
+            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${formatUGX(interestInfo.minAmount)} – ${formatUGX(interestInfo.maxAmount)}.`}
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard label="Principal"      value={formatUGX(calculation.principal)} />
@@ -645,18 +585,12 @@ export function NewLoanForm({ saccoId, members: membersProp = [], interestRates:
       </div>
 
       {/* Hidden fields carry form state to the server action */}
-      <input type="hidden" name="member_id"        value={selectedMemberId} />
-      <input type="hidden" name="amount"            value={amount} />
-      <input type="hidden" name="duration_months"   value={durationMonths} />
-      <input type="hidden" name="due_date"          value={dueDate} />
-      <input type="hidden" name="notes"             value={notes} />
-      <input type="hidden" name="guarantor_ids"     value={JSON.stringify(guarantors.map((g) => g.id))} />
-      <input type="hidden" name="interest_rate"     value={interestInfo?.rate?.toString() ?? ""} />
-      <input type="hidden" name="interest_type"     value={interestInfo?.rateType ?? "monthly"} />
-      <input type="hidden" name="expected_received" value={calculation?.totalExpectedReceived?.toString() ?? ""} />
-      <input type="hidden" name="daily_payment"     value={calculation?.dailyPayment?.toString() ?? "0"} />
-      <input type="hidden" name="monthly_payment"   value={calculation?.monthlyPayment?.toString() ?? "0"} />
-      <input type="hidden" name="late_penalty_fee"  value={calculation?.latePenaltyFee?.toString() ?? "0"} />
+      <input type="hidden" name="member_id"       value={selectedMemberId} />
+      <input type="hidden" name="amount"           value={amount} />
+      <input type="hidden" name="duration_months"  value={durationMonths} />
+      <input type="hidden" name="due_date"         value={dueDate} />
+      <input type="hidden" name="notes"            value={notes} />
+      <input type="hidden" name="guarantor_ids"    value={JSON.stringify(guarantors.map((g) => g.id))} />
     </form>
   )
 }

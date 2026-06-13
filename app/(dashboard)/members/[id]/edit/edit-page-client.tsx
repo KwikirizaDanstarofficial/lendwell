@@ -1,6 +1,7 @@
 "use client"
 import { useQuery } from "@powersync/react"
 import { Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { EditMemberForm } from "./edit-member-form"
 
 function toMember(m: any) {
@@ -18,8 +19,25 @@ function toMember(m: any) {
 
 export function EditPageClient({ id, initialMember }: { id: string; initialMember?: any }) {
   const { data: rows = [], isLoading: loading } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
-  const raw = (rows[0] as any) ?? initialMember
-  if (loading && !raw) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading member…</div>
+  const [serverMember, setServerMember] = useState<any | null>(null)
+  const [fetchingServer, setFetchingServer] = useState(false)
+
+  const localRaw = (rows[0] as any) ?? undefined
+  const raw = localRaw ?? serverMember ?? initialMember
+
+  useEffect(() => {
+    if (raw) return
+    setFetchingServer(true)
+    fetch(`/api/members/${id}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setServerMember(data ?? null))
+      .catch(() => {})
+      .finally(() => setFetchingServer(false))
+  }, [id, raw])
+
+  if ((loading || fetchingServer) && !raw) {
+    return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading member…</div>
+  }
   if (!raw) return <div className="p-6 text-sm text-muted-foreground">Member not found.</div>
   const member = toMember(raw)
   return (

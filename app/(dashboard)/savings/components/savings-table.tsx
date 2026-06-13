@@ -2,6 +2,9 @@
 
 import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteSavingsAccount } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   ColumnDef,
   flexRender,
@@ -92,6 +95,7 @@ export function SavingsTable({
   accounts: Account[]
   activeLoans: ActiveLoan[]
 }) {
+  const db = usePowerSync()
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [depositAccount, setDepositAccount] = useState<any>(null)
@@ -292,10 +296,29 @@ export function SavingsTable({
   const handleDelete = async () => {
     if (!deleteAccount) return
     setDeleting(true)
+    if (isOffline()) {
+      try {
+        await offlineDeleteSavingsAccount(db, deleteAccount.id)
+        toast.success("Account deleted (offline)")
+      } catch {
+        toast.error("Failed to delete offline")
+      }
+      setDeleting(false)
+      setDeleteAccount(null)
+      return
+    }
     const res = await deleteSavingsAccountAction(deleteAccount.id)
     setDeleting(false)
     if (res.success) {
       toast.success("Account deleted")
+      setDeleteAccount(null)
+    } else if (res.offline) {
+      try {
+        await offlineDeleteSavingsAccount(db, deleteAccount.id)
+        toast.success("Account deleted (offline)")
+      } catch {
+        toast.error(res.error || "Failed to delete offline")
+      }
       setDeleteAccount(null)
     } else {
       toast.error(res.error)

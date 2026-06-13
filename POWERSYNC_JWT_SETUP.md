@@ -47,11 +47,14 @@ BEGIN
 
   -- Promote sacco_id from user_metadata to a root-level JWT claim
   -- so PowerSync can read it via token_parameters.sacco_id
+  -- NOTE: Must read from 'claims -> user_metadata', not 'user -> raw_user_meta_data'.
+  -- The claims object already contains user_metadata, while the user object
+  -- in the event may have it under a different key.
   claims := jsonb_set(
     claims,
     '{sacco_id}',
     COALESCE(
-      event -> 'user' -> 'user_metadata' -> 'sacco_id',
+      claims -> 'user_metadata' -> 'sacco_id',
       'null'::jsonb
     )
   );

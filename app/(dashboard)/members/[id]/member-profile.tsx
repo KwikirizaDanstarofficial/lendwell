@@ -372,11 +372,17 @@ export function MemberProfile({
       if (result.success) {
         toast.success(`Member status updated to ${status}`)
         router.refresh()
+      } else if (result.offline) {
+        await offlineUpdateMemberStatus(db, member.id, status)
+        toast.success(`Status updated offline — will sync when connected.`)
+        router.refresh()
       } else {
         toast.error(result.error || "Failed to update status")
       }
     } catch {
-      toast.error("An error occurred")
+      await offlineUpdateMemberStatus(db, member.id, status)
+      toast.success(`Status updated offline — will sync when connected.`)
+      router.refresh()
     } finally {
       setIsLoading(false)
     }

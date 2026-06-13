@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/lib/auth"
 import { addGuarantor, removeGuarantor, updateGuarantorStatus } from "@/db/queries/guarantors"
 import { logActivity } from "@/lib/activity-log"
-import { isOfflineError } from "@/lib/offline-safe"
 
 export async function addGuarantorAction(loanId: string, memberId: string, loanRef: string, notes?: string) {
   const user = await getCurrentUser()
@@ -22,7 +21,6 @@ export async function addGuarantorAction(loanId: string, memberId: string, loanR
     revalidatePath(`/loans/${loanId}`)
     return { success: true }
   } catch (err: any) {
-    if (isOfflineError(err)) return { success: false, offline: true, error: "offline" }
     return { success: false, error: err.message }
   }
 }
@@ -43,7 +41,6 @@ export async function removeGuarantorAction(guarantorId: string, loanId: string,
     revalidatePath(`/loans/${loanId}`)
     return { success: true }
   } catch (err: any) {
-    if (isOfflineError(err)) return { success: false, offline: true, error: "offline" }
     return { success: false, error: err.message }
   }
 }
@@ -70,7 +67,6 @@ export async function updateGuarantorStatusAction(
     revalidatePath(`/loans/${loanId}`)
     return { success: true }
   } catch (err: any) {
-    if (isOfflineError(err)) return { success: false, offline: true, error: "offline" }
     return { success: false, error: err.message }
   }
 }

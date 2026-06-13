@@ -6,7 +6,6 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { FileText, Loader2 } from "lucide-react"
 import { LoanContractDocument } from "@/lib/pdf/loan-contract"
 import { toast } from "sonner"
-import { fetchSaccoSettings } from "@/lib/utils/fetch-sacco-settings"
 
 export function LoanPdfButton({ loan }: { loan: any }) {
   const [loading, setLoading] = useState(false)
@@ -15,7 +14,8 @@ export function LoanPdfButton({ loan }: { loan: any }) {
     e.preventDefault()
     setLoading(true)
     try {
-      const rawSacco = await fetchSaccoSettings()
+      const saccoResponse = await fetch("/api/settings")
+      const rawSacco = saccoResponse.ok ? await saccoResponse.json() : {}
 
       const doc = (
         <LoanContractDocument

@@ -1,14 +1,15 @@
 "use client"
-"use client"
 
 import { useMemo, useState, useCallback } from "react"
-import { usePowerSync } from "@powersync/react"
-import { offlineDeleteLoan, offlineApproveLoan, offlineDisburseLoan } from "@/lib/powersync/offline-mutations"
 import { useRouter } from "next/navigation"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteLoan } from "@/lib/powersync/offline-mutations"
 import { useTheme } from "@/components/providers/theme-provider"
+import { isOffline } from "@/lib/utils/is-offline"
 import { AgGridReact } from "ag-grid-react"
 import type { ColDef, ICellRendererParams, CellClickedEvent } from "ag-grid-community"
 import { agLightTheme, agDarkTheme } from "@/lib/ag-grid-theme"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,6 @@ import {
   XCircle,
   Send,
   Eye,
-  Pencil,
   Banknote,
   Trash2,
   FileText,
@@ -41,12 +41,11 @@ import {
 } from "lucide-react"
 import { formatUGX, formatDate } from "@/lib/utils/format"
 import { toast } from "sonner"
-import { approveLoanAction, disburseLoanAction, deleteLoanAction } from "../actions"
+import { approveLoanAction, disburseLoanAction, deleteLoanAction, markLoanAsActiveAction } from "../actions"
 import { RepayDialog } from "./repay-dialog"
 import { DeclineDialog } from "./decline-dialog"
 import { TopUpDialog } from "./top-up-dialog"
 import { LoanPdfButton } from "./loan-pdf-button"
-import { isOffline } from "@/lib/utils/is-offline"
 
 // ── Status badge helper ────────────────────────────────────────────────────
 
@@ -95,7 +94,7 @@ const DateCell = (p: ICellRendererParams) => (
 )
 
 const LoanActionsCell = (p: ICellRendererParams) => {
-  const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db } = p.context
+  const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan } = p.context
   const loan = p.data
   return (
     <div className="flex items-center h-full">
@@ -108,59 +107,71 @@ const LoanActionsCell = (p: ICellRendererParams) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}`)}>
-            <Eye className="mr-2 h-4 w-4" /> View Details
+            <Eye className="mr-2 h-4 w-4" /> View Details / Timesheet
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/contract`)}>
             <FileText className="mr-2 h-4 w-4" /> View Contract
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/edit`)}>
-            <Pencil className="mr-2 h-4 w-4" /> Edit Loan
-          </DropdownMenuItem>
+          {["pending", "approved", "disbursed", "active"].includes(loan.status) && (
+            <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/edit`)}>
+              <FileText className="mr-2 h-4 w-4" /> Edit Loan
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-green-600"
-            onClick={async () => {
-              if (isOffline()) {
-                await offlineApproveLoan(db, loan.id).catch(() => {})
-                toast.success("Loan approved offline — will sync when connected.")
-                return
-              }
-              const res = await approveLoanAction(loan.id)
-              if (res.success) toast.success("Loan approved & disbursed")
-              else if (res.offline) {
-                await offlineApproveLoan(db, loan.id).catch(() => {})
-                toast.success("Loan approved offline — will sync when connected.")
-              } else toast.error(res.error)
-            }}
-          >
-            <CheckCircle className="mr-2 h-4 w-4" /> Approve & Disburse
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-red-600" onClick={() => setDeclineLoan(loan)}>
-            <XCircle className="mr-2 h-4 w-4" /> Decline Loan
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-purple-600"
-            onClick={async () => {
-              if (isOffline()) {
-                await offlineDisburseLoan(db, loan.id).catch(() => {})
-                toast.success("Loan disbursed offline — will sync when connected.")
-                return
-              }
-              const res = await disburseLoanAction(loan.id)
-              if (res.success) toast.success("Loan disbursed")
-              else toast.error(res.error)
-            }}
-          >
-            <Send className="mr-2 h-4 w-4" /> Disburse Loan
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-blue-600" onClick={() => setRepayLoan(loan)}>
-            <Banknote className="mr-2 h-4 w-4" /> Record Repayment
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-green-600" onClick={() => setTopUpLoan(loan)}>
-            <Plus className="mr-2 h-4 w-4" /> Top Up Loan
-          </DropdownMenuItem>
+          {loan.status === "pending" && (
+            <>
+              <DropdownMenuItem
+                className="text-green-600"
+                onClick={async () => {
+                  const res = await approveLoanAction(loan.id)
+                  if (res.success) toast.success("Loan approved & disbursed")
+                  else toast.error(res.error)
+                }}
+              >
+                <CheckCircle className="mr-2 h-4 w-4" /> Approve & Disburse
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-red-600" onClick={() => setDeclineLoan(loan)}>
+                <XCircle className="mr-2 h-4 w-4" /> Decline Loan
+              </DropdownMenuItem>
+            </>
+          )}
+          {loan.status === "approved" && (
+            <DropdownMenuItem
+              className="text-purple-600"
+              onClick={async () => {
+                const res = await disburseLoanAction(loan.id)
+                if (res.success) toast.success("Loan disbursed")
+                else toast.error(res.error)
+              }}
+            >
+              <Send className="mr-2 h-4 w-4" /> Disburse Loan
+            </DropdownMenuItem>
+          )}
+          {loan.status === "disbursed" && (
+            <DropdownMenuItem
+              className="text-green-600"
+              onClick={async () => {
+                const res = await markLoanAsActiveAction(loan.id)
+                if (res.success) toast.success("Loan marked as active")
+                else toast.error(res.error)
+              }}
+            >
+              <CheckCircle className="mr-2 h-4 w-4" /> Mark Active
+            </DropdownMenuItem>
+          )}
+          {(loan.status === "active" || loan.status === "disbursed") && (
+            <>
+              <DropdownMenuItem className="text-blue-600" onClick={() => setRepayLoan(loan)}>
+                <Banknote className="mr-2 h-4 w-4" /> Record Repayment
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-green-600" onClick={() => setTopUpLoan(loan)}>
+                <Plus className="mr-2 h-4 w-4" /> Top Up Loan
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <LoanPdfButton loan={loan} />
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onClick={() => setDeleteLoan(loan)}
@@ -199,6 +210,7 @@ const columnDefs: ColDef[] = [
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function LoansTable({ loans }: { loans: any[] }) {
+  const db = usePowerSync()
   const { resolvedTheme } = useTheme()
   const router = useRouter()
   const [repayLoan, setRepayLoan] = useState<any>(null)
@@ -209,28 +221,37 @@ export function LoansTable({ loans }: { loans: any[] }) {
 
   const theme = resolvedTheme === "dark" ? agDarkTheme : agLightTheme
 
-  const db = usePowerSync()
-
   const context = useMemo(
-    () => ({ router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db }),
-    [router, db]
+    () => ({ router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan }),
+    [router]
   )
 
   const handleDeleteLoan = async () => {
     if (!deleteLoan) return
     setDeleting(true)
     if (isOffline()) {
-      await offlineDeleteLoan(db, deleteLoan.id).catch(() => {})
+      try {
+        await offlineDeleteLoan(db, deleteLoan.id)
+        toast.success("Loan deleted (offline)")
+      } catch {
+        toast.error("Failed to delete loan offline")
+      }
       setDeleting(false)
       setDeleteLoan(null)
-      toast.success("Loan deleted offline — will sync when connected.")
       return
     }
     const res = await deleteLoanAction(deleteLoan.id)
     setDeleting(false)
     setDeleteLoan(null)
     if (res.success) toast.success("Loan deleted")
-    else toast.error(res.error)
+    else if (res.offline) {
+      try {
+        await offlineDeleteLoan(db, deleteLoan.id)
+        toast.success("Loan deleted (offline)")
+      } catch {
+        toast.error(res.error || "Failed to delete loan offline")
+      }
+    } else toast.error(res.error)
   }
 
   const onCellClicked = useCallback(

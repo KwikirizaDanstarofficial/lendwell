@@ -132,8 +132,8 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 7, fontFamily: "Times-Italic", color: "#9ca3af" },
 })
 
-function formatUGX(n: number) {
-  return `UGX ${n.toLocaleString()}`
+function formatUGX(cents: number) {
+  return `UGX ${Math.round(cents / 100).toLocaleString()}`
 }
 
 function formatDate(d: string | Date | null | undefined) {
@@ -277,11 +277,11 @@ export function MemberProfileDocument({
           </View>
           <View style={styles.kpiBox}>
             <Text style={styles.kpiLabel}>Active Loans</Text>
-            <Text style={[styles.kpiValue, styles.kpiBlue]}>{formatUGX(stats.totalLoans)}</Text>
+            <Text style={[styles.kpiValue, styles.kpiBlue]}>{stats.totalLoans}</Text>
           </View>
           <View style={styles.kpiBox}>
             <Text style={styles.kpiLabel}>Pending Fines</Text>
-            <Text style={[styles.kpiValue, styles.kpiOrange]}>{formatUGX(stats.totalFines)}</Text>
+            <Text style={[styles.kpiValue, styles.kpiOrange]}>{stats.totalFines}</Text>
           </View>
           <View style={styles.kpiBox}>
             <Text style={styles.kpiLabel}>Transactions</Text>

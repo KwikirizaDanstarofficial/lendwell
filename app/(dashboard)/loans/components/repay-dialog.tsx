@@ -1,4 +1,3 @@
-"use client"
 // app/(dashboard)/loans/components/repay-dialog.tsx
 // Dialog for recording a loan repayment instalment.
 // Submits via server action and shows a receipt on success.
@@ -6,9 +5,7 @@
 
 import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
-import { usePowerSync } from "@powersync/react"
 import { repayLoanAction, LoanFormState } from "../actions"
-import { offlineRepayLoan } from "@/lib/powersync/offline-mutations"
 import {
   Dialog,
   DialogContent,
@@ -30,7 +27,6 @@ import {
 } from "@/components/ui/select"
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog"
 import type { ReceiptData } from "@/types/receipt"
-import { isOffline } from "@/lib/utils/is-offline"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,28 +53,16 @@ export function RepayDialog({
     repayLoanAction,
     INITIAL_FORM_STATE
   )
-  const db = usePowerSync()
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
-  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
+  // On success show receipt; on error show toast
   useEffect(() => {
-    if (offlineSuccess) { onClose(); return }
-    if (state.success && state.receipt) { setReceipt(state.receipt); onClose() }
-    if (state.error) toast.error(state.error)
-  }, [state, onClose, offlineSuccess])
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    if (isOffline()) {
-      e.preventDefault()
-      const fd = new FormData(e.currentTarget)
-      const amount = Number(fd.get("amount"))
-      if (!amount || amount <= 0) { toast.error("Enter a valid amount"); return }
-      // DB stores amounts in cents; user enters UGX — multiply by 100
-      offlineRepayLoan(db, loan.sacco_id ?? "", loan.id, loan.member_id ?? "", Math.round(amount * 100))
-        .then(() => { toast.success("Repayment saved offline — will sync when connected."); setOfflineSuccess(true) })
-        .catch(() => toast.error("Failed to save offline."))
+    if (state.success && state.receipt) {
+      setReceipt(state.receipt)
+      onClose()
     }
-  }
+    if (state.error) toast.error(state.error)
+  }, [state, onClose])
 
   return (
     <>
@@ -89,12 +73,12 @@ export function RepayDialog({
             <DialogDescription>
               Loan: {loan.loanRef} · Balance:{" "}
               <span className="font-semibold text-foreground">
-                {formatUGX(loan.balance / CENTS_PER_UNIT)}
+                {formatUGX(loan.balance)}
               </span>
             </DialogDescription>
           </DialogHeader>
 
-          <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <input type="hidden" name="loan_id" value={loan.id} />
 
             {/* Quick-reference payment amounts */}

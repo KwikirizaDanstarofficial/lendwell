@@ -1,12 +1,15 @@
 "use client"
 
-import { useActionState, useState, useEffect, useRef } from "react"
+import { useActionState, useState, useEffect, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useDropzone } from "react-dropzone"
+import { usePowerSync } from "@powersync/react"
+import { offlineEditMember, offlineDeleteMember } from "@/lib/powersync/offline-mutations"
 import { toast } from "sonner"
 import { editMemberAction, deleteMemberAction, MemberFormState } from "../../actions"
 import { Button } from "@/components/ui/button"
+import { isOffline } from "@/lib/utils/is-offline"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -123,6 +126,7 @@ function inputClass() {
 }
 
 export function EditMemberForm({ member }: { member: Member }) {
+  const db = usePowerSync()
   const router = useRouter()
   const [photoPreview, setPhotoPreview] = useState(member.photoUrl ?? "")
   const [photoUrl, setPhotoUrl] = useState(member.photoUrl ?? "")
@@ -131,22 +135,19 @@ export function EditMemberForm({ member }: { member: Member }) {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [deleting, setDeleting] = useState(false)
+  const [state, setState] = useState<MemberFormState>({})
+  const [isPending, startTransition] = useTransition()
+  const formRef = useRef<HTMLFormElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (fileInputRef.current && photoFile) {
-      const dt = new DataTransfer()
-      dt.items.add(photoFile)
-      fileInputRef.current.files = dt.files
-    }
-  }, [photoFile])
-
-  const boundAction = editMemberAction.bind(null, member.id)
-  const [state, formAction, isPending] = useActionState(boundAction, INITIAL_FORM_STATE)
-
-  useEffect(() => {
+    if (!state.success && !state.error) return
     if (state.success) {
-      toast.success("Member updated successfully!")
+      if (state.offlineSaved) {
+        toast.success("Member saved offline — will sync when you reconnect.")
+      } else {
+        toast.success("Member updated successfully!")
+      }
       setUploading(false)
       setUploadProgress(100)
       router.push("/members")
@@ -189,20 +190,96 @@ export function EditMemberForm({ member }: { member: Member }) {
 
   const handleDelete = async () => {
     setDeleting(true)
+    if (isOffline()) {
+      try {
+        await offlineDeleteMember(db, member.id)
+        toast.success("Member removed (offline)")
+        setDeleting(false)
+        router.push("/members")
+        return
+      } catch {
+        toast.error("Failed to delete offline")
+        setDeleting(false)
+        return
+      }
+    }
     const res = await deleteMemberAction(member.id)
     setDeleting(false)
     if (res.success) {
       toast.success("Member removed successfully")
       router.push("/members")
+    } else if (res.offline) {
+      try {
+        await offlineDeleteMember(db, member.id)
+        toast.success("Member removed (offline)")
+        router.push("/members")
+      } catch {
+        toast.error(res.error || "Failed to delete offline")
+      }
     } else {
       toast.error(res.error)
     }
   }
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    startTransition(async () => {
+      if (isOffline()) {
+        try {
+          await offlineEditMember(db, member.id, {
+            full_name: formData.get("full_name") as string,
+            email:     (formData.get("email") as string) || null,
+            phone:     (formData.get("phone") as string) || "",
+            national_id:              (formData.get("national_id") as string) || null,
+            date_of_birth:            (formData.get("date_of_birth") as string) || null,
+            address:                  (formData.get("address") as string) || null,
+            next_of_kin:              (formData.get("next_of_kin") as string) || null,
+            next_of_kin_phone:        (formData.get("next_of_kin_phone") as string) || null,
+            next_of_kin_relationship: (formData.get("next_of_kin_relationship") as string) || null,
+            next_of_kin_address:      (formData.get("next_of_kin_address") as string) || null,
+            status:                   (formData.get("status") as string) || "active",
+          })
+          setState({ success: true, offlineSaved: true })
+        } catch {
+          setState({ error: "Failed to save offline. Please try again." })
+        }
+        return
+      }
+      try {
+        const result = await editMemberAction(member.id, state, formData)
+        if (!result.offline && !result.error) {
+          setState(result)
+          return
+        }
+      } catch {
+        // Network error - fall through to offline fallback
+      }
+      try {
+        await offlineEditMember(db, member.id, {
+          full_name: formData.get("full_name") as string,
+          email:     (formData.get("email") as string) || null,
+          phone:     (formData.get("phone") as string) || "",
+          national_id:              (formData.get("national_id") as string) || null,
+          date_of_birth:            (formData.get("date_of_birth") as string) || null,
+          address:                  (formData.get("address") as string) || null,
+          next_of_kin:              (formData.get("next_of_kin") as string) || null,
+          next_of_kin_phone:        (formData.get("next_of_kin_phone") as string) || null,
+          next_of_kin_relationship: (formData.get("next_of_kin_relationship") as string) || null,
+          next_of_kin_address:      (formData.get("next_of_kin_address") as string) || null,
+          status:                   (formData.get("status") as string) || "active",
+        })
+        setState({ success: true, offlineSaved: true })
+      } catch {
+        setState({ error: "Failed to save offline. Please try again." })
+      }
+    })
+  }
+
   const fieldError = (field: string) => state.fieldErrors?.[field]?.[0]
 
   return (
-    <form action={formAction} className="mx-auto max-w-2xl">
+    <form ref={formRef} onSubmit={handleSubmit} className="mx-auto max-w-2xl">
       <input type="hidden" name="photo_url" value={photoUrl} />
       <input type="file" name="photo" style={{ display: "none" }} ref={fileInputRef} />
 

@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { usePowerSync } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -22,8 +21,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Shield, Plus, Trash2, Loader2, Search, CheckCircle, XCircle, Clock } from "lucide-react"
 import { addGuarantorAction, removeGuarantorAction, updateGuarantorStatusAction } from "./guarantor-actions"
-import { offlineAddGuarantor, offlineRemoveGuarantor, offlineUpdateGuarantorStatus } from "@/lib/powersync/offline-mutations"
-import { isOffline } from "@/lib/utils/is-offline"
 
 const STATUS_STYLES: Record<string, string> = {
   pending:  "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -62,17 +59,15 @@ interface MemberOption {
 interface GuarantorsSectionProps {
   loanId: string
   loanRef: string
-  saccoId: string
   guarantors: Guarantor[]
   members: MemberOption[]
   borrowerMemberId: string
 }
 
 export function GuarantorsSection({
-  loanId, loanRef, saccoId, guarantors, members, borrowerMemberId,
+  loanId, loanRef, guarantors, members, borrowerMemberId,
 }: GuarantorsSectionProps) {
   const router = useRouter()
-  const db = usePowerSync()
   const [showAdd, setShowAdd] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<Guarantor | null>(null)
   const [search, setSearch] = useState("")
@@ -88,20 +83,13 @@ export function GuarantorsSection({
 
   const filteredMembers = availableMembers.filter(
     (m) =>
-      (m.full_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (m.member_code ?? "").toLowerCase().includes(search.toLowerCase())
+      m.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      m.member_code.toLowerCase().includes(search.toLowerCase())
   )
 
   const handleAdd = async () => {
     if (!selectedMemberId) { toast.error("Select a member"); return }
     setLoading(true)
-    if (isOffline()) {
-      await offlineAddGuarantor(db, saccoId, loanId, selectedMemberId, notes || null)
-        .then(() => { toast.success("Guarantor saved offline — will sync when connected."); setShowAdd(false); setSelectedMemberId(""); setNotes(""); setSearch("") })
-        .catch(() => toast.error("Failed to save offline."))
-      setLoading(false)
-      return
-    }
     const res = await addGuarantorAction(loanId, selectedMemberId, loanRef, notes || undefined)
     setLoading(false)
     if (res.success) {
@@ -111,10 +99,6 @@ export function GuarantorsSection({
       setNotes("")
       setSearch("")
       router.refresh()
-    } else if ((res as any).offline) {
-      await offlineAddGuarantor(db, saccoId, loanId, selectedMemberId, notes || null)
-        .then(() => { toast.success("Guarantor saved offline — will sync when connected."); setShowAdd(false); setSelectedMemberId(""); setNotes(""); setSearch("") })
-        .catch(() => toast.error("Failed to save offline."))
     } else {
       toast.error(res.error)
     }
@@ -123,38 +107,17 @@ export function GuarantorsSection({
   const handleRemove = async () => {
     if (!removeTarget) return
     setLoading(true)
-    if (isOffline()) {
-      await offlineRemoveGuarantor(db, removeTarget.id)
-        .then(() => { toast.success("Guarantor removed offline — will sync when connected."); setRemoveTarget(null) })
-        .catch(() => toast.error("Failed to remove offline."))
-      setLoading(false)
-      return
-    }
     const res = await removeGuarantorAction(removeTarget.id, loanId, loanRef)
     setLoading(false)
     setRemoveTarget(null)
     if (res.success) { toast.success("Guarantor removed"); router.refresh() }
-    else if ((res as any).offline) {
-      await offlineRemoveGuarantor(db, removeTarget.id)
-        .then(() => toast.success("Guarantor removed offline — will sync when connected."))
-        .catch(() => toast.error("Failed to remove offline."))
-    } else { toast.error(res.error) }
+    else toast.error(res.error)
   }
 
   const handleStatusChange = async (g: Guarantor, status: "pending" | "accepted" | "declined") => {
-    if (isOffline()) {
-      await offlineUpdateGuarantorStatus(db, g.id, status)
-        .then(() => toast.success("Status updated offline — will sync when connected."))
-        .catch(() => toast.error("Failed to update offline."))
-      return
-    }
     const res = await updateGuarantorStatusAction(g.id, loanId, loanRef, status)
     if (res.success) { toast.success("Status updated"); router.refresh() }
-    else if ((res as any).offline) {
-      await offlineUpdateGuarantorStatus(db, g.id, status)
-        .then(() => toast.success("Status updated offline — will sync when connected."))
-        .catch(() => toast.error("Failed to update offline."))
-    } else { toast.error(res.error) }
+    else toast.error(res.error)
   }
 
   return (

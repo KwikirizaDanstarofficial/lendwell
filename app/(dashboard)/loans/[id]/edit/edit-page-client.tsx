@@ -20,10 +20,10 @@ function toLoan(r: any) {
     dailyPayment: Number(r.daily_payment ?? 0),
     monthlyPayment: Number(r.monthly_payment ?? 0),
     status: r.status,
-    dueDate: r.due_date ? new Date(r.due_date) : null,
+    dueDate: r.due_date ?? null,
     notes: r.notes ?? null,
     expectedReceived: Number(r.expected_received ?? 0),
-    createdAt: r.created_at ? new Date(r.created_at) : null,
+    createdAt: r.created_at ?? null,
   }
 }
 

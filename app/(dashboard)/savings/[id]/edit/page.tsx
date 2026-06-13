@@ -2,6 +2,8 @@
 "use client"
 
 import { useState, useEffect, use } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineUpdateSavingsAccount } from "@/lib/powersync/offline-mutations"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { ArrowLeft, Loader2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   Select,
   SelectContent,
@@ -43,6 +46,7 @@ export default function EditSavingsPage({
 }) {
   const { id } = use(params)
   const router = useRouter()
+  const db = usePowerSync()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savings, setSavings] = useState<SavingsAccount | null>(null)
@@ -85,17 +89,39 @@ export default function EditSavingsPage({
       formData.append("lock_until", lockUntil)
       formData.append("lock_reason", lockReason)
 
+      if (isOffline()) {
+        await offlineUpdateSavingsAccount(db, id, {
+          account_type: accountType as "regular" | "fixed",
+        })
+        toast.success("Savings account updated offline — will sync when connected.")
+        router.push(`/savings/${id}`)
+        return
+      }
       const result = await updateSavingsAction(id, {
         account_type: accountType as "regular" | "fixed",
       })
       if (result.success) {
         toast.success("Savings account updated successfully")
         router.push(`/savings/${id}`)
+      } else if (result.offline) {
+        await offlineUpdateSavingsAccount(db, id, {
+          account_type: accountType as "regular" | "fixed",
+        })
+        toast.success("Savings account updated offline — will sync when connected.")
+        router.push(`/savings/${id}`)
       } else {
         toast.error(result.error || "Failed to update savings account")
       }
     } catch (error) {
-      toast.error("Failed to update savings account")
+      try {
+        await offlineUpdateSavingsAccount(db, id, {
+          account_type: accountType as "regular" | "fixed",
+        })
+        toast.success("Savings account updated offline — will sync when connected.")
+        router.push(`/savings/${id}`)
+      } catch {
+        toast.error("Failed to update savings account")
+      }
     } finally {
       setSaving(false)
     }

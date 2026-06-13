@@ -491,6 +491,25 @@ export async function offlineDeleteSavingsAccount(
   await db.execute("DELETE FROM savings_accounts WHERE id = ?", [id])
 }
 
+export async function offlineUpdateSavingsAccount(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    account_type?: string
+    category_id?: string | null
+  }
+): Promise<void> {
+  const fields: string[] = []
+  const values: any[] = []
+  if (data.account_type !== undefined) { fields.push("account_type = ?"); values.push(data.account_type) }
+  if (data.category_id !== undefined) { fields.push("category_id = ?"); values.push(data.category_id) }
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE savings_accounts SET ${fields.join(", ")}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
 // ─── Complaints ───────────────────────────────────────────────────────────────
 
 export async function offlineAddComplaint(

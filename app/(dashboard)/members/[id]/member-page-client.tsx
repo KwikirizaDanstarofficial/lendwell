@@ -1,17 +1,32 @@
 "use client"
 import { useQuery } from "@powersync/react"
 import { Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
 import { MemberProfile } from "./member-profile"
 
 export function MemberPageClient({ id }: { id: string }) {
   const { data: memberRows = [], isLoading: loadingMembers } = useQuery("SELECT * FROM members WHERE id = ? LIMIT 1", [id])
+  const [serverMember, setServerMember] = useState<any | null>(null)
+  const [fetchingServer, setFetchingServer] = useState(false)
+
+  const localRaw = memberRows[0] as any | undefined
+  const m = localRaw ?? serverMember
+
+  useEffect(() => {
+    if (m) return
+    setFetchingServer(true)
+    fetch(`/api/members/${id}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setServerMember(data ?? null))
+      .catch(() => {})
+      .finally(() => setFetchingServer(false))
+  }, [id, m])
   const { data: loanRows = [] } = useQuery("SELECT * FROM loans WHERE member_id = ? ORDER BY created_at DESC", [id])
   const { data: savingsRows = [] } = useQuery("SELECT * FROM savings_accounts WHERE member_id = ? ORDER BY created_at DESC", [id])
   const { data: fineRows = [] } = useQuery("SELECT * FROM fines WHERE member_id = ? ORDER BY created_at DESC", [id])
   const { data: txRows = [] } = useQuery("SELECT * FROM transactions WHERE member_id = ? ORDER BY created_at DESC LIMIT 50", [id])
 
-  const m = memberRows[0] as any
-  if (loadingMembers && !m) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading member…</div>
+  if ((loadingMembers || fetchingServer) && !m) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading member…</div>
   if (!m) return <div className="p-6 text-sm text-muted-foreground">Member not found or not yet synced.</div>
 
   const member = {

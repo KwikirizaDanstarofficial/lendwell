@@ -2,24 +2,33 @@
 
 import { PowerSyncDatabase } from "@powersync/web"
 import { PowerSyncContext } from "@powersync/react"
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, createContext, useContext } from "react"
 import { AppSchema } from "./schema"
 import { SupabaseConnector } from "./connector"
 import { pullFromSupabase } from "./sync-engine"
 import { supabase } from "@/lib/supabase/client"
 import { isOffline } from "@/lib/utils/is-offline"
-import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 
 const connector = new SupabaseConnector()
 
-/** How often to re-sync in the background while the app is open (ms). */
-const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+type SyncContextValue = {
+  syncNow: () => Promise<void>
+  jwtWarning: boolean
+  syncErrors: string[]
+}
+
+const SyncContext = createContext<SyncContextValue | null>(null)
+
+export function useSyncNow() {
+  const ctx = useContext(SyncContext)
+  if (!ctx) throw new Error("useSyncNow must be used inside PowerSyncProvider")
+  return ctx
+}
 
 export function PowerSyncProvider({ children }: { children: ReactNode }) {
   const [jwtWarning, setJwtWarning] = useState(false)
   const [syncErrors, setSyncErrors] = useState<string[]>([])
-  const syncedRef = useRef(false)
   const syncingRef = useRef(false)
 
   const db = useMemo(
@@ -31,7 +40,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  const doSync = useCallback(async () => {
+  const syncNow = useCallback(async () => {
     if (syncingRef.current) return
     if (isOffline()) {
       console.log("[PowerSync] Skipping sync — offline")
@@ -54,7 +63,6 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
       syncingRef.current = false
     }
 
-    // Connect to PowerSync cloud for ongoing real-time sync (optional — may fail if JWT missing sacco_id).
     try {
       await db.connect(connector)
       setJwtWarning(false)
@@ -82,15 +90,11 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     const disconnect = () => db.disconnect()
     let destroyed = false
 
-    // Restore Supabase session from Electron vault so sync can authenticate.
-    const initSessionAndSync = async () => {
+    // Restore Supabase session from Electron vault (no auto-sync).
+    const initSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (destroyed) return
-      if (session) {
-        doSync().then(() => { syncedRef.current = true })
-        return
-      }
-      // Fallback: read access token from Electron vault
+      if (session) return
       try {
         const el = typeof window !== "undefined" ? (window as any).electron : undefined
         if (el?.getConfig) {
@@ -101,38 +105,14 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
               access_token: config.accessToken,
               refresh_token: config.refreshToken ?? config.accessToken,
             })
-            const { data: { session: s } } = await supabase.auth.getSession()
-            if (destroyed) return
-            if (s) {
-              doSync().then(() => { syncedRef.current = true })
-            }
           }
         }
       } catch {
-        // vault not available — stay offline
+        // vault not available
       }
     }
 
-    initSessionAndSync()
-
-    // Re-sync periodically while the app is open.
-    const periodicTimer = setInterval(() => {
-      doSync()
-    }, AUTO_SYNC_INTERVAL_MS)
-
-    // Sync immediately when the network comes back online.
-    window.addEventListener("online", doSync)
-    const goOffline = () => { setSyncErrors([]); disconnect() }
-    window.addEventListener("offline", goOffline)
-
-    // Sync on sign-in / session restore.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        if (session) {
-          doSync()
-        }
-      }
-    )
+    initSession()
 
     // Electron: flush database when main process signals shutdown
     const el = typeof window !== "undefined" ? (window as any).electron : undefined
@@ -146,19 +126,16 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     return () => {
       destroyed = true
       disconnect()
-      clearInterval(periodicTimer)
-      window.removeEventListener("online", doSync)
-      window.removeEventListener("offline", disconnect)
-      subscription?.unsubscribe()
       if (el?.removeFlushDbListener) {
         el.removeFlushDbListener()
       }
       window.removeEventListener("beforeunload", handleFlush)
     }
-  }, [db, doSync, handleFlush])
+  }, [db, handleFlush])
 
   return (
     <PowerSyncContext.Provider value={db}>
+      <SyncContext.Provider value={{ syncNow, jwtWarning, syncErrors }}>
       {jwtWarning && (
         <div className="fixed bottom-4 left-4 right-4 z-[9999] max-w-xl mx-auto bg-red-900/95 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-200 shadow-xl backdrop-blur">
           <strong className="text-red-100">⚠ Sync disabled — JWT missing sacco_id</strong>
@@ -181,6 +158,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
         </div>
       )}
       {children}
+      </SyncContext.Provider>
     </PowerSyncContext.Provider>
   )
 }

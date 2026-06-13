@@ -2,6 +2,9 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { usePowerSync } from "@powersync/react"
+import { offlineDeleteMember } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -85,6 +88,7 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export function MembersTable({ members }: { members: Member[] }) {
+  const db = usePowerSync()
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null)
@@ -271,11 +275,29 @@ export function MembersTable({ members }: { members: Member[] }) {
   const handleDelete = async () => {
     if (!memberToDelete) return
     setDeleting(true)
+    if (isOffline()) {
+      try {
+        await offlineDeleteMember(db, memberToDelete.id)
+        toast.success("Member removed (offline)")
+      } catch {
+        toast.error("Failed to delete offline")
+      }
+      setDeleting(false)
+      setMemberToDelete(null)
+      return
+    }
     const res = await deleteMemberAction(memberToDelete.id)
     setDeleting(false)
     setMemberToDelete(null)
     if (res.success) toast.success("Member removed")
-    else toast.error(res.error)
+    else if (res.offline) {
+      try {
+        await offlineDeleteMember(db, memberToDelete.id)
+        toast.success("Member removed (offline)")
+      } catch {
+        toast.error(res.error || "Failed to delete offline")
+      }
+    } else toast.error(res.error)
   }
 
   return (

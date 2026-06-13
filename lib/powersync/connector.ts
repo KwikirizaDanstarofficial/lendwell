@@ -72,6 +72,8 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       throw new Error("JWT missing sacco_id — sync blocked to protect local data. See POWERSYNC_JWT_SETUP.md.")
     }
 
+    console.log("[PowerSync] JWT:", session.access_token)
+
     return {
       endpoint: getClientConfig().powersyncUrl,
       token: session.access_token,

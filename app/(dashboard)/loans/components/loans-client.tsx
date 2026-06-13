@@ -4,7 +4,6 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Plus, Download, Percent } from "lucide-react"
@@ -47,75 +46,23 @@ const EXPORT_COLUMNS = [
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LoansClientProps {
-  saccoId: string
+  loans:         any[]
+  members:       any[]
+  stats: {
+    totalDisbursed:    number
+    totalLoans:        number
+    activeLoans:       number
+    pendingLoans:      number
+    settledLoans:      number
+    outstandingBalance: number
+  }
+  interestRates: any[]
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function LoansClient({ saccoId }: LoansClientProps) {
+export function LoansClient({ loans, members, stats, interestRates }: LoansClientProps) {
   const [search, setSearch] = useState("")
-
-  const { data: rows = [] } = useQuery(
-    `SELECT l.id, l.sacco_id, l.member_id, l.loan_ref, l.amount, l.balance,
-            l.interest_rate, l.interest_type, l.duration_months,
-            l.daily_payment, l.monthly_payment, l.late_penalty_fee,
-            l.status, l.due_date, l.disbursed_at, l.settled_at, l.created_at,
-            l.expected_received, l.notes, l.category_id,
-            m.full_name AS member_name, m.member_code, m.phone AS member_phone
-     FROM loans l
-     LEFT JOIN members m ON m.id = l.member_id
-     WHERE l.sacco_id = ?
-     ORDER BY l.created_at DESC`,
-    [saccoId]
-  )
-
-  const { data: rateRows = [] } = useQuery(
-    "SELECT id, min_amount, max_amount, rate, rate_type FROM interest_rates WHERE sacco_id = ? AND is_active = 1 ORDER BY min_amount ASC",
-    [saccoId]
-  )
-
-  const loans = useMemo(() => (rows as any[]).map((r) => ({
-    id:               r.id,
-    saccoId:          r.sacco_id,
-    memberId:         r.member_id,
-    loanRef:          r.loan_ref,
-    amount:           Number(r.amount),
-    balance:          Number(r.balance),
-    interestRate:     r.interest_rate,
-    interestType:     r.interest_type,
-    durationMonths:   r.duration_months,
-    dailyPayment:     Number(r.daily_payment ?? 0),
-    monthlyPayment:   Number(r.monthly_payment ?? 0),
-    latePenaltyFee:   Number(r.late_penalty_fee ?? 0),
-    status:           r.status,
-    dueDate:          r.due_date ? new Date(r.due_date) : null,
-    disbursedAt:      r.disbursed_at ? new Date(r.disbursed_at) : null,
-    settledAt:        r.settled_at ? new Date(r.settled_at) : null,
-    createdAt:        r.created_at ? new Date(r.created_at) : null,
-    expectedReceived: Number(r.expected_received ?? 0),
-    notes:            r.notes ?? null,
-    categoryId:       r.category_id ?? null,
-    memberName:       r.member_name ?? "",
-    memberCode:       r.member_code ?? "",
-    memberPhone:      r.member_phone ?? null,
-  })), [rows])
-
-  const interestRates = useMemo(() => (rateRows as any[]).map((r) => ({
-    id: r.id, minAmount: Number(r.min_amount), maxAmount: Number(r.max_amount),
-    rate: r.rate, rateType: r.rate_type,
-  })), [rateRows])
-
-  const stats = useMemo(() => {
-    let totalDisbursed = 0, outstandingBalance = 0, activeLoans = 0, pendingLoans = 0, settledLoans = 0
-    for (const l of loans) {
-      if (["disbursed","active","settled"].includes(l.status)) totalDisbursed += l.amount
-      if (["disbursed","active"].includes(l.status))           outstandingBalance += l.balance
-      if (l.status === "active")  activeLoans++
-      if (l.status === "pending") pendingLoans++
-      if (l.status === "settled") settledLoans++
-    }
-    return { totalDisbursed, totalLoans: loans.length, activeLoans, pendingLoans, settledLoans, outstandingBalance }
-  }, [loans])
 
   // Filter loans by ref, member name, or member code
   const filteredLoans = useMemo(

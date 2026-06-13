@@ -120,6 +120,8 @@ export function MembersClient({ saccoId }: MembersClientProps) {
     totalLoans:            Number(r.total_loans ?? 0),
   })), [rows])
 
+  console.log("[MembersClient] all members:", members)
+
   // Filter members by name, code, or phone as the user types
   const filteredMembers = useMemo(
     () =>

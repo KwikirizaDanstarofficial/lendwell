@@ -13,9 +13,10 @@ import {
   Settings, FileText, Bell, MessageSquare, UserCog, HelpCircle,
   ChevronDown, Menu, X, Sun, Moon, Monitor, LogOut,
   BookOpen, Activity, Trash2, WifiOff, Wifi,
-  CloudDownload, CloudUpload, Loader2,
+  CloudUpload, Loader2,
 } from "lucide-react"
 import { usePowerSync } from "@powersync/react"
+import { useSyncNow } from "@/lib/powersync/provider"
 import { UpdateType } from "@powersync/web"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ import { useTour } from "@/hooks/use-tour"
 import { useSmsQueue } from "@/hooks/use-sms-queue"
 import { AppTour } from "@/components/tour/app-tour"
 import { isOffline } from "@/lib/utils/is-offline"
+import { RefreshCw } from "lucide-react"
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 
@@ -142,46 +144,23 @@ export function TopNav({ user }: TopNavProps) {
   const [mounted,      setMounted]      = useState(false)
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [isOnline,     setIsOnline]     = useState(true)
-  const [fetching,     setFetching]     = useState(false)
   const [syncing,      setSyncing]      = useState(false)
+  const { syncNow, jwtWarning }          = useSyncNow()
+  const [isSyncing,    setIsSyncing]    = useState(false)
+
+  const handleSync = useCallback(async () => {
+    setIsSyncing(true)
+    try {
+      await syncNow()
+      toast.success("Sync complete")
+    } catch {
+      toast.error("Sync failed")
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [syncNow])
 
   const isElectron = typeof window !== "undefined" && "electronApp" in window
-
-  const handleFetchOnline = useCallback(async () => {
-    if (!user.saccoId) {
-      toast.error("No sacco ID — cannot fetch data")
-      return
-    }
-    setFetching(true)
-    try {
-      const { pullFromSupabase, clearSyncTimestamp } = await import("@/lib/powersync/sync-engine")
-
-      // If the local DB appears empty, discard any stale timestamp so the
-      // next pull fetches everything rather than running an incremental diff
-      // against a baseline that was never populated.
-      const rows = await db.getAll("SELECT COUNT(*) as cnt FROM members")
-      const memberCount = Number((rows[0] as any)?.cnt ?? 0)
-      if (memberCount === 0) {
-        await clearSyncTimestamp(db)
-      }
-
-      const { total, errors } = await pullFromSupabase(db, user.saccoId)
-
-      if (errors.length > 0) {
-        console.error("[FetchOnline] Errors:", errors)
-        toast.warning(`Sync finished with errors — ${errors.length} table(s) failed. Check console.`)
-      } else if (total === 0) {
-        toast.warning("Server returned no data — check your Supabase connection and RLS policies")
-      } else {
-        toast.success(`Synced ${total} record${total !== 1 ? "s" : ""} from server`)
-      }
-    } catch (err) {
-      toast.error("Failed to fetch data")
-      console.error(err)
-    } finally {
-      setFetching(false)
-    }
-  }, [db, user.saccoId])
 
   const handleSyncOnline = useCallback(async () => {
     setSyncing(true)
@@ -401,30 +380,34 @@ export function TopNav({ user }: TopNavProps) {
               </div>
             )}
 
-            {/* Electron-only sync buttons */}
+            {/* Sync button — manual trigger (no auto-sync) */}
+            <Button
+              variant={jwtWarning ? "default" : "outline"} size="sm"
+              onClick={handleSync}
+              disabled={isSyncing}
+              title="Sync data from server"
+              className="hidden sm:inline-flex gap-1.5 text-xs"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              SYNC
+            </Button>
+
+            {/* Electron-only upload button */}
             {isElectron && (
-              <>
-                <Button
-                  variant="outline" size="sm"
-                  onClick={handleFetchOnline}
-                  disabled={fetching || syncing}
-                  title="Pull all data from server to local database"
-                  className="hidden sm:inline-flex gap-1.5 text-xs"
-                >
-                  {fetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudDownload className="h-3.5 w-3.5" />}
-                  FETCH ONLINE
-                </Button>
-                <Button
-                  variant="outline" size="sm"
-                  onClick={handleSyncOnline}
-                  disabled={fetching || syncing}
-                  title="Push local changes to server"
-                  className="hidden sm:inline-flex gap-1.5 text-xs"
-                >
-                  {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
-                  SYNC ONLINE
-                </Button>
-              </>
+              <Button
+                variant="outline" size="sm"
+                onClick={handleSyncOnline}
+                disabled={syncing}
+                title="Push local changes to server"
+                className="hidden sm:inline-flex gap-1.5 text-xs"
+              >
+                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
+                UPLOAD
+              </Button>
             )}
 
             <Button

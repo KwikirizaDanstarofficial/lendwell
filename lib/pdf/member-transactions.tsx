@@ -140,8 +140,8 @@ const styles = StyleSheet.create({
   },
 })
 
-function formatUGX(amount: number) {
-  return `UGX ${amount.toLocaleString()}`
+function formatUGX(cents: number) {
+  return `UGX ${Math.round(cents / 100).toLocaleString()}`
 }
 
 function formatDate(date: string | Date | null | undefined) {
