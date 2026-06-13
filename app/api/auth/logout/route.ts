@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
     }
   )
 
-  const { error } = await supabase.auth.signOut()
-
-  if (error) {
-    console.error("Logout error:", error)
-    return NextResponse.json({ error: "Failed to logout" }, { status: 500 })
+  // Attempt Supabase signOut; swallow network errors when offline
+  try {
+    await supabase.auth.signOut()
+  } catch {
+    // Offline — continue to clear cookies
   }
 
   const response = NextResponse.json({ success: true })

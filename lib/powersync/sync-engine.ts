@@ -87,19 +87,23 @@ async function syncTable(
 
   console.log(`[SyncEngine] ${table}: writing ${count} rows to local DB`)
 
-  for (const row of data as Record<string, unknown>[]) {
-    const filtered: Record<string, unknown> = {}
-    for (const col of columns) {
-      filtered[col] = row[col] ?? null
+  // Use writeTransaction so PowerSync properly indexes data and triggers
+  // useQuery reactivity. Multiple INSERTs are batched in one transaction.
+  await db.writeTransaction(async (tx) => {
+    for (const row of data as Record<string, unknown>[]) {
+      const filtered: Record<string, unknown> = {}
+      for (const col of columns) {
+        filtered[col] = row[col] ?? null
+      }
+      const cols = Object.keys(filtered).join(", ")
+      const placeholders = Object.keys(filtered).map(() => "?").join(", ")
+      const vals = Object.values(filtered)
+      await tx.execute(
+        `INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${placeholders})`,
+        vals
+      )
     }
-    const cols = Object.keys(filtered).join(", ")
-    const placeholders = Object.keys(filtered).map(() => "?").join(", ")
-    const vals = Object.values(filtered)
-    await db.execute(
-      `INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${placeholders})`,
-      vals
-    )
-  }
+  })
 
   return { count: data.length }
 }

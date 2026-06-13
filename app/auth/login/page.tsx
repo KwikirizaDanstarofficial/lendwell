@@ -6,13 +6,17 @@ import { supabaseAdmin } from "@/lib/supabase/server"
 export const metadata: Metadata = { title: "Sign In — Lendwell" }
 
 export default async function LoginPage() {
-  const { data } = await supabaseAdmin
-    .from("branches")
-    .select("id, name, code, address, phone")
-    .eq("is_active", true)
-    .order("name", { ascending: true })
-
-  const branches = (data ?? []) as { id: string; name: string; code: string; address: string | null; phone: string | null }[]
+  let branches: { id: string; name: string; code: string; address: string | null; phone: string | null }[] = []
+  try {
+    const { data } = await supabaseAdmin
+      .from("branches")
+      .select("id, name, code, address, phone")
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+    branches = (data ?? []) as typeof branches
+  } catch {
+    // Offline — show login form without branch selection
+  }
 
   return (
     <div className="grid min-h-svh lg:grid-cols-2">

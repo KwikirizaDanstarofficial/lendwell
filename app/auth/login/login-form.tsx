@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Loader2, Building2, GitBranch, MapPin, Phone } from "lucide-react"
+import { supabase } from "@/lib/supabase/client"
+import { isOffline } from "@/lib/utils/is-offline"
 
 type BranchItem = { id: string; name: string; code: string; address: string | null; phone: string | null }
 
@@ -119,6 +121,17 @@ function LoginCredentialsForm({
         }
 
         // Web: use existing API route
+        if (isOffline()) {
+          // Offline — try cached session
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session && session.expires_at && session.expires_at * 1000 > Date.now()) {
+            const redirectTo = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard"
+            window.location.href = redirectTo
+            return
+          }
+          setError("You are offline. Please connect to the internet to sign in.")
+          return
+        }
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -145,7 +145,7 @@ export function TopNav({ user }: TopNavProps) {
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [isOnline,     setIsOnline]     = useState(true)
   const [syncing,      setSyncing]      = useState(false)
-  const { syncNow, jwtWarning }          = useSyncNow()
+  const { syncNow }                      = useSyncNow()
   const [isSyncing,    setIsSyncing]    = useState(false)
 
   const handleSync = useCallback(async () => {
@@ -382,7 +382,7 @@ export function TopNav({ user }: TopNavProps) {
 
             {/* Sync button — pull latest from server */}
             <Button
-              variant={jwtWarning ? "default" : "outline"} size="sm"
+              variant="outline" size="sm"
               onClick={handleSync}
               disabled={isSyncing}
               title="Sync data from server"

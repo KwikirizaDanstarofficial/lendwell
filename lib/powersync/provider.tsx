@@ -4,17 +4,13 @@ import { PowerSyncDatabase } from "@powersync/web"
 import { PowerSyncContext } from "@powersync/react"
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, createContext, useContext } from "react"
 import { AppSchema } from "./schema"
-import { SupabaseConnector } from "./connector"
 import { pullFromSupabase } from "./sync-engine"
 import { supabase } from "@/lib/supabase/client"
 import { isOffline } from "@/lib/utils/is-offline"
 
 
-const connector = new SupabaseConnector()
-
 type SyncContextValue = {
   syncNow: () => Promise<void>
-  jwtWarning: boolean
   syncErrors: string[]
 }
 
@@ -27,7 +23,6 @@ export function useSyncNow() {
 }
 
 export function PowerSyncProvider({ children }: { children: ReactNode }) {
-  const [jwtWarning, setJwtWarning] = useState(false)
   const [syncErrors, setSyncErrors] = useState<string[]>([])
   const syncingRef = useRef(false)
 
@@ -40,24 +35,22 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  // Connect PowerSync on mount (required for useQuery reactivity)
+  // Initialize PowerSync managed tables on mount (for useQuery reactivity)
+  // NOT connecting to PowerSync Cloud — uses manual pullFromSupabase instead.
   const [connected, setConnected] = useState(false)
   const initialSyncDone = useRef(false)
   useEffect(() => {
     if (connected) return
-    db.connect(connector)
+    db.init()
       .then(() => {
         setConnected(true)
-        setJwtWarning(false)
-        // Auto-populate data on first connect
+        // Auto-populate data on first init
         if (!initialSyncDone.current) {
           initialSyncDone.current = true
           pullFromSupabase(db, "").catch(() => {})
         }
       })
-      .catch((err: any) => {
-        if (String(err).includes("sacco_id")) setJwtWarning(true)
-      })
+      .catch(() => {})
   }, [db, connected])
 
   const syncNow = useCallback(async () => {
@@ -146,17 +139,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
 
   return (
     <PowerSyncContext.Provider value={db}>
-      <SyncContext.Provider value={{ syncNow, jwtWarning, syncErrors }}>
-      {jwtWarning && (
-        <div className="fixed bottom-4 left-4 right-4 z-[9999] max-w-xl mx-auto bg-red-900/95 border border-red-500/50 rounded-xl px-4 py-3 text-sm text-red-200 shadow-xl backdrop-blur">
-          <strong className="text-red-100">⚠ Sync disabled — JWT missing sacco_id</strong>
-          <p className="text-xs mt-1 text-red-300">
-            Set up the Supabase custom_access_token_hook (see POWERSYNC_JWT_SETUP.md),
-            then <strong>sign out and sign back in</strong> to fix this.
-            Your offline data is safe.
-          </p>
-        </div>
-      )}
+      <SyncContext.Provider value={{ syncNow, syncErrors }}>
       {syncErrors.length > 0 && (
         <div className="fixed bottom-20 left-4 right-4 z-[9999] max-w-xl mx-auto bg-orange-900/95 border border-orange-500/50 rounded-xl px-4 py-3 text-sm text-orange-200 shadow-xl backdrop-blur">
           <strong className="text-orange-100">⚠ Sync pull failed</strong>
