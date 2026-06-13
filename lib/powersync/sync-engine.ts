@@ -117,7 +117,15 @@ export async function pullFromSupabase(
 
   for (const table of Object.keys(TABLE_COLUMNS)) {
     try {
-      const { count, error } = await syncTable(db, table, since)
+      // If local table is empty (e.g. wiped by schema change), pull without since
+      let tableSince = since
+      if (tableSince) {
+        const rows = await db.getAll(`SELECT COUNT(*) as cnt FROM ${table}`)
+        if (!rows || !rows[0] || (rows[0] as any).cnt === 0) {
+          tableSince = null
+        }
+      }
+      const { count, error } = await syncTable(db, table, tableSince)
       if (error) {
         errors.push(error)
       } else if (count > 0) {

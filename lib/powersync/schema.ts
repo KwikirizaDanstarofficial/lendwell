@@ -118,6 +118,7 @@ const fine_categories = new Table({
 })
 
 const interest_rates = new Table({
+  id: column.text,
   sacco_id: column.text,
   min_amount: column.integer,
   max_amount: column.integer,

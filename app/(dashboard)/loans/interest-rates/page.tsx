@@ -105,10 +105,8 @@ export default function InterestRatesPage() {
     }
 
     // Check for overlapping ranges (strict: must share some space, not just endpoints)
-    const minInCents = minAmount * 100
-    const maxInCents = maxAmount * 100
     const overlapping = rates.some(
-      (rate) => minInCents < rate.maxAmount && maxInCents > rate.minAmount
+      (rate) => minAmount < rate.maxAmount && maxAmount > rate.minAmount
     )
 
     if (overlapping) {
@@ -169,10 +167,8 @@ export default function InterestRatesPage() {
     }
 
     // Check for overlapping ranges (strict: must share some space, excluding current rate)
-    const minInCents = minAmount * 100
-    const maxInCents = maxAmount * 100
     const overlapping = rates.some(
-      (r) => r.id !== id && minInCents < r.maxAmount && maxInCents > r.minAmount
+      (r) => r.id !== id && minAmount < r.maxAmount && maxAmount > r.minAmount
     )
 
     if (overlapping) {
@@ -236,8 +232,8 @@ export default function InterestRatesPage() {
   const startEdit = (rate: any) => {
     setEditingId(rate.id)
     setFormData({
-      min_amount: (rate.minAmount / 100).toString(),
-      max_amount: (rate.maxAmount / 100).toString(),
+      min_amount: rate.minAmount.toString(),
+      max_amount: rate.maxAmount.toString(),
       rate: rate.rate,
       rate_type: rate.rateType,
     })
@@ -266,8 +262,8 @@ export default function InterestRatesPage() {
   }
 
   // Format currency for display
-  const formatCurrency = (cents: number) => {
-    return `UGX ${(cents / 100).toLocaleString()}`
+  const formatCurrency = (amount: number) => {
+    return `UGX ${amount.toLocaleString()}`
   }
 
   if (initialLoading) {

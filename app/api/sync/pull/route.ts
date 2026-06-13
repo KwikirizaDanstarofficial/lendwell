@@ -29,9 +29,14 @@ export async function GET(req: NextRequest) {
     let query = (supabaseAdmin as any)
       .from(table)
       .select(selectCols)
-      .eq("sacco_id", user.saccoId)
       .order("created_at", { ascending: true })
       .limit(5000)
+
+    if (table === "saccos") {
+      query = query.eq("id", user.saccoId)
+    } else {
+      query = query.eq("sacco_id", user.saccoId)
+    }
 
     const hasUpdatedAt = columns.includes("updated_at")
     if (since && hasUpdatedAt) {
