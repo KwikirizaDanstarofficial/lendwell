@@ -1,9 +1,7 @@
-// app/(dashboard)/loans/components/loans-client.tsx
-// Top-level client shell for the Loans Management page.
-// Manages search filtering and Excel export of the loans list.
 "use client"
 
 import { useState, useMemo } from "react"
+import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Plus, Download, Percent } from "lucide-react"
@@ -12,19 +10,10 @@ import ExcelJS from "exceljs"
 import { toast } from "sonner"
 import Link from "next/link"
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/** Divisor to convert stored cent amounts to UGX major units for the export. */
 const CENTS_PER_UNIT = 100
-
-/** Filename for the exported Excel file. */
 const EXPORT_FILENAME = "sacco-loans.xlsx"
+const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-/** MIME type for .xlsx blobs. */
-const XLSX_MIME_TYPE =
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-/** Column definitions for the Excel export. */
 const EXPORT_COLUMNS = [
   { header: "Loan Ref",                key: "loan_ref",           width: 15 },
   { header: "Member",                  key: "member",             width: 25 },
@@ -43,40 +32,106 @@ const EXPORT_COLUMNS = [
   { header: "Created At",              key: "created_at",         width: 15 },
 ] as const
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const DISBURSED_STATUSES = ["disbursed", "active", "settled"]
+const OUTSTANDING_STATUSES = ["disbursed", "active"]
 
 interface LoansClientProps {
-  loans:         any[]
-  members:       any[]
-  stats: {
-    totalDisbursed:    number
-    totalLoans:        number
-    activeLoans:       number
-    pendingLoans:      number
-    settledLoans:      number
-    outstandingBalance: number
-  }
-  interestRates: any[]
+  saccoId: string
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export function LoansClient({ loans, members, stats, interestRates }: LoansClientProps) {
+export function LoansClient({ saccoId }: LoansClientProps) {
   const [search, setSearch] = useState("")
 
-  // Filter loans by ref, member name, or member code
+  const { data: rows = [], isLoading } = useQuery(
+    `SELECT l.*, m.full_name AS member_name, m.member_code AS member_code_val,
+            m.phone AS member_phone,
+            m.national_id AS member_national_id,
+            m.address AS member_address
+     FROM loans l
+     LEFT JOIN members m ON m.id = l.member_id
+     WHERE l.sacco_id = ?
+     ORDER BY l.created_at DESC`,
+    [saccoId]
+  )
+
+  const { data: interestRateRows = [] } = useQuery(
+    "SELECT * FROM interest_rates WHERE sacco_id = ? AND is_active = 1",
+    [saccoId]
+  )
+
+  const loans = useMemo(
+    () => (rows as any[]).map((r) => ({
+      id:                r.id,
+      saccoId:           r.sacco_id,
+      memberId:          r.member_id,
+      categoryId:        r.category_id,
+      loanRef:           r.loan_ref,
+      amount:            r.amount,
+      balance:           r.balance,
+      interestRate:      r.interest_rate,
+      status:            r.status,
+      dueDate:           r.due_date ? new Date(r.due_date) : null,
+      disbursedAt:       r.disbursed_at ? new Date(r.disbursed_at) : null,
+      settledAt:         r.settled_at ? new Date(r.settled_at) : null,
+      declineReason:     r.decline_reason,
+      notes:             r.notes,
+      createdAt:         r.created_at ? new Date(r.created_at) : null,
+      updatedAt:         r.updated_at ? new Date(r.updated_at) : null,
+      expectedReceived:  r.expected_received,
+      interestType:      r.interest_type,
+      durationMonths:    r.duration_months,
+      latePenaltyFee:    r.late_penalty_fee,
+      dailyPayment:      r.daily_payment,
+      monthlyPayment:    r.monthly_payment,
+      memberName:        r.member_name ?? null,
+      memberCode:        r.member_code_val ?? null,
+      memberPhone:       r.member_phone ?? null,
+      memberNationalId:  r.member_national_id ?? null,
+      memberAddress:     r.member_address ?? null,
+    })),
+    [rows]
+  )
+
+  const stats = useMemo(() => {
+    let totalDisbursed = 0
+    let outstandingBalance = 0
+    let activeLoans = 0
+    let pendingLoans = 0
+    let settledLoans = 0
+
+    for (const loan of loans) {
+      if (DISBURSED_STATUSES.includes(loan.status)) {
+        totalDisbursed += loan.amount
+      }
+      if (OUTSTANDING_STATUSES.includes(loan.status)) {
+        outstandingBalance += loan.balance
+      }
+      if (loan.status === "active") activeLoans++
+      if (loan.status === "pending") pendingLoans++
+      if (loan.status === "settled") settledLoans++
+    }
+
+    return {
+      totalDisbursed,
+      totalLoans: loans.length,
+      activeLoans,
+      pendingLoans,
+      settledLoans,
+      outstandingBalance,
+    }
+  }, [loans])
+
   const filteredLoans = useMemo(
     () =>
       loans.filter(
         (l) =>
-          l.loanRef?.toLowerCase().includes(search.toLowerCase())    ||
+          l.loanRef?.toLowerCase().includes(search.toLowerCase()) ||
           l.memberName?.toLowerCase().includes(search.toLowerCase()) ||
           l.memberCode?.toLowerCase().includes(search.toLowerCase())
       ),
     [loans, search]
   )
 
-  /** Export the currently filtered loans to an Excel file. */
   const handleExport = async () => {
     const workbook  = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet("Loans")
@@ -117,14 +172,21 @@ export function LoansClient({ loans, members, stats, interestRates }: LoansClien
     toast.success("Loans exported to Excel")
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground">Loading loans...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Loans Management</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {stats.totalLoans} total loans · {interestRates.length} active interest rates
+            {stats.totalLoans} total loans · {interestRateRows.length} active interest rates
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +209,6 @@ export function LoansClient({ loans, members, stats, interestRates }: LoansClien
         </div>
       </div>
 
-      {/* Toolbar: result count + search */}
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <p className="shrink-0 text-sm text-muted-foreground">
           {filteredLoans.length} of {loans.length} loans
@@ -170,17 +231,3 @@ export function LoansClient({ loans, members, stats, interestRates }: LoansClien
   )
 }
 
-// ─── Appendix ─────────────────────────────────────────────────────────────────
-//
-// EXPORTED COMPONENTS:
-//   LoansClient({ loans, members, stats, interestRates })
-//     – client shell for the /loans page
-//     – handles search filtering and Excel export
-//
-// KEY CONSTANTS:
-//   CENTS_PER_UNIT   = 100   (divide stored amounts before writing to Excel)
-//   EXPORT_FILENAME  = "sacco-loans.xlsx"
-//   EXPORT_COLUMNS   – column definitions for the Excel export
-//
-// RELATED COMPONENTS:
-//   LoansTable  – renders the filtered loans list
