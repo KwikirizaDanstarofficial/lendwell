@@ -377,6 +377,17 @@ function registerIpcHandlers(): void {
     // Main process proceeds with quit
   })
 
+  // Save file to disk via native save dialog
+  ipcMain.handle("save-file", async (_event, data: number[], defaultName: string) => {
+    const { filePath } = await dialog.showSaveDialog({
+      defaultPath: path.join(app.getPath("downloads"), defaultName),
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    })
+    if (!filePath) return { success: false, cancelled: true }
+    writeFileSync(filePath, Buffer.from(data))
+    return { success: true, filePath }
+  })
+
   // Expose the persistent data path to the renderer
   ipcMain.handle("get-data-path", () => app.getPath("userData"))
 }

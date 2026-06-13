@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("electron", {
   clearOfflineQueue:   ()                        => ipcRenderer.invoke("offline-queue:clear"),
   getPlatform:         ()                        => ipcRenderer.invoke("get-platform"),
   getDataPath:         ()                        => ipcRenderer.invoke("get-data-path"),
+  saveFile:            (data: number[], defaultName: string) => ipcRenderer.invoke("save-file", data, defaultName),
   onFlushDb:           (cb: () => void)          => ipcRenderer.on("db:flush", cb),
   removeFlushDbListener: ()                      => ipcRenderer.removeAllListeners("db:flush"),
   dbFlushed:           ()                        => ipcRenderer.invoke("db:flushed"),

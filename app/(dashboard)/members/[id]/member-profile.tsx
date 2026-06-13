@@ -13,6 +13,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { pdf } from "@react-pdf/renderer"
 import { formatUGX, formatDate } from "@/lib/utils/format"
+import { downloadPdf } from "@/lib/utils/download-pdf"
 import { toast } from "sonner"
 import {
   User,
@@ -240,12 +241,7 @@ export function MemberProfile({
         />
       )
       const blob = await pdf(doc).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${member.memberCode}-ID-Card.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadPdf(blob, `${member.memberCode}-ID-Card.pdf`)
       toast.success("ID Card downloaded")
     } catch {
       toast.error("Failed to generate ID Card")
@@ -271,12 +267,7 @@ export function MemberProfile({
         />
       )
       const blob = await pdf(doc).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${member.memberCode}-Application-Form.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadPdf(blob, `${member.memberCode}-Application-Form.pdf`)
       toast.success("Application Form downloaded")
     } catch {
       toast.error("Failed to generate Application Form")
@@ -309,12 +300,7 @@ export function MemberProfile({
         />
       )
       const blob = await pdf(doc).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${member.memberCode}-Profile.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadPdf(blob, `${member.memberCode}-Profile.pdf`)
       toast.success("Member profile downloaded")
     } catch {
       toast.error("Failed to generate profile PDF")
@@ -343,12 +329,7 @@ export function MemberProfile({
         />
       )
       const blob = await pdf(doc).toBlob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `${member.memberCode}-Transactions.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadPdf(blob, `${member.memberCode}-Transactions.pdf`)
       toast.success("Transaction statement downloaded")
     } catch {
       toast.error("Failed to generate transaction statement")
