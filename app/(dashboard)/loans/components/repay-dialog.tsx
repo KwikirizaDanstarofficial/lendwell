@@ -4,8 +4,11 @@
 "use client"
 
 import { useActionState, useEffect, useState } from "react"
+import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
 import { repayLoanAction, LoanFormState } from "../actions"
+import { offlineRepayLoan } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   Dialog,
   DialogContent,
@@ -49,20 +52,24 @@ export function RepayDialog({
   open:    boolean
   onClose: () => void
 }) {
+  const db = usePowerSync()
   const [state, formAction, isPending] = useActionState(
     repayLoanAction,
     INITIAL_FORM_STATE
   )
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
+
   // On success show receipt; on error show toast
   useEffect(() => {
+    if (offlineSuccess) { onClose(); return }
     if (state.success && state.receipt) {
       setReceipt(state.receipt)
       onClose()
     }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess])
 
   return (
     <>
@@ -78,7 +85,22 @@ export function RepayDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form action={formAction} className="space-y-4">
+          <form
+            action={formAction}
+            onSubmit={(e) => {
+              if (isOffline()) {
+                e.preventDefault()
+                const fd = new FormData(e.currentTarget)
+                const amountStr = (fd.get("amount") as string)?.replace(/,/g, "")
+                const amount = Math.round(parseFloat(amountStr || "0") * 100)
+                if (!amountStr || isNaN(amount) || amount <= 0) { toast.error("Valid amount required."); return }
+                offlineRepayLoan(db, loan.saccoId, loan.id, loan.memberId, amount)
+                  .then(() => { toast.success("Repayment recorded offline — will sync"); setOfflineSuccess(true) })
+                  .catch(() => toast.error("Failed to save offline."))
+              }
+            }}
+            className="space-y-4"
+          >
             <input type="hidden" name="loan_id" value={loan.id} />
 
             {/* Quick-reference payment amounts */}

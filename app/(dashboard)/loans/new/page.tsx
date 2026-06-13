@@ -25,7 +25,7 @@ export default async function NewLoanPage() {
           rates will be automatically applied based on the loan amount.
         </p>
       </div>
-      <NewLoanForm members={members} interestRates={interestRates} />
+      <NewLoanForm saccoId={saccoId} members={members} interestRates={interestRates} />
     </div>
   )
 }

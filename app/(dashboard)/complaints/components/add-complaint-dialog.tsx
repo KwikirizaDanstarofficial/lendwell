@@ -1,8 +1,11 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
+import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
 import { addComplaintAction } from "../actions"
+import { offlineAddComplaint } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   Dialog,
   DialogContent,
@@ -42,15 +45,33 @@ export function AddComplaintDialog({
   members: MemberSelect[]
   saccoId: string
 }) {
+  const db = usePowerSync()
   const [state, formAction, isPending] = useActionState(addComplaintAction, {})
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
   useEffect(() => {
+    if (offlineSuccess) { onClose(); return }
     if (state.success) {
       toast.success("Complaint submitted successfully!")
       onClose()
     }
+    if (state.offline || state.error === "offline") {
+      const memberId = state.memberId as string | undefined
+      const subject = state.subject as string | undefined
+      const body = state.body as string | undefined
+      if (subject && body) {
+        offlineAddComplaint(db, saccoId, {
+          member_id: memberId ?? "",
+          subject, body,
+          category: state.category as string | undefined,
+          priority: state.priority as string | undefined,
+        })
+          .then(() => { toast.success("Complaint saved offline — will sync"); onClose() })
+          .catch(() => toast.error("Failed to save complaint offline."))
+      }
+    }
     if (state.error && state.error !== "offline") toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess])
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -65,7 +86,25 @@ export function AddComplaintDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form
+          action={formAction}
+          onSubmit={(e) => {
+            if (isOffline()) {
+              e.preventDefault()
+              const fd = new FormData(e.currentTarget)
+              const subject = fd.get("subject") as string
+              const body = fd.get("body") as string
+              const member_id = fd.get("member_id") as string
+              const category = fd.get("category") as string
+              const priority = fd.get("priority") as string
+              if (!subject?.trim() || !body?.trim()) { toast.error("Subject and description are required."); return }
+              offlineAddComplaint(db, saccoId, { member_id: member_id || "", subject, body, category, priority })
+                .then(() => { toast.success("Complaint saved offline — will sync"); setOfflineSuccess(true) })
+                .catch(() => toast.error("Failed to save complaint offline."))
+            }
+          }}
+          className="space-y-4"
+        >
           <input type="hidden" name="sacco_id" value={saccoId} />
 
           <div className="space-y-1.5">

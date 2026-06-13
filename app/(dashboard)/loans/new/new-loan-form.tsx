@@ -5,9 +5,12 @@
 "use client"
 
 import { useActionState, useState, useEffect } from "react"
+import { usePowerSync } from "@powersync/react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { addLoanAction, LoanFormState } from "../actions"
+import { offlineAddLoan } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import { calculateLoan } from "@/lib/pdf/loan-calculator"
 import { formatUGX } from "@/lib/utils/format"
 import { Button } from "@/components/ui/button"
@@ -52,6 +55,7 @@ interface MemberOption {
 }
 
 interface NewLoanFormProps {
+  saccoId: string
   members: MemberOption[]
   interestRates: any[]
 }
@@ -157,7 +161,8 @@ function StatCard({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
+export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProps) {
+  const db = usePowerSync()
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     addLoanAction,
@@ -192,15 +197,38 @@ export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
     }
   }, [durationMonths])
 
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
+
   // Redirect on success, show error on failure
   useEffect(() => {
+    if (offlineSuccess) { router.push("/loans"); router.refresh(); return }
     if (state.success) {
       toast.success("Loan application submitted successfully!")
       router.push("/loans")
       router.refresh()
     }
-    if (state.error) toast.error(state.error)
-  }, [state, router])
+    if (state.offline) {
+      // Server action returned offline — try to save directly
+      if (calculation && interestInfo && selectedMemberId) {
+        offlineAddLoan(db, saccoId, {
+          member_id: selectedMemberId,
+          amount: Number(amount) * CENTS_PER_UNIT,
+          interest_rate: String(interestInfo.rate),
+          interest_type: interestInfo.rateType,
+          duration_months: Number(durationMonths),
+          due_date: dueDate || null,
+          notes: notes || null,
+          expected_received: calculation.totalExpectedReceived,
+          daily_payment: calculation.dailyPayment,
+          monthly_payment: calculation.monthlyPayment,
+          late_penalty_fee: calculation.latePenaltyFee,
+        })
+          .then(() => { toast.success("Loan saved offline — will sync"); router.push("/loans"); router.refresh() })
+          .catch(() => toast.error(state.error || "Failed to save offline"))
+      }
+    }
+    if (state.error && !state.offline) toast.error(state.error)
+  }, [state, router, offlineSuccess])
 
   // Filter members for the primary member dropdown
   const filteredMembers = members.filter((member) => {
@@ -260,7 +288,34 @@ export function NewLoanForm({ members, interestRates }: NewLoanFormProps) {
   const selectedMember = members.find((m) => m.id === selectedMemberId)
 
   return (
-    <form action={formAction} className="mx-auto max-w-2xl">
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (isOffline()) {
+          e.preventDefault()
+          if (!selectedMemberId || !isAmountValid || !dueDate || !confirmed || !calculation || !interestInfo) {
+            toast.error("Please complete all required fields.")
+            return
+          }
+          offlineAddLoan(db, saccoId, {
+            member_id: selectedMemberId,
+            amount: Number(amount) * CENTS_PER_UNIT,
+            interest_rate: String(interestInfo.rate),
+            interest_type: interestInfo.rateType,
+            duration_months: Number(durationMonths),
+            due_date: dueDate || null,
+            notes: notes || null,
+            expected_received: calculation.totalExpectedReceived,
+            daily_payment: calculation.dailyPayment,
+            monthly_payment: calculation.monthlyPayment,
+            late_penalty_fee: calculation.latePenaltyFee,
+          })
+            .then(() => { toast.success("Loan saved offline — will sync"); setOfflineSuccess(true) })
+            .catch(() => toast.error("Failed to save loan offline."))
+        }
+      }}
+      className="mx-auto max-w-2xl"
+    >
 
       {/* ── Step 1: Member selection ── */}
       <div className="mb-4 rounded-2xl border border-border bg-card p-6 shadow-sm">

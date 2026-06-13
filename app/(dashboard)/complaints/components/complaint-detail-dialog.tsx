@@ -1,6 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { usePowerSync } from "@powersync/react"
+import { offlineUpdateComplaintStatus } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   Dialog,
   DialogContent,
@@ -42,6 +45,7 @@ export function ComplaintDetailDialog({
   open: boolean
   onClose: () => void
 }) {
+  const db = usePowerSync()
   const [resolveOpen, setResolveOpen] = useState(false)
   const [hoveredRating, setHoveredRating] = useState(0)
   const [rating, setRating] = useState(complaint.satisfactionRating ?? 0)
@@ -49,18 +53,57 @@ export function ComplaintDetailDialog({
   const [submittingRating, setSubmittingRating] = useState(false)
 
   const handleMarkInProgress = async () => {
+    if (isOffline()) {
+      try {
+        await offlineUpdateComplaintStatus(db, complaint.id, "in_progress")
+        toast.success("Marked as in progress (offline — will sync)")
+      } catch {
+        toast.error("Failed to update status offline")
+      }
+      return
+    }
     const res = await updateComplaintStatusAction(complaint.id, "in_progress")
     if (res.success) toast.success("Marked as in progress")
-    else toast.error(res.error)
+    else if (res.offline) {
+      try {
+        await offlineUpdateComplaintStatus(db, complaint.id, "in_progress")
+        toast.success("Marked as in progress (offline — will sync)")
+      } catch {
+        toast.error(res.error || "Failed to update status offline")
+      }
+    } else toast.error(res.error)
   }
 
   const handleSubmitRating = async () => {
     if (!rating) return
     setSubmittingRating(true)
+    if (isOffline()) {
+      try {
+        await db.execute(
+          "UPDATE complaints SET satisfaction_rating = ?, feedback = ?, updated_at = ? WHERE id = ?",
+          [rating, feedback || null, new Date().toISOString(), complaint.id]
+        )
+        toast.success("Rating submitted (offline — will sync)")
+      } catch {
+        toast.error("Failed to submit rating offline")
+      }
+      setSubmittingRating(false)
+      return
+    }
     const res = await submitRatingAction(complaint.id, rating, feedback)
     setSubmittingRating(false)
     if (res.success) toast.success("Rating submitted!")
-    else toast.error(res.error)
+    else if (res.offline) {
+      try {
+        await db.execute(
+          "UPDATE complaints SET satisfaction_rating = ?, feedback = ?, updated_at = ? WHERE id = ?",
+          [rating, feedback || null, new Date().toISOString(), complaint.id]
+        )
+        toast.success("Rating submitted (offline — will sync)")
+      } catch {
+        toast.error(res.error || "Failed to submit rating offline")
+      }
+    } else toast.error(res.error)
   }
 
   return (

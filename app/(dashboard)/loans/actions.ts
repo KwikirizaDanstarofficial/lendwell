@@ -14,6 +14,7 @@
  */
 "use server"
 
+import { isOfflineError } from "@/lib/offline-safe"
 import { getCurrentUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
@@ -225,6 +226,7 @@ export async function addLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to add loan. Please try again." }
   }
 }
@@ -292,6 +294,7 @@ export async function approveLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to approve loan." }
   }
 }
@@ -367,6 +370,7 @@ export async function declineLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to decline loan." }
   }
 }
@@ -459,6 +463,7 @@ export async function disburseLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to disburse loan." }
   }
 }
@@ -501,6 +506,7 @@ export async function markLoanAsActiveAction(id: string): Promise<LoanFormState>
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to mark loan as active." }
   }
 }
@@ -657,6 +663,7 @@ export async function repayLoanAction(
     }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to record repayment." }
   }
 }
@@ -777,6 +784,7 @@ export async function topUpLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to process loan top-up." }
   }
 }
@@ -820,6 +828,7 @@ export async function deleteLoanAction(id: string): Promise<LoanFormState> {
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to delete loan." }
   }
 }
@@ -932,6 +941,7 @@ export async function editLoanAction(
     return { success: true }
   } catch (err) {
     console.error(err)
+    if (isOfflineError(err)) return { offline: true, error: "offline" }
     return { error: "Failed to update loan." }
   }
 }

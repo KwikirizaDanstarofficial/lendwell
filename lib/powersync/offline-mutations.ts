@@ -641,3 +641,13 @@ export async function offlineDeclineLoan(
     [reason, now(), id]
   )
 }
+
+export async function offlineMarkLoanAsActive(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute(
+    "UPDATE loans SET status = 'active', updated_at = ? WHERE id = ?",
+    [now(), id]
+  )
+}

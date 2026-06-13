@@ -4,8 +4,11 @@
 "use client"
 
 import { useState } from "react"
+import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
 import { declineLoanAction } from "../actions"
+import { offlineDeclineLoan } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   Dialog,
   DialogContent,
@@ -38,6 +41,7 @@ export function DeclineDialog({
   open:    boolean
   onClose: () => void
 }) {
+  const db = usePowerSync()
   const [reason,  setReason]  = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -48,12 +52,35 @@ export function DeclineDialog({
     }
 
     setLoading(true)
+
+    if (isOffline()) {
+      try {
+        await offlineDeclineLoan(db, loan.id, reason)
+        toast.success("Loan declined (offline — will sync)")
+        setLoading(false)
+        onClose()
+        return
+      } catch {
+        toast.error("Failed to decline loan offline")
+        setLoading(false)
+        return
+      }
+    }
+
     const result = await declineLoanAction(loan.id, reason)
     setLoading(false)
 
     if (result.success) {
       toast.success("Loan declined")
       onClose()
+    } else if (result.offline) {
+      try {
+        await offlineDeclineLoan(db, loan.id, reason)
+        toast.success("Loan declined (offline — will sync)")
+        onClose()
+      } catch {
+        toast.error(result.error || "Failed to decline loan offline")
+      }
     } else {
       toast.error(result.error)
     }

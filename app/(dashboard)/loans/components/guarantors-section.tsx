@@ -2,7 +2,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { usePowerSync } from "@powersync/react"
 import { toast } from "sonner"
+import { offlineAddGuarantor, offlineRemoveGuarantor, offlineUpdateGuarantorStatus } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -59,14 +62,16 @@ interface MemberOption {
 interface GuarantorsSectionProps {
   loanId: string
   loanRef: string
+  saccoId: string
   guarantors: Guarantor[]
   members: MemberOption[]
   borrowerMemberId: string
 }
 
 export function GuarantorsSection({
-  loanId, loanRef, guarantors, members, borrowerMemberId,
+  loanId, loanRef, saccoId, guarantors, members, borrowerMemberId,
 }: GuarantorsSectionProps) {
+  const db = usePowerSync()
   const router = useRouter()
   const [showAdd, setShowAdd] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<Guarantor | null>(null)
@@ -90,6 +95,19 @@ export function GuarantorsSection({
   const handleAdd = async () => {
     if (!selectedMemberId) { toast.error("Select a member"); return }
     setLoading(true)
+    if (isOffline()) {
+      try {
+        await offlineAddGuarantor(db, saccoId, loanId, selectedMemberId, notes || undefined)
+        toast.success("Guarantor added offline — will sync")
+        setShowAdd(false)
+        setSelectedMemberId("")
+        setNotes("")
+        setSearch("")
+        router.refresh()
+      } catch { toast.error("Failed to add guarantor offline") }
+      setLoading(false)
+      return
+    }
     const res = await addGuarantorAction(loanId, selectedMemberId, loanRef, notes || undefined)
     setLoading(false)
     if (res.success) {
@@ -99,6 +117,16 @@ export function GuarantorsSection({
       setNotes("")
       setSearch("")
       router.refresh()
+    } else if (res.offline) {
+      try {
+        await offlineAddGuarantor(db, saccoId, loanId, selectedMemberId, notes || undefined)
+        toast.success("Guarantor added offline — will sync")
+        setShowAdd(false)
+        setSelectedMemberId("")
+        setNotes("")
+        setSearch("")
+        router.refresh()
+      } catch { toast.error(res.error || "Failed to add guarantor offline") }
     } else {
       toast.error(res.error)
     }
@@ -107,17 +135,47 @@ export function GuarantorsSection({
   const handleRemove = async () => {
     if (!removeTarget) return
     setLoading(true)
+    if (isOffline()) {
+      try {
+        await offlineRemoveGuarantor(db, removeTarget.id)
+        toast.success("Guarantor removed offline — will sync")
+        setRemoveTarget(null)
+        router.refresh()
+      } catch { toast.error("Failed to remove guarantor offline") }
+      setLoading(false)
+      return
+    }
     const res = await removeGuarantorAction(removeTarget.id, loanId, loanRef)
     setLoading(false)
     setRemoveTarget(null)
     if (res.success) { toast.success("Guarantor removed"); router.refresh() }
-    else toast.error(res.error)
+    else if (res.offline) {
+      try {
+        await offlineRemoveGuarantor(db, removeTarget.id)
+        toast.success("Guarantor removed offline — will sync")
+        router.refresh()
+      } catch { toast.error(res.error || "Failed to remove guarantor offline") }
+    } else toast.error(res.error)
   }
 
   const handleStatusChange = async (g: Guarantor, status: "pending" | "accepted" | "declined") => {
+    if (isOffline()) {
+      try {
+        await offlineUpdateGuarantorStatus(db, g.id, status)
+        toast.success("Status updated offline — will sync")
+        router.refresh()
+      } catch { toast.error("Failed to update status offline") }
+      return
+    }
     const res = await updateGuarantorStatusAction(g.id, loanId, loanRef, status)
     if (res.success) { toast.success("Status updated"); router.refresh() }
-    else toast.error(res.error)
+    else if (res.offline) {
+      try {
+        await offlineUpdateGuarantorStatus(db, g.id, status)
+        toast.success("Status updated offline — will sync")
+        router.refresh()
+      } catch { toast.error(res.error || "Failed to update status offline") }
+    } else toast.error(res.error)
   }
 
   return (

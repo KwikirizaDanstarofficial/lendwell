@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { usePowerSync } from "@powersync/react"
-import { offlineDeleteLoan } from "@/lib/powersync/offline-mutations"
+import { offlineDeleteLoan, offlineApproveLoan, offlineDisburseLoan, offlineMarkLoanAsActive } from "@/lib/powersync/offline-mutations"
 import { useTheme } from "@/components/providers/theme-provider"
 import { isOffline } from "@/lib/utils/is-offline"
 import { AgGridReact } from "ag-grid-react"
@@ -123,9 +123,27 @@ const LoanActionsCell = (p: ICellRendererParams) => {
               <DropdownMenuItem
                 className="text-green-600"
                 onClick={async () => {
+                  if (isOffline()) {
+                    try {
+                      await offlineApproveLoan(db, loan.id)
+                      await offlineDisburseLoan(db, loan.id)
+                      toast.success("Loan approved & disbursed (offline — will sync)")
+                    } catch {
+                      toast.error("Failed to approve/ disburse offline")
+                    }
+                    return
+                  }
                   const res = await approveLoanAction(loan.id)
                   if (res.success) toast.success("Loan approved & disbursed")
-                  else toast.error(res.error)
+                  else if (res.offline) {
+                    try {
+                      await offlineApproveLoan(db, loan.id)
+                      await offlineDisburseLoan(db, loan.id)
+                      toast.success("Loan approved & disbursed (offline)")
+                    } catch {
+                      toast.error(res.error || "Failed to approve/ disburse offline")
+                    }
+                  } else toast.error(res.error)
                 }}
               >
                 <CheckCircle className="mr-2 h-4 w-4" /> Approve & Disburse
@@ -139,9 +157,25 @@ const LoanActionsCell = (p: ICellRendererParams) => {
             <DropdownMenuItem
               className="text-purple-600"
               onClick={async () => {
+                if (isOffline()) {
+                  try {
+                    await offlineDisburseLoan(db, loan.id)
+                    toast.success("Loan disbursed (offline — will sync)")
+                  } catch {
+                    toast.error("Failed to disburse offline")
+                  }
+                  return
+                }
                 const res = await disburseLoanAction(loan.id)
                 if (res.success) toast.success("Loan disbursed")
-                else toast.error(res.error)
+                else if (res.offline) {
+                  try {
+                    await offlineDisburseLoan(db, loan.id)
+                    toast.success("Loan disbursed (offline)")
+                  } catch {
+                    toast.error(res.error || "Failed to disburse offline")
+                  }
+                } else toast.error(res.error)
               }}
             >
               <Send className="mr-2 h-4 w-4" /> Disburse Loan
@@ -151,9 +185,25 @@ const LoanActionsCell = (p: ICellRendererParams) => {
             <DropdownMenuItem
               className="text-green-600"
               onClick={async () => {
+                if (isOffline()) {
+                  try {
+                    await offlineMarkLoanAsActive(db, loan.id)
+                    toast.success("Loan marked active (offline — will sync)")
+                  } catch {
+                    toast.error("Failed to mark active offline")
+                  }
+                  return
+                }
                 const res = await markLoanAsActiveAction(loan.id)
                 if (res.success) toast.success("Loan marked as active")
-                else toast.error(res.error)
+                else if (res.offline) {
+                  try {
+                    await offlineMarkLoanAsActive(db, loan.id)
+                    toast.success("Loan marked active (offline)")
+                  } catch {
+                    toast.error(res.error || "Failed to mark active offline")
+                  }
+                } else toast.error(res.error)
               }}
             >
               <CheckCircle className="mr-2 h-4 w-4" /> Mark Active

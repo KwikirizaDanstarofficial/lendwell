@@ -1,5 +1,6 @@
 "use server"
 
+import { isOfflineError } from "@/lib/offline-safe"
 import { revalidatePath } from "next/cache"
 import { getCurrentUser } from "@/lib/auth"
 import { addGuarantor, removeGuarantor, updateGuarantorStatus } from "@/db/queries/guarantors"
@@ -21,6 +22,7 @@ export async function addGuarantorAction(loanId: string, memberId: string, loanR
     revalidatePath(`/loans/${loanId}`)
     return { success: true }
   } catch (err: any) {
+    if (isOfflineError(err)) return { success: false, offline: true, error: "offline" }
     return { success: false, error: err.message }
   }
 }
@@ -41,6 +43,7 @@ export async function removeGuarantorAction(guarantorId: string, loanId: string,
     revalidatePath(`/loans/${loanId}`)
     return { success: true }
   } catch (err: any) {
+    if (isOfflineError(err)) return { success: false, offline: true, error: "offline" }
     return { success: false, error: err.message }
   }
 }
@@ -67,6 +70,7 @@ export async function updateGuarantorStatusAction(
     revalidatePath(`/loans/${loanId}`)
     return { success: true }
   } catch (err: any) {
+    if (isOfflineError(err)) return { success: false, offline: true, error: "offline" }
     return { success: false, error: err.message }
   }
 }

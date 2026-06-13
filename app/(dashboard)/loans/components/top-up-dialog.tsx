@@ -1,8 +1,11 @@
 // app/(dashboard)/loans/components/top-up-dialog.tsx
 "use client"
 
-import { useActionState, useEffect } from "react"
+import { useActionState, useEffect, useState } from "react"
+import { usePowerSync } from "@powersync/react"
 import { Button } from "@/components/ui/button"
+import { offlineTopUpLoan } from "@/lib/powersync/offline-mutations"
+import { isOffline } from "@/lib/utils/is-offline"
 import {
   Dialog,
   DialogContent,
@@ -59,18 +62,21 @@ interface TopUpDialogProps {
 const initialState: LoanFormState = {}
 
 export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
+  const db = usePowerSync()
   const [state, formAction, isPending] = useActionState(
     topUpLoanAction,
     initialState
   )
+  const [offlineSuccess, setOfflineSuccess] = useState(false)
 
   useEffect(() => {
+    if (offlineSuccess) { onClose(); return }
     if (state.success) {
       toast.success("Top up recorded successfully!")
       onClose()
     }
     if (state.error) toast.error(state.error)
-  }, [state, onClose])
+  }, [state, onClose, offlineSuccess])
 
   if (!loan) return null
 
@@ -87,7 +93,24 @@ export function TopUpDialog({ loan, open, onClose }: TopUpDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form
+          action={formAction}
+          onSubmit={(e) => {
+            if (isOffline()) {
+              e.preventDefault()
+              const fd = new FormData(e.currentTarget)
+              const amountStr = (fd.get("amount") as string)?.replace(/,/g, "")
+              const amount = Math.round(parseFloat(amountStr || "0") * 100)
+              const reason = fd.get("reason") as string
+              if (!amountStr || isNaN(amount) || amount <= 0) { toast.error("Valid amount required."); return }
+              if (!reason?.trim()) { toast.error("Reason is required."); return }
+              offlineTopUpLoan(db, loan.saccoId, loan.id, loan.memberId, amount, reason)
+                .then(() => { toast.success("Top-up recorded offline — will sync"); setOfflineSuccess(true) })
+                .catch(() => toast.error("Failed to save offline."))
+            }
+          }}
+          className="space-y-4"
+        >
           <input type="hidden" name="loan_id" value={loan.id} />
 
           <div className="grid grid-cols-3 gap-3 text-center text-sm">
