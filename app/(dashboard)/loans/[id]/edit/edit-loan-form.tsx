@@ -160,12 +160,14 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
 
     const offlineData: Parameters<typeof offlineEditLoan>[2] = {
       amount: Number(formData.get("amount") || 0) * CENTS_PER_UNIT,
+      balance: Number(formData.get("balance") || 0) * CENTS_PER_UNIT,
       duration_months: Number(formData.get("duration_months") || loan.durationMonths),
       due_date: (formData.get("due_date") as string) || null,
       notes: (formData.get("notes") as string) || null,
+      status: "active",
     }
 
-    // Include recalculated interest fields if calculation is available
+    // Always include recalculated interest fields
     if (calculation && interestInfo) {
       offlineData.interest_rate = String(interestInfo.rate)
       offlineData.interest_type = interestInfo.rateType
@@ -173,6 +175,10 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
       offlineData.daily_payment = calculation.dailyPayment
       offlineData.monthly_payment = calculation.monthlyPayment
       offlineData.late_penalty_fee = calculation.latePenaltyFee
+    } else {
+      // Preserve existing values so they aren't overwritten as undefined
+      offlineData.interest_rate = loan.interestRate
+      offlineData.interest_type = loan.interestType
     }
 
     startTransition(async () => {

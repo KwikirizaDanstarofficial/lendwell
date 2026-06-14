@@ -13,7 +13,7 @@ import {
   Settings, FileText, Bell, MessageSquare, UserCog, HelpCircle,
   ChevronDown, Menu, X, Sun, Moon, Monitor, LogOut,
   BookOpen, Activity, Trash2, WifiOff, Wifi,
-  CloudUpload, Loader2,
+  CloudUpload, Loader2, Lock,
 } from "lucide-react"
 import { usePowerSync } from "@powersync/react"
 import { useSyncNow } from "@/lib/powersync/provider"
@@ -33,6 +33,7 @@ import { useTour } from "@/hooks/use-tour"
 import { useSmsQueue } from "@/hooks/use-sms-queue"
 import { AppTour } from "@/components/tour/app-tour"
 import { isOffline } from "@/lib/utils/is-offline"
+import { useAppLockContext } from "@/components/providers/app-lock-provider"
 import { RefreshCw } from "lucide-react"
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ export function TopNav({ user }: TopNavProps) {
   const [isOnline,     setIsOnline]     = useState(true)
   const [syncing,      setSyncing]      = useState(false)
   const { syncNow }                      = useSyncNow()
+  const { lock }                         = useAppLockContext()
   const [isSyncing,    setIsSyncing]    = useState(false)
 
   const handleSync = useCallback(async () => {
@@ -442,6 +444,14 @@ export function TopNav({ user }: TopNavProps) {
               ) : (
                 <Monitor className="h-5 w-5" />
               )}
+            </Button>
+
+            <Button
+              variant="ghost" size="icon"
+              onClick={lock}
+              title="Lock app"
+            >
+              <Lock className="h-5 w-5" />
             </Button>
 
             {/* User profile dropdown */}

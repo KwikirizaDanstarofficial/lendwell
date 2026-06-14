@@ -9,14 +9,36 @@ import {
   offlineCreateSavingsAccount, offlineDeposit, offlineWithdraw,
   offlineLockAccount, offlineUnlockAccount, offlineDeleteSavingsAccount, offlineTrimToLoan,
   offlineAddFine, offlineMarkFinePaid, offlineWaiveFine, offlineDeleteFine,
+  offlineAddInterestRate, offlineUpdateInterestRate,
+  offlineDeactivateInterestRate, offlineActivateInterestRate, offlineDeleteInterestRate,
+  offlineAddLoanCategory, offlineDeleteLoanCategory,
+  offlineAddSavingsCategory, offlineDeleteSavingsCategory,
+  offlineAddFineCategory, offlineDeleteFineCategory,
+  offlineCreateBranch, offlineUpdateBranch, offlineDeleteBranch,
+  offlineAddDocument, offlineDeleteDocument,
+  offlineSendNotification, offlineMarkNotificationRead, offlineDeleteNotification,
+  offlineAddNextOfKin, offlineUpdateNextOfKin, offlineDeleteNextOfKin,
+  offlineUpdateSacco,
 } from "./offline-mutations"
 
-export { offlineAddMember, offlineEditMember, offlineDeleteMember, offlineUpdateMemberStatus,
+export {
+  offlineAddMember, offlineEditMember, offlineDeleteMember, offlineUpdateMemberStatus,
   offlineAddLoan, offlineRepayLoan, offlineDeleteLoan,
   offlineApproveLoan, offlineDisburseLoan, offlineDeclineLoan, offlineTopUpLoan,
   offlineCreateSavingsAccount, offlineDeposit, offlineWithdraw,
   offlineLockAccount, offlineUnlockAccount, offlineDeleteSavingsAccount, offlineTrimToLoan,
-  offlineAddFine, offlineMarkFinePaid, offlineWaiveFine, offlineDeleteFine }
+  offlineAddFine, offlineMarkFinePaid, offlineWaiveFine, offlineDeleteFine,
+  offlineAddInterestRate, offlineUpdateInterestRate,
+  offlineDeactivateInterestRate, offlineActivateInterestRate, offlineDeleteInterestRate,
+  offlineAddLoanCategory, offlineDeleteLoanCategory,
+  offlineAddSavingsCategory, offlineDeleteSavingsCategory,
+  offlineAddFineCategory, offlineDeleteFineCategory,
+  offlineCreateBranch, offlineUpdateBranch, offlineDeleteBranch,
+  offlineAddDocument, offlineDeleteDocument,
+  offlineSendNotification, offlineMarkNotificationRead, offlineDeleteNotification,
+  offlineAddNextOfKin, offlineUpdateNextOfKin, offlineDeleteNextOfKin,
+  offlineUpdateSacco,
+}
 
 export function useOfflineMutations(saccoId: string) {
   const db = usePowerSync()
@@ -65,5 +87,49 @@ export function useOfflineMutations(saccoId: string) {
                      offlineMarkFinePaid(db, id, paymentMethod),
     waiveFine:     (id: string) => offlineWaiveFine(db, id),
     deleteFine:    (id: string) => offlineDeleteFine(db, id),
+    // Interest Rates
+    addInterestRate:       (data: Parameters<typeof offlineAddInterestRate>[2]) =>
+                            offlineAddInterestRate(db, saccoId, data),
+    updateInterestRate:    (id: string, data: Parameters<typeof offlineUpdateInterestRate>[2]) =>
+                            offlineUpdateInterestRate(db, id, data),
+    deactivateInterestRate: (id: string) => offlineDeactivateInterestRate(db, id),
+    activateInterestRate:   (id: string) => offlineActivateInterestRate(db, id),
+    deleteInterestRate:    (id: string) => offlineDeleteInterestRate(db, id),
+    // Loan Categories
+    addLoanCategory:    (data: Parameters<typeof offlineAddLoanCategory>[2]) =>
+                         offlineAddLoanCategory(db, saccoId, data),
+    deleteLoanCategory: (id: string) => offlineDeleteLoanCategory(db, id),
+    // Savings Categories
+    addSavingsCategory:    (data: Parameters<typeof offlineAddSavingsCategory>[2]) =>
+                            offlineAddSavingsCategory(db, saccoId, data),
+    deleteSavingsCategory: (id: string) => offlineDeleteSavingsCategory(db, id),
+    // Fine Categories
+    addFineCategory:    (data: Parameters<typeof offlineAddFineCategory>[2]) =>
+                         offlineAddFineCategory(db, saccoId, data),
+    deleteFineCategory: (id: string) => offlineDeleteFineCategory(db, id),
+    // Branches
+    createBranch: (data: Parameters<typeof offlineCreateBranch>[2]) =>
+                    offlineCreateBranch(db, saccoId, data),
+    updateBranch: (id: string, data: Parameters<typeof offlineUpdateBranch>[2]) =>
+                    offlineUpdateBranch(db, id, data),
+    deleteBranch: (id: string) => offlineDeleteBranch(db, id),
+    // Documents
+    addDocument:    (data: Parameters<typeof offlineAddDocument>[2]) =>
+                     offlineAddDocument(db, saccoId, data),
+    deleteDocument: (id: string) => offlineDeleteDocument(db, id),
+    // Notifications
+    sendNotification:      (data: Parameters<typeof offlineSendNotification>[2]) =>
+                            offlineSendNotification(db, saccoId, data),
+    markNotificationRead:  (id: string) => offlineMarkNotificationRead(db, id),
+    deleteNotification:    (id: string) => offlineDeleteNotification(db, id),
+    // Next of Kin
+    addNextOfKin:    (data: Parameters<typeof offlineAddNextOfKin>[2]) =>
+                      offlineAddNextOfKin(db, saccoId, data),
+    updateNextOfKin: (id: string, data: Parameters<typeof offlineUpdateNextOfKin>[2]) =>
+                      offlineUpdateNextOfKin(db, id, data),
+    deleteNextOfKin: (id: string) => offlineDeleteNextOfKin(db, id),
+    // Saccos
+    updateSacco: (id: string, data: Parameters<typeof offlineUpdateSacco>[2]) =>
+                   offlineUpdateSacco(db, id, data),
   }
 }

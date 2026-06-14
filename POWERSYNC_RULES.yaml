@@ -115,6 +115,12 @@ bucket_definitions:
           FROM branches
           WHERE sacco_id = bucket.sacco_id
 
+      # Next of kin
+      - SELECT id, sacco_id, member_id, full_name, relationship, phone,
+               email, address, is_primary, created_at, updated_at
+          FROM next_of_kin
+          WHERE sacco_id = bucket.sacco_id
+
       # Loan guarantors (linked via sacco_id)
       - SELECT id, sacco_id, loan_id, member_id, status,
                created_at, updated_at

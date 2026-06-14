@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import type { Metadata, Viewport } from "next"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/providers/theme-provider"
+import { AppLockProvider } from "@/components/providers/app-lock-provider"
 import { getCurrentUser } from "@/lib/auth"
 import { TopNav } from "@/components/layout/top-nav"
 import { TempPasswordBanner } from "@/components/layout/temp-password-banner"
@@ -64,9 +65,11 @@ export default async function RootLayout({
       <body className="font-sans" suppressHydrationWarning>
         <Suspense fallback={null}>
           <ThemeProvider>
-            <ElectronStartupCheck />
-            {body}
-            <Toaster richColors position="top-right" />
+            <AppLockProvider>
+              <ElectronStartupCheck />
+              {body}
+              <Toaster richColors position="top-right" />
+            </AppLockProvider>
           </ThemeProvider>
         </Suspense>
       </body>

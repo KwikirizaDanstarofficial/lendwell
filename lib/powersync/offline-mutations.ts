@@ -207,6 +207,7 @@ export async function offlineEditLoan(
   id: string,
   data: {
     amount?: number
+    balance?: number
     duration_months?: number
     due_date?: string | null
     notes?: string | null
@@ -216,6 +217,7 @@ export async function offlineEditLoan(
     daily_payment?: number
     monthly_payment?: number
     late_penalty_fee?: number
+    status?: string
   }
 ): Promise<void> {
   const fields = Object.entries(data)
@@ -649,5 +651,413 @@ export async function offlineMarkLoanAsActive(
   await db.execute(
     "UPDATE loans SET status = 'active', updated_at = ? WHERE id = ?",
     [now(), id]
+  )
+}
+
+// ─── Interest Rates ──────────────────────────────────────────────────────────
+
+export async function offlineAddInterestRate(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    min_amount: number
+    max_amount: number
+    rate: string
+    rate_type: string
+    is_active?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO interest_rates
+       (id, sacco_id, min_amount, max_amount, rate, rate_type, is_active, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.min_amount, data.max_amount, data.rate, data.rate_type,
+     data.is_active ?? 1, ts, ts]
+  )
+  return id
+}
+
+export async function offlineUpdateInterestRate(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    min_amount?: number
+    max_amount?: number
+    rate?: string
+    rate_type?: string
+    is_active?: number
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE interest_rates SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
+export async function offlineDeactivateInterestRate(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute(
+    "UPDATE interest_rates SET is_active = 0, updated_at = ? WHERE id = ?",
+    [now(), id]
+  )
+}
+
+export async function offlineActivateInterestRate(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute(
+    "UPDATE interest_rates SET is_active = 1, updated_at = ? WHERE id = ?",
+    [now(), id]
+  )
+}
+
+export async function offlineDeleteInterestRate(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM interest_rates WHERE id = ?", [id])
+}
+
+// ─── Loan Categories ─────────────────────────────────────────────────────────
+
+export async function offlineAddLoanCategory(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    name: string
+    description?: string | null
+    min_amount?: number
+    max_amount?: number
+    interest_rate?: string | null
+    max_duration_months?: number
+    requires_guarantor?: number
+    is_active?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO loan_categories
+       (id, sacco_id, name, description, min_amount, max_amount, interest_rate,
+        max_duration_months, requires_guarantor, is_active, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.name, data.description ?? null,
+     data.min_amount ?? 0, data.max_amount ?? 0,
+     data.interest_rate ?? null, data.max_duration_months ?? 0,
+     data.requires_guarantor ?? 0, data.is_active ?? 1, ts]
+  )
+  return id
+}
+
+export async function offlineDeleteLoanCategory(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM loan_categories WHERE id = ?", [id])
+}
+
+// ─── Savings Categories ──────────────────────────────────────────────────────
+
+export async function offlineAddSavingsCategory(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    name: string
+    description?: string | null
+    interest_rate?: string | null
+    is_fixed?: number
+    is_active?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO savings_categories
+       (id, sacco_id, name, description, interest_rate, is_fixed, is_active, created_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.name, data.description ?? null,
+     data.interest_rate ?? null, data.is_fixed ?? 0, data.is_active ?? 1, ts]
+  )
+  return id
+}
+
+export async function offlineDeleteSavingsCategory(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM savings_categories WHERE id = ?", [id])
+}
+
+// ─── Fine Categories ─────────────────────────────────────────────────────────
+
+export async function offlineAddFineCategory(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    name: string
+    default_amount?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO fine_categories (id, sacco_id, name, default_amount, created_at)
+     VALUES (?,?,?,?,?)`,
+    [id, saccoId, data.name, data.default_amount ?? 0, ts]
+  )
+  return id
+}
+
+export async function offlineDeleteFineCategory(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM fine_categories WHERE id = ?", [id])
+}
+
+// ─── Branches ────────────────────────────────────────────────────────────────
+
+export async function offlineCreateBranch(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    name: string
+    code: string
+    address?: string | null
+    phone?: string | null
+    email?: string | null
+    manager_id?: string | null
+    is_active?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO branches
+       (id, sacco_id, name, code, address, phone, email, manager_id, is_active, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.name, data.code, data.address ?? null,
+     data.phone ?? null, data.email ?? null, data.manager_id ?? null,
+     data.is_active ?? 1, ts, ts]
+  )
+  return id
+}
+
+export async function offlineUpdateBranch(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    name?: string
+    code?: string
+    address?: string | null
+    phone?: string | null
+    email?: string | null
+    manager_id?: string | null
+    is_active?: number
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE branches SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
+export async function offlineDeleteBranch(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM branches WHERE id = ?", [id])
+}
+
+// ─── Documents ───────────────────────────────────────────────────────────────
+
+export async function offlineAddDocument(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    member_id: string
+    type: string
+    file_name: string
+    blob_url: string
+    loan_id?: string | null
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO documents
+       (id, sacco_id, member_id, loan_id, type, file_name, blob_url, created_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.member_id, data.loan_id ?? null,
+     data.type, data.file_name, data.blob_url, ts]
+  )
+  return id
+}
+
+export async function offlineDeleteDocument(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM documents WHERE id = ?", [id])
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+export async function offlineSendNotification(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    member_id: string
+    title: string
+    body: string
+    type?: string
+    priority?: string
+    channel?: string
+    recipient_phone?: string | null
+    recipient_email?: string | null
+    reference_type?: string | null
+    reference_id?: string | null
+    scheduled_at?: string | null
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO notifications
+       (id, sacco_id, member_id, title, body, type, status, priority, channel,
+        recipient_phone, recipient_email, reference_type, reference_id,
+        scheduled_at, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.member_id, data.title, data.body,
+     data.type ?? "general", "pending", data.priority ?? "normal",
+     data.channel ?? "in_app", data.recipient_phone ?? null,
+     data.recipient_email ?? null, data.reference_type ?? null,
+     data.reference_id ?? null, data.scheduled_at ?? null, ts, ts]
+  )
+  return id
+}
+
+export async function offlineMarkNotificationRead(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute(
+    "UPDATE notifications SET status = 'read', read_at = ?, updated_at = ? WHERE id = ?",
+    [now(), now(), id]
+  )
+}
+
+export async function offlineDeleteNotification(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM notifications WHERE id = ?", [id])
+}
+
+// ─── Next of Kin ─────────────────────────────────────────────────────────────
+
+export async function offlineAddNextOfKin(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    member_id: string
+    full_name: string
+    relationship?: string | null
+    phone?: string | null
+    email?: string | null
+    address?: string | null
+    is_primary?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO next_of_kin
+       (id, sacco_id, member_id, full_name, relationship, phone, email, address, is_primary, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.member_id, data.full_name, data.relationship ?? null,
+     data.phone ?? null, data.email ?? null, data.address ?? null,
+     data.is_primary ?? 0, ts, ts]
+  )
+  return id
+}
+
+export async function offlineUpdateNextOfKin(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    full_name?: string
+    relationship?: string | null
+    phone?: string | null
+    email?: string | null
+    address?: string | null
+    is_primary?: number
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE next_of_kin SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
+export async function offlineDeleteNextOfKin(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM next_of_kin WHERE id = ?", [id])
+}
+
+// ─── Saccos ──────────────────────────────────────────────────────────────────
+
+export async function offlineUpdateSacco(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    name?: string
+    code?: string
+    logo_url?: string | null
+    primary_color?: string | null
+    contact_email?: string | null
+    contact_phone?: string | null
+    address?: string | null
+    settings?: string | null
+    website?: string | null
+    registration_number?: string | null
+    tagline?: string | null
+    country?: string | null
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE saccos SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
   )
 }

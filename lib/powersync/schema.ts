@@ -220,6 +220,19 @@ const saccos = new Table({
   tagline: column.text,
 })
 
+const next_of_kin = new Table({
+  member_id: column.text,
+  sacco_id: column.text,
+  full_name: column.text,
+  relationship: column.text,
+  phone: column.text,
+  email: column.text,
+  address: column.text,
+  is_primary: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
 const branches = new Table({
   sacco_id: column.text,
   name: column.text,
@@ -249,6 +262,7 @@ export const AppSchema = new Schema({
   notifications,
   saccos,
   branches,
+  next_of_kin,
 })
 
 export type Database = (typeof AppSchema)["types"]
