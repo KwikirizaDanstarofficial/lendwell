@@ -82,9 +82,9 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         let error: any
 
         if (op === UpdateType.PUT) {
-          let uploadData = { ...opData, id }
-          if (table === "members" && uploadData.member_code) {
-            const code = uploadData.member_code as string
+          let uploadData: Record<string, unknown> = { ...opData, id }
+          if (table === "members" && typeof uploadData.member_code === "string") {
+            const code = uploadData.member_code
             if (!/-[0-9A-F]{4}$/i.test(code)) {
               uploadData.member_code = `${code}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
             }

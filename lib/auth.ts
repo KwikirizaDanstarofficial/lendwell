@@ -10,6 +10,7 @@
 
 import type { User } from "@supabase/supabase-js"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -63,12 +64,30 @@ export async function getCurrentUser(): Promise<SessionData | null> {
     }
 
     // Offline fallback: parse the JWT from the cookie without a network call.
-    const { data: { session } } = await supabase.auth.getSession()
+    let session: any = null
+    try {
+      const r = await supabase.auth.getSession()
+      session = r.data.session
+    } catch {
+      // getSession also tries to validate — read cookie directly instead
+      const cookieStore = await cookies()
+      for (const c of cookieStore.getAll()) {
+        if (c.name.startsWith("sb-") && c.name.endsWith("-auth-token")) {
+          try { const parsed = JSON.parse(c.value); if (parsed?.access_token) { session = parsed } } catch {}
+        }
+      }
+    }
     if (!session) return null
-    // Reject genuinely expired tokens even while offline.
     if (session.expires_at && session.expires_at * 1000 < Date.now()) return null
 
-    return buildSessionData(session.user)
+    const offlineUser: User | null = session.user ?? (() => {
+      try {
+        const p = JSON.parse(atob(session.access_token.split(".")[1]))
+        return { id: p.sub, email: p.email, user_metadata: p.user_metadata ?? {} } as User
+      } catch { return null }
+    })()
+    if (!offlineUser) return null
+    return buildSessionData(offlineUser)
   } catch {
     return null
   }

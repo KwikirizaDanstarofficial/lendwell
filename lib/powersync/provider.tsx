@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useMemo } from "react"
 import { AppSchema } from "./schema"
 import { SupabaseConnector } from "./connector"
 import { supabase } from "@/lib/supabase/client"
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 /**
  * No-op hook since PowerSync Cloud handles sync automatically via `db.connect()`.
@@ -32,28 +33,28 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let destroyed = false
     const connector = new SupabaseConnector()
+    const el = typeof window !== "undefined" ? (window as any).electron : undefined
 
     const init = async () => {
       // Restore Supabase session from Electron vault
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          const el = typeof window !== "undefined" ? (window as any).electron : undefined
-          if (el?.getConfig) {
-            const config = await el.getConfig()
-            if (!destroyed && config?.accessToken && config?.refreshToken) {
-              // setSession auto-refreshes if access token is expired
-              const { data: { session: restored } } = await supabase.auth.setSession({
-                access_token:  config.accessToken,
-                refresh_token: config.refreshToken,
+        const sessionResponse = await supabase.auth.getSession()
+        const session = sessionResponse.data?.session
+
+        if (!session && el?.getConfig) {
+          const config = await el.getConfig()
+          if (!destroyed && config?.accessToken && config?.refreshToken) {
+            // setSession auto-refreshes if access token is expired
+            const restoredResponse = await supabase.auth.setSession({
+              access_token: config.accessToken,
+              refresh_token: config.refreshToken,
+            })
+            const restored = restoredResponse.data?.session
+            if (restored && el?.setConfig) {
+              await el.setConfig({
+                accessToken: restored.access_token ?? config.accessToken,
+                refreshToken: restored.refresh_token ?? config.refreshToken,
               })
-              // Save refreshed tokens back to vault
-              if (restored) {
-                await el.setConfig({
-                  accessToken:  restored.access_token,
-                  refreshToken: restored.refresh_token,
-                })
-              }
             }
           }
         }
@@ -63,25 +64,29 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
 
       if (!destroyed) {
         // Starts BOTH upload and download sync
-        await db.connect(connector).catch(console.error)
+        // Timeout after 5s so the app isn't blocked when offline
+        await Promise.race([
+          db.connect(connector),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("connect timeout")), 5000)),
+        ]).catch((err) => console.warn("[PowerSync] connect skipped:", err?.message ?? err))
       }
     }
 
     init()
 
     // Keep vault updated whenever Supabase silently refreshes the token
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+    const { data } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
         if (event === "TOKEN_REFRESHED" && session) {
-          const el = typeof window !== "undefined" ? (window as any).electron : undefined
           el?.setConfig?.({
-            accessToken:  session.access_token,
+            accessToken: session.access_token,
             refreshToken: session.refresh_token,
           })
           console.log("[Auth] Token refreshed and saved to vault")
         }
       }
     )
+    const subscription = data?.subscription
 
     // Electron: flush database on shutdown signal.
     // IMPORTANT: db.disconnect() does NOT delete any SQLite data.
@@ -90,19 +95,17 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     // This prevents SQLite corruption on hard shutdowns (power cuts).
     const handleFlush = async () => {
       try { await db.disconnect() } catch {}
-      const el = typeof window !== "undefined" ? (window as any).electron : undefined
       if (el?.dbFlushed) await el.dbFlushed()
     }
 
-    const el = typeof window !== "undefined" ? (window as any).electron : undefined
     if (el?.onFlushDb) el.onFlushDb(handleFlush)
     window.addEventListener("beforeunload", handleFlush)
 
     return () => {
       destroyed = true
-      subscription.unsubscribe()
+      subscription?.unsubscribe()
       db.disconnect().catch(() => {})
-      if (el?.removeFlushDbListener) el.removeFlushDbListener()
+      if (el?.removeFlushDbListener) el.removeFlushDbListener(handleFlush)
       window.removeEventListener("beforeunload", handleFlush)
     }
   }, [db])

@@ -4,7 +4,7 @@
 // theme toggle, notification bell, and user profile dropdown.
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "@/components/providers/theme-provider"
@@ -13,12 +13,8 @@ import {
   Settings, FileText, Bell, MessageSquare, UserCog, HelpCircle,
   ChevronDown, Menu, X, Sun, Moon, Monitor, LogOut,
   BookOpen, Activity, Trash2, WifiOff, Wifi,
-  CloudUpload, Loader2, Lock,
+  Lock,
 } from "lucide-react"
-import { usePowerSync } from "@powersync/react"
-import { useSyncNow } from "@/lib/powersync/provider"
-import { UpdateType } from "@powersync/web"
-import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -34,7 +30,6 @@ import { useSmsQueue } from "@/hooks/use-sms-queue"
 import { AppTour } from "@/components/tour/app-tour"
 import { isOffline } from "@/lib/utils/is-offline"
 import { useAppLockContext } from "@/components/providers/app-lock-provider"
-import { RefreshCw } from "lucide-react"
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 
@@ -140,74 +135,13 @@ interface TopNavProps {
 export function TopNav({ user }: TopNavProps) {
   const pathname = usePathname()
   const router   = useRouter()
-  const db       = usePowerSync()
   const { theme, resolvedTheme, setTheme } = useTheme()
   const [mounted,      setMounted]      = useState(false)
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [isOnline,     setIsOnline]     = useState(true)
-  const [syncing,      setSyncing]      = useState(false)
-  const { syncNow }                      = useSyncNow()
   const { lock }                         = useAppLockContext()
-  const [isSyncing,    setIsSyncing]    = useState(false)
-
-  const handleSync = useCallback(async () => {
-    setIsSyncing(true)
-    try {
-      await syncNow()
-      toast.success("Sync complete")
-    } catch {
-      toast.error("Sync failed")
-    } finally {
-      setIsSyncing(false)
-    }
-  }, [syncNow])
 
   const isElectron = typeof window !== "undefined" && "electronApp" in window
-
-  const handleSyncOnline = useCallback(async () => {
-    setSyncing(true)
-    let totalOps = 0
-    const uploadErrors: string[] = []
-    try {
-      while (true) {
-        const tx = await db.getNextCrudTransaction()
-        if (!tx) break
-        const ops = tx.crud.map(({ table, opData, op, id }) => ({
-          op: op === UpdateType.PUT ? "PUT" : op === UpdateType.PATCH ? "PATCH" : "DELETE" as const,
-          table, id, opData,
-        }))
-        const res = await fetch("/api/powersync/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ops }),
-        })
-        if (!res.ok) {
-          const body = await res.text()
-          throw new Error(body || `HTTP ${res.status}`)
-        }
-        const json = await res.json().catch(() => ({}))
-        if (Array.isArray(json.errors) && json.errors.length > 0) {
-          uploadErrors.push(...json.errors)
-          console.error("[SyncOnline] Partial upload errors:", json.errors)
-        }
-        await tx.complete()
-        totalOps += ops.length
-      }
-
-      if (totalOps === 0) {
-        toast.info("No pending changes to sync")
-      } else if (uploadErrors.length > 0) {
-        toast.warning(`Synced ${totalOps} operation${totalOps !== 1 ? "s" : ""} — ${uploadErrors.length} error(s). Check console.`)
-      } else {
-        toast.success(`Synced ${totalOps} operation${totalOps !== 1 ? "s" : ""} to server`)
-      }
-    } catch (err) {
-      toast.error("Sync failed — check connection and try again")
-      console.error("[SyncOnline]", err)
-    } finally {
-      setSyncing(false)
-    }
-  }, [db])
 
   useEffect(() => {
     // Use isOffline() which calls electronNet.isOnline() via IPC in Electron
@@ -381,34 +315,6 @@ export function TopNav({ user }: TopNavProps) {
                 )}
               </div>
             )}
-
-            {/* Sync button — pull latest from server */}
-            <Button
-              variant="outline" size="sm"
-              onClick={handleSync}
-              disabled={isSyncing}
-              title="Sync data from server"
-              className="inline-flex gap-1.5 text-xs"
-            >
-              {isSyncing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              SYNC
-            </Button>
-
-            {/* Upload button — push local changes to server */}
-            <Button
-              variant="outline" size="sm"
-              onClick={handleSyncOnline}
-              disabled={syncing}
-              title="Push local changes to server"
-              className="inline-flex gap-1.5 text-xs"
-            >
-              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudUpload className="h-3.5 w-3.5" />}
-              UPLOAD
-            </Button>
 
             <Button
               id="tour-start-tour"
