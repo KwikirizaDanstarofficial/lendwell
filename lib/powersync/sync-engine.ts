@@ -95,11 +95,11 @@ async function syncTable(
       for (const col of columns) {
         filtered[col] = row[col] ?? null
       }
-      const cols = Object.keys(filtered).join(", ")
+      const cols = Object.keys(filtered).map((c) => `"${c}"`).join(", ")
       const placeholders = Object.keys(filtered).map(() => "?").join(", ")
       const vals = Object.values(filtered)
       await tx.execute(
-        `INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${placeholders})`,
+        `INSERT OR REPLACE INTO "${table}" (${cols}) VALUES (${placeholders})`,
         vals
       )
     }
@@ -124,7 +124,7 @@ export async function pullFromSupabase(
       // If local table is empty (e.g. wiped by schema change), pull without since
       let tableSince = since
       if (tableSince) {
-        const rows = await db.getAll(`SELECT COUNT(*) as cnt FROM ${table}`)
+        const rows = await db.getAll(`SELECT COUNT(*) as cnt FROM "${table}"`)
         if (!rows || !rows[0] || (rows[0] as any).cnt === 0) {
           tableSince = null
         }

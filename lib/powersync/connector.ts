@@ -8,29 +8,26 @@ import {
 import { supabase } from "@/lib/supabase/client"
 import { getClientConfig } from "@/lib/client-config"
 
-/** Try to get the Supabase access token from the Electron vault. */
-async function electronAccessToken(): Promise<string | null> {
+/** Try to get the Supabase session from the Electron vault. */
+async function electronSession(): Promise<{ accessToken: string; refreshToken?: string } | null> {
   try {
     if (typeof window === "undefined") return null
     const el = (window as any).electron
     if (!el?.getConfig) return null
     const config = await el.getConfig()
-    return config?.accessToken ?? null
+    if (!config?.accessToken) return null
+    return { accessToken: config.accessToken, refreshToken: config.refreshToken }
   } catch {
     return null
   }
 }
 
-function opName(op: UpdateType): "PUT" | "PATCH" | "DELETE" {
-  if (op === UpdateType.PUT)    return "PUT"
-  if (op === UpdateType.PATCH)  return "PATCH"
-  return "DELETE"
-}
-
 /** Decode a JWT payload without verifying the signature. */
 function decodeJwtPayload(token: string): Record<string, unknown> {
   try {
-    return JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")))
+    return JSON.parse(
+      atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+    )
   } catch {
     return {}
   }
@@ -38,17 +35,16 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
-    // Try browser Supabase client first (works in web / Next.js server)
+    // Try browser Supabase client first
     let { data: { session } } = await supabase.auth.getSession()
 
-    // Fallback: read access token from Electron vault
+    // Fallback: restore session from Electron vault
     if (!session) {
-      const token = await electronAccessToken()
-      if (token) {
-        // Set the session on the browser client so subsequent calls also work
+      const vault = await electronSession()
+      if (vault) {
         await supabase.auth.setSession({
-          access_token: token,
-          refresh_token: token,
+          access_token:  vault.accessToken,
+          refresh_token: vault.refreshToken ?? vault.accessToken,
         })
         const { data: { session: s } } = await supabase.auth.getSession()
         session = s
@@ -57,11 +53,6 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
 
     if (!session) throw new Error("Not authenticated")
 
-    // Guard: the JWT MUST have sacco_id at root level for PowerSync Cloud
-    // to resolve token_parameters.sacco_id. Without this root-level claim
-    // the sync bucket will be empty and PowerSync will DELETE all local data.
-    // The root-level claim requires the Supabase custom_access_token_hook
-    // (see POWERSYNC_JWT_SETUP.md) and a fresh sign-in.
     const payload = decodeJwtPayload(session.access_token)
     if (!payload.sacco_id) {
       console.error(
@@ -69,14 +60,16 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         "Set up the Supabase custom_access_token_hook (see POWERSYNC_JWT_SETUP.md)\n" +
         "then sign out and back in to get a valid JWT."
       )
-      throw new Error("JWT missing sacco_id — sync blocked to protect local data. See POWERSYNC_JWT_SETUP.md.")
+      throw new Error(
+        "JWT missing sacco_id — sync blocked to protect local data. See POWERSYNC_JWT_SETUP.md."
+      )
     }
 
     console.log("[PowerSync] JWT:", session.access_token)
 
     return {
       endpoint: getClientConfig().powersyncUrl,
-      token: session.access_token,
+      token:    session.access_token,
     }
   }
 
@@ -85,27 +78,30 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     if (!transaction) return
 
     try {
-      const ops = transaction.crud.map(({ table, opData, op, id }) => ({
-        op: opName(op),
-        table,
-        id,
-        opData,
-      }))
+      for (const { table, opData, op, id } of transaction.crud) {
+        let error: any
 
-      const res = await fetch("/api/powersync/upload", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ ops }),
-      })
+        if (op === UpdateType.PUT) {
+          let uploadData = { ...opData, id }
+          if (table === "members" && uploadData.member_code) {
+            const code = uploadData.member_code as string
+            if (!/-[0-9A-F]{4}$/i.test(code)) {
+              uploadData.member_code = `${code}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`
+            }
+          }
+          ;({ error } = await supabase.from(table).upsert(uploadData))
+        } else if (op === UpdateType.PATCH) {
+          ;({ error } = await supabase.from(table).update(opData).eq("id", id))
+        } else if (op === UpdateType.DELETE) {
+          ;({ error } = await supabase.from(table).delete().eq("id", id))
+        }
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(`Upload failed: ${body.error ?? res.statusText}`)
+        if (error) throw error
       }
 
       await transaction.complete()
     } catch (err) {
-      console.error("[PowerSync] Upload failed:", err)
+      console.error("[PowerSync] Upload failed — will retry:", err)
       throw err
     }
   }

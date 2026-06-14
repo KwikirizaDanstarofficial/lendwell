@@ -2,30 +2,24 @@
 
 import { PowerSyncDatabase } from "@powersync/web"
 import { PowerSyncContext } from "@powersync/react"
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, createContext, useContext } from "react"
+import { ReactNode, useEffect, useMemo } from "react"
 import { AppSchema } from "./schema"
-import { pullFromSupabase } from "./sync-engine"
+import { SupabaseConnector } from "./connector"
 import { supabase } from "@/lib/supabase/client"
-import { isOffline } from "@/lib/utils/is-offline"
 
-
-type SyncContextValue = {
-  syncNow: () => Promise<void>
-  syncErrors: string[]
-}
-
-const SyncContext = createContext<SyncContextValue | null>(null)
-
+/**
+ * No-op hook since PowerSync Cloud handles sync automatically via `db.connect()`.
+ * Callers that previously used this to trigger a manual pull can safely keep
+ * the import — it just resolves immediately.
+ */
 export function useSyncNow() {
-  const ctx = useContext(SyncContext)
-  if (!ctx) throw new Error("useSyncNow must be used inside PowerSyncProvider")
-  return ctx
+  return {
+    syncNow: async () => {},
+    syncErrors: [] as string[],
+  }
 }
 
 export function PowerSyncProvider({ children }: { children: ReactNode }) {
-  const [syncErrors, setSyncErrors] = useState<string[]>([])
-  const syncingRef = useRef(false)
-
   const db = useMemo(
     () =>
       new PowerSyncDatabase({
@@ -35,124 +29,87 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  // Initialize PowerSync managed tables on mount (for useQuery reactivity)
-  // NOT connecting to PowerSync Cloud — uses manual pullFromSupabase instead.
-  const [connected, setConnected] = useState(false)
-  const initialSyncDone = useRef(false)
   useEffect(() => {
-    if (connected) return
-    db.init()
-      .then(() => {
-        setConnected(true)
-        // Auto-populate data on first init
-        if (!initialSyncDone.current) {
-          initialSyncDone.current = true
-          pullFromSupabase(db, "").catch(() => {})
-        }
-      })
-      .catch(() => {})
-  }, [db, connected])
-
-  const syncNow = useCallback(async () => {
-    if (syncingRef.current) return
-    if (isOffline()) {
-      console.log("[PowerSync] Skipping sync — offline")
-      setSyncErrors([])
-      return
-    }
-    syncingRef.current = true
-    setSyncErrors([])
-    try {
-      const result = await pullFromSupabase(db, "")
-      if (result.errors.length > 0) {
-        setSyncErrors(result.errors)
-        console.error("[PowerSync] Sync errors:", result.errors)
-      } else {
-        console.log("[PowerSync] Sync OK —", result.total, "rows")
-      }
-    } catch (err) {
-      console.error("[PowerSync] Direct pull failed:", err)
-    } finally {
-      syncingRef.current = false
-    }
-  }, [db])
-
-  // Flush handler — gracefully close the database connection on shutdown
-  const handleFlush = useCallback(async () => {
-    try {
-      await db.disconnect()
-    } catch {
-      // DB may already be disconnected
-    }
-    const el = typeof window !== "undefined" ? (window as any).electron : undefined
-    if (el?.dbFlushed) {
-      await el.dbFlushed()
-    }
-  }, [db])
-
-  useEffect(() => {
-    const disconnect = () => db.disconnect()
     let destroyed = false
+    const connector = new SupabaseConnector()
 
-    // Restore Supabase session from Electron vault (no auto-sync).
-    const initSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (destroyed) return
-      if (session) return
+    const init = async () => {
+      // Restore Supabase session from Electron vault
       try {
-        const el = typeof window !== "undefined" ? (window as any).electron : undefined
-        if (el?.getConfig) {
-          const config = await el.getConfig()
-          if (destroyed) return
-          if (config?.accessToken) {
-            await supabase.auth.setSession({
-              access_token: config.accessToken,
-              refresh_token: config.refreshToken ?? config.accessToken,
-            })
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          const el = typeof window !== "undefined" ? (window as any).electron : undefined
+          if (el?.getConfig) {
+            const config = await el.getConfig()
+            if (!destroyed && config?.accessToken && config?.refreshToken) {
+              // setSession auto-refreshes if access token is expired
+              const { data: { session: restored } } = await supabase.auth.setSession({
+                access_token:  config.accessToken,
+                refresh_token: config.refreshToken,
+              })
+              // Save refreshed tokens back to vault
+              if (restored) {
+                await el.setConfig({
+                  accessToken:  restored.access_token,
+                  refreshToken: restored.refresh_token,
+                })
+              }
+            }
           }
         }
       } catch {
-        // vault not available
+        // vault not available — web fallback, session already in browser storage
+      }
+
+      if (!destroyed) {
+        // Starts BOTH upload and download sync
+        await db.connect(connector).catch(console.error)
       }
     }
 
-    initSession()
+    init()
 
-    // Electron: flush database when main process signals shutdown
-    const el = typeof window !== "undefined" ? (window as any).electron : undefined
-    if (el?.onFlushDb) {
-      el.onFlushDb(handleFlush)
+    // Keep vault updated whenever Supabase silently refreshes the token
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "TOKEN_REFRESHED" && session) {
+          const el = typeof window !== "undefined" ? (window as any).electron : undefined
+          el?.setConfig?.({
+            accessToken:  session.access_token,
+            refreshToken: session.refresh_token,
+          })
+          console.log("[Auth] Token refreshed and saved to vault")
+        }
+      }
+    )
+
+    // Electron: flush database on shutdown signal.
+    // IMPORTANT: db.disconnect() does NOT delete any SQLite data.
+    // It only closes the connection cleanly and checkpoints the WAL
+    // back to the main sacco.db file on disk — all local data is preserved.
+    // This prevents SQLite corruption on hard shutdowns (power cuts).
+    const handleFlush = async () => {
+      try { await db.disconnect() } catch {}
+      const el = typeof window !== "undefined" ? (window as any).electron : undefined
+      if (el?.dbFlushed) await el.dbFlushed()
     }
 
-    // Browser fallback: flush on beforeunload
+    const el = typeof window !== "undefined" ? (window as any).electron : undefined
+    if (el?.onFlushDb) el.onFlushDb(handleFlush)
     window.addEventListener("beforeunload", handleFlush)
 
     return () => {
       destroyed = true
-      disconnect()
-      if (el?.removeFlushDbListener) {
-        el.removeFlushDbListener()
-      }
+      subscription.unsubscribe()
+      db.disconnect().catch(() => {})
+      if (el?.removeFlushDbListener) el.removeFlushDbListener()
       window.removeEventListener("beforeunload", handleFlush)
     }
-  }, [db, handleFlush])
+  }, [db])
 
   return (
     <PowerSyncContext.Provider value={db}>
-      <SyncContext.Provider value={{ syncNow, syncErrors }}>
-      {syncErrors.length > 0 && (
-        <div className="fixed bottom-20 left-4 right-4 z-[9999] max-w-xl mx-auto bg-orange-900/95 border border-orange-500/50 rounded-xl px-4 py-3 text-sm text-orange-200 shadow-xl backdrop-blur">
-          <strong className="text-orange-100">⚠ Sync pull failed</strong>
-          <ul className="text-xs mt-1 space-y-0.5 text-orange-300">
-            {syncErrors.map((e, i) => <li key={i}>{e}</li>)}
-          </ul>
-          <p className="text-xs mt-1 text-orange-400">
-            Check DevTools Console (Ctrl+Shift+I) for details.
-          </p>
-        </div>
-      )}
       {children}
-      </SyncContext.Provider>
     </PowerSyncContext.Provider>
   )
 }

@@ -147,7 +147,13 @@ function CreateUserDialog({
             Login credentials will be auto-generated and sent to their phone via SMS.
           </DialogDescription>
         </DialogHeader>
-        <form action={action} className="space-y-4">
+        <form action={action} onSubmit={(e) => {
+              if (isOffline()) {
+                e.preventDefault()
+                toast.error("Cannot create users while offline. Please connect to the internet.")
+                return
+              }
+            }} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Full Name *</Label>
             <Input name="full_name" placeholder="e.g. Okello James" />
@@ -269,7 +275,13 @@ function EditUserDialog({
             Update {user.fullName}&apos;s details.
           </DialogDescription>
         </DialogHeader>
-        <form action={action} className="space-y-4">
+        <form action={action} onSubmit={(e) => {
+              if (isOffline()) {
+                e.preventDefault()
+                toast.error("Cannot edit users while offline. Please connect to the internet.")
+                return
+              }
+            }} className="space-y-4">
           <input type="hidden" name="id" value={user.id} />
           <div className="space-y-1.5">
             <Label>Full Name</Label>
@@ -353,6 +365,10 @@ function ResetPasswordDialog({
   const [loading, setLoading] = useState(false)
 
   const handle = async () => {
+    if (isOffline()) {
+      toast.error("Cannot reset passwords while offline. Please connect to the internet.")
+      return
+    }
     setLoading(true)
     const r = await resetPasswordAction(user.id, pw)
     setLoading(false)
@@ -398,6 +414,7 @@ function ResetPasswordDialog({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 import { useQuery } from "@powersync/react"
+import { isOffline } from "@/lib/utils/is-offline"
 interface Props {
   saccoId: string
   users: any[]
@@ -459,6 +476,11 @@ export function UsersClient({ saccoId, users: usersProp = [], currentUser, canMa
 
   const handleDelete = async () => {
     if (!deleteUser) return
+    if (isOffline()) {
+      toast.error("Cannot delete users while offline. Please connect to the internet.")
+      setDeleteUser(null)
+      return
+    }
     setDeleting(true)
     const r = await deleteUserAction(deleteUser.id)
     setDeleting(false)
@@ -714,6 +736,10 @@ export function UsersClient({ saccoId, users: usersProp = [], currentUser, canMa
                             {isAdmin && !isSelf && (
                               <DropdownMenuItem
                                 onClick={async () => {
+                                  if (isOffline()) {
+                                    toast.error("Cannot toggle user status while offline. Please connect to the internet.")
+                                    return
+                                  }
                                   const r = await toggleUserActiveAction(
                                     u.id,
                                     !u.isActive

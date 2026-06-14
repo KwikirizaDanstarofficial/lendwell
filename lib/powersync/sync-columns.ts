@@ -66,6 +66,10 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     "website","registration_number","slug","country","status","plan",
     "trial_ends_at","subscription_ends_at","notes","created_by_cms","tagline",
   ],
+  next_of_kin: [
+    "id","member_id","sacco_id","full_name","relationship","phone","email",
+    "address","is_primary","created_at","updated_at",
+  ],
   branches: [
     "id","sacco_id","name","code","address","phone","email","manager_id",
     "is_active","created_at","updated_at",

@@ -52,7 +52,7 @@ export async function offlineAddMember(
     const lastSeq = parseInt(row.member_code.slice(prefix.length), 10) || 0
     nextSeq = lastSeq + 1
   }
-  const member_code = `${prefix}${String(nextSeq).padStart(SEQUENCE_PAD_WIDTH, "0")}`
+  const member_code = `${prefix}${String(nextSeq).padStart(SEQUENCE_PAD_WIDTH, "0")}-${uuid().slice(0, 4).toUpperCase()}`
   const ts = now()
 
   await db.execute(
@@ -377,7 +377,7 @@ export async function offlineAddFine(
     "SELECT COUNT(*) as count FROM fines WHERE sacco_id = ?", [saccoId]
   )
   const count = Number((result.rows?.item(0) as any)?.count ?? 0)
-  const fine_ref = `FN${String(count + 1).padStart(4, "0")}`
+  const fine_ref = `FN${String(count + 1).padStart(4, "0")}-${uuid().slice(0, 4).toUpperCase()}`
   const ts = now()
 
   await db.execute(
@@ -530,7 +530,7 @@ export async function offlineAddComplaint(
     "SELECT COUNT(*) as count FROM complaints WHERE sacco_id = ?", [saccoId]
   )
   const count = Number((result.rows?.item(0) as any)?.count ?? 0)
-  const complaint_ref = `CMP${String(count + 1).padStart(4, "0")}`
+  const complaint_ref = `CMP${String(count + 1).padStart(4, "0")}-${uuid().slice(0, 4).toUpperCase()}`
   const ts = now()
 
   await db.execute(

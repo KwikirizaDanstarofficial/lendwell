@@ -113,11 +113,6 @@ const LoanActionsCell = (p: ICellRendererParams) => {
           <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/contract`)}>
             <FileText className="mr-2 h-4 w-4" /> View Contract
           </DropdownMenuItem>
-          {["pending", "approved", "disbursed", "active"].includes(loan.status) && (
-            <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/edit`)}>
-              <FileText className="mr-2 h-4 w-4" /> Edit Loan
-            </DropdownMenuItem>
-          )}
           <DropdownMenuSeparator />
           {loan.status === "pending" && (
             <>

@@ -9,60 +9,64 @@ config:
 streams:
   members:
     auto_subscribe: true
-    query: >
-      SELECT * FROM members
-      WHERE members.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM members WHERE members.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id') AND members.deleted_at IS NULL
 
   loans:
     auto_subscribe: true
-    query: >
-      SELECT * FROM loans
-      WHERE loans.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM loans WHERE loans.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   loan_categories:
     auto_subscribe: true
-    query: >
-      SELECT * FROM loan_categories
-      WHERE loan_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM loan_categories WHERE loan_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   savings_accounts:
     auto_subscribe: true
-    query: >
-      SELECT * FROM savings_accounts
-      WHERE savings_accounts.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM savings_accounts WHERE savings_accounts.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   savings_categories:
     auto_subscribe: true
-    query: >
-      SELECT * FROM savings_categories
-      WHERE savings_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM savings_categories WHERE savings_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   transactions:
     auto_subscribe: true
-    query: >
-      SELECT * FROM transactions
-      WHERE transactions.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM transactions WHERE transactions.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   fines:
     auto_subscribe: true
-    query: >
-      SELECT * FROM fines
-      WHERE fines.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM fines WHERE fines.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id') AND fines.deleted_at IS NULL
 
   fine_categories:
     auto_subscribe: true
-    query: >
-      SELECT * FROM fine_categories
-      WHERE fine_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM fine_categories WHERE fine_categories.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   interest_rates:
     auto_subscribe: true
-    query: >
-      SELECT * FROM interest_rates
-      WHERE interest_rates.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM interest_rates WHERE interest_rates.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
 
   next_of_kin:
     auto_subscribe: true
-    query: >
-      SELECT * FROM next_of_kin
-      WHERE next_of_kin.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+    query: SELECT * FROM next_of_kin WHERE next_of_kin.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  saccos:
+    auto_subscribe: true
+    query: SELECT * FROM saccos WHERE saccos.id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  branches:
+    auto_subscribe: true
+    query: SELECT * FROM branches WHERE branches.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  complaints:
+    auto_subscribe: true
+    query: SELECT * FROM complaints WHERE complaints.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  documents:
+    auto_subscribe: true
+    query: SELECT * FROM documents WHERE documents.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  notifications:
+    auto_subscribe: true
+    query: SELECT * FROM notifications WHERE notifications.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  loan_guarantors:
+    auto_subscribe: true
+    query: SELECT * FROM loan_guarantors WHERE loan_guarantors.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
