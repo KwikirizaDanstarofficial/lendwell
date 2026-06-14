@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("electron", {
   vaultExists:   ()                              => ipcRenderer.invoke("vault-exists"),
   login:         (email: string, pwd: string)   => ipcRenderer.invoke("login", email, pwd),
   getConfig:     ()                              => ipcRenderer.invoke("get-config"),
+  setConfig:     (cfg: Record<string, string>)  => ipcRenderer.invoke("set-config", cfg),
   clearVault:    ()                              => ipcRenderer.invoke("clear-vault"),
   verifyPayment: (transactionId: string)         => ipcRenderer.invoke("verify-payment", transactionId),
   sendSms:       (to: string, message: string)  => ipcRenderer.invoke("send-sms", to, message),

@@ -1,47 +1,109 @@
-name: Build Electron Installer
+name: Build Windows Installer
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
-  build-windows:
+  build:
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Next.js app
+      - name: Inject Config Server URL
+        shell: pwsh
+        run: |
+          $url = "$env:CONFIG_SERVER_URL"
+          if ($url) {
+            (Get-Content electron/fetchConfig.ts) -replace "https://lendwell-config-server\.onrender\.com", $url | Set-Content electron/fetchConfig.ts
+          }
+        env:
+          CONFIG_SERVER_URL: ${{ secrets.CONFIG_SERVER_URL }}
+
+      - name: Build Next.js
+        shell: bash
         run: npm run build
         env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          NODE_OPTIONS: "--no-deprecation"
+          CI: "true"
+          npm_config_yes: "true"
+          NEXT_TELEMETRY_DISABLED: "1"
+          SENTRY_TELEMETRY: "false"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          POWERSYNC_URL: ${{ secrets.POWERSYNC_URL }}
+          APP_URL: ${{ secrets.APP_URL }}
+          SACCO_NAME: ${{ secrets.SACCO_NAME }}
+          COMMS_SDK_USERNAME: ${{ secrets.COMMS_SDK_USERNAME }}
+          COMMS_SDK_API_KEY: ${{ secrets.COMMS_SDK_API_KEY }}
+          EGOSMS_SENDER_ID: ${{ secrets.EGOSMS_SENDER_ID }}
+          FLW_PUBLIC_KEY: ${{ secrets.FLW_PUBLIC_KEY }}
+          FLW_SECRET_KEY: ${{ secrets.FLW_SECRET_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-      - name: Compile Electron main process
+      - name: Compile Electron
+        shell: bash
         run: npm run electron:compile
 
-      - name: Build Windows installer (NSIS)
-        run: npx electron-builder --win
+      - name: Generate ICO for installer
+        run: node scripts/generate-ico.cjs
+
+      - name: Package
+        shell: bash
+        run: npx electron-builder --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installer artifact
+      - name: Audit bundle for leaked secrets
+        shell: pwsh
+        run: |
+          npx asar extract dist\win-unpacked\resources\app.asar dist\asar-extracted 2>$null
+          $leaks = Select-String -Path "dist\asar-extracted\**\*.js" -Pattern "supabase\.co|egosms|flutterwave|powersync" -List
+          if ($leaks) { Write-Host "WARNING: Secrets found in bundle"; $leaks | ForEach-Object { Write-Host $_ } }
+          else { Write-Host "PASS: No secrets detected in bundle" }
+          Remove-Item -Recurse -Force dist\asar-extracted -ErrorAction SilentlyContinue
+
+      - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: lendwell-windows-installer
-          path: dist/*.exe
-          compression-level: 0
+          name: Lendwell-Windows
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

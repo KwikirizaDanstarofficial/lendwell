@@ -303,6 +303,10 @@ function registerIpcHandlers(): void {
   ipcMain.handle("get-config", () => readVault())
 
   // Clear vault (logout)
+  ipcMain.handle("set-config", (_event, cfg: Record<string, string>) => {
+    writeVault(cfg)
+    return { success: true }
+  })
   ipcMain.handle("clear-vault", () => {
     clearVault()
     return { success: true }
