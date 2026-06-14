@@ -129,16 +129,16 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
 
   const getInterestInfo = () => {
     if (!amount || Number(amount) <= 0) return null
-    const amountCents = Number(amount) * CENTS_PER_UNIT
+    const amountUGX = Number(amount)
     const matchingRate = interestRates.find(
-      (rate) => amountCents >= rate.minAmount && amountCents <= rate.maxAmount
+      (rate) => amountUGX >= rate.minAmount && amountUGX <= rate.maxAmount
     )
     if (!matchingRate) return null
     return {
       rate: Number(matchingRate.rate),
       rateType: matchingRate.rateType,
-      minAmount: matchingRate.minAmount / CENTS_PER_UNIT,
-      maxAmount: matchingRate.maxAmount / CENTS_PER_UNIT,
+      minAmount: matchingRate.minAmount,
+      maxAmount: matchingRate.maxAmount,
     }
   }
 
@@ -157,15 +157,28 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
+
+    const offlineData: Parameters<typeof offlineEditLoan>[2] = {
+      amount: Number(formData.get("amount") || 0) * CENTS_PER_UNIT,
+      duration_months: Number(formData.get("duration_months") || loan.durationMonths),
+      due_date: (formData.get("due_date") as string) || null,
+      notes: (formData.get("notes") as string) || null,
+    }
+
+    // Include recalculated interest fields if calculation is available
+    if (calculation && interestInfo) {
+      offlineData.interest_rate = String(interestInfo.rate)
+      offlineData.interest_type = interestInfo.rateType
+      offlineData.expected_received = calculation.totalExpectedReceived
+      offlineData.daily_payment = calculation.dailyPayment
+      offlineData.monthly_payment = calculation.monthlyPayment
+      offlineData.late_penalty_fee = calculation.latePenaltyFee
+    }
+
     startTransition(async () => {
       if (isOffline()) {
         try {
-          await offlineEditLoan(db, loan.id, {
-            amount: Number(formData.get("amount") || 0) * CENTS_PER_UNIT,
-            duration_months: Number(formData.get("duration_months") || loan.durationMonths),
-            due_date: (formData.get("due_date") as string) || null,
-            notes: (formData.get("notes") as string) || null,
-          })
+          await offlineEditLoan(db, loan.id, offlineData)
           setState({ success: true, offlineSaved: true })
         } catch {
           setState({ error: "Failed to save offline. Please try again." })
@@ -183,12 +196,7 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
         // Network error - fall through to offline fallback
       }
       try {
-        await offlineEditLoan(db, loan.id, {
-          amount: Number(formData.get("amount") || 0) * CENTS_PER_UNIT,
-          duration_months: Number(formData.get("duration_months") || loan.durationMonths),
-          due_date: (formData.get("due_date") as string) || null,
-          notes: (formData.get("notes") as string) || null,
-        })
+        await offlineEditLoan(db, loan.id, offlineData)
         setState({ success: true, offlineSaved: true })
       } catch {
         setState({ error: "Failed to save offline. Please try again." })
@@ -280,7 +288,7 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
       {interestInfo && calculation && (
         <div className="mb-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
           <SectionHeader step={3} title="Calculation Summary"
-            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${formatUGX(interestInfo.minAmount)} – ${formatUGX(interestInfo.maxAmount)}.`}
+            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${formatUGX(interestInfo.minAmount * 100)} – ${formatUGX(interestInfo.maxAmount * 100)}.`}
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard label="Principal" value={formatUGX(calculation.principal)} />

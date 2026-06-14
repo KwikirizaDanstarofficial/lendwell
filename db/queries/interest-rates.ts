@@ -39,6 +39,7 @@ export async function getActiveInterestRates(saccoId: string) {
       .from('interest_rates')
       .select('*')
       .eq('sacco_id', saccoId)
+      .eq('is_active', true)
       .order('min_amount', { ascending: true })
 
     if (error) {
@@ -143,6 +144,7 @@ export async function getInterestRateForAmount(
       .from('interest_rates')
       .select('*')
       .eq('sacco_id', saccoId)
+      .eq('is_active', true)
       .lte('min_amount', amount)
       .gte('max_amount', amount)
       .maybeSingle()

@@ -27,7 +27,7 @@ function toLoan(r: any) {
   }
 }
 
-export function EditPageClient({ id, initialLoan }: { id: string; initialLoan?: any }) {
+export function EditPageClient({ id, initialLoan, interestRates = [] }: { id: string; initialLoan?: any; interestRates?: any[] }) {
   const { data: rows = [], isLoading: loading } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code
      FROM loans l LEFT JOIN members m ON m.id = l.member_id
@@ -46,7 +46,7 @@ export function EditPageClient({ id, initialLoan }: { id: string; initialLoan?: 
           Update details for {loan.loanRef} — {loan.memberName}
         </p>
       </div>
-      <EditLoanForm loan={loan} />
+      <EditLoanForm loan={loan} interestRates={interestRates} />
     </div>
   )
 }

@@ -21,15 +21,40 @@ export function ElectronStartupCheck() {
 
       try {
         const hasVault = await window.electron.vaultExists()
-        let hasSession = false
-        if (hasVault) {
-          const config = await window.electron.getConfig()
-          hasSession = !!(config.accessToken && config.refreshToken)
-        }
+
         if (!hasVault && !PUBLIC_PATHS.includes(pathname)) {
           router.push("/auth/login")
-        } else if (hasSession && (pathname === "/auth/login" || pathname === "/")) {
-          // Vault has valid session tokens — redirect to dashboard
+          return
+        }
+
+        if (!hasVault) {
+          setChecking(false)
+          return
+        }
+
+        const config = await window.electron.getConfig()
+        const hasSession = !!(config.accessToken && config.refreshToken)
+
+        if (!hasSession) {
+          setChecking(false)
+          return
+        }
+
+        // Restore SSR cookies from vault tokens
+        try {
+          await fetch("/api/auth/restore-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accessToken: config.accessToken,
+              refreshToken: config.refreshToken ?? config.accessToken,
+            }),
+          })
+        } catch {
+          // Session restoration failed — user may need to re-login
+        }
+
+        if (pathname === "/auth/login" || pathname === "/") {
           router.push("/dashboard")
         }
       } catch {

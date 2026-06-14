@@ -124,8 +124,11 @@ export async function addLoanAction(
 
     // Convert UGX to cents for storage (avoids floating-point precision issues)
     const amountInCents = Math.floor(parsed.data.amount * 100)
+    const amountUGX = parsed.data.amount
 
     // Look up the applicable interest rate tier for this amount
+    // Note: interest rate min/max amounts are stored as raw UGX, so compare
+    // against the raw UGX value, not the cents-converted value.
     const { data: interestRatesList, error: ratesError } = await supabaseAdmin
       .from('interest_rates')
       .select('*')
@@ -138,7 +141,7 @@ export async function addLoanAction(
     }
 
     const { rate: interestRate, rateType: interestType } =
-      getInterestRateForAmount(amountInCents, interestRatesList || [])
+      getInterestRateForAmount(amountUGX, interestRatesList || [])
 
     // Compute repayment schedule, daily/monthly payment amounts, and penalty fees
     const calc = calculateLoan({
@@ -153,7 +156,7 @@ export async function addLoanAction(
     // Find the exact interest rate tier that matches this amount range
     const applicableRate = (interestRatesList || []).find(
       (rate) =>
-        amountInCents >= rate.min_amount && amountInCents <= rate.max_amount
+        amountUGX >= rate.min_amount && amountUGX <= rate.max_amount
     )
 
     // Insert the loan record with pending status
@@ -887,8 +890,11 @@ export async function editLoanAction(
     }
 
     const amountInCents = Math.floor(parsed.data.amount * 100)
+    const amountUGX = parsed.data.amount
 
     // Look up interest rates and recalculate
+    // Note: interest rate min/max amounts are stored as raw UGX, so compare
+    // against the raw UGX value, not the cents-converted value.
     const { data: interestRatesList } = await supabaseAdmin
       .from('interest_rates')
       .select('*')
@@ -896,7 +902,7 @@ export async function editLoanAction(
       .eq('is_active', true)
 
     const { rate: interestRate, rateType: interestType } =
-      getInterestRateForAmount(amountInCents, interestRatesList || [])
+      getInterestRateForAmount(amountUGX, interestRatesList || [])
 
     const calc = calculateLoan({
       principal: amountInCents,
@@ -906,7 +912,7 @@ export async function editLoanAction(
     })
 
     const applicableRate = (interestRatesList || []).find(
-      (rate) => amountInCents >= rate.min_amount && amountInCents <= rate.max_amount
+      (rate) => amountUGX >= rate.min_amount && amountUGX <= rate.max_amount
     )
 
     const balanceInCents = Math.floor(parsed.data.balance * 100)

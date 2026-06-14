@@ -258,18 +258,20 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
   })
 
   // Look up the interest rate tier that covers the entered amount
+  // Note: interest rate min/max amounts are stored as raw UGX, so we compare
+  // directly against the user input (also in UGX) without cents conversion.
   const getInterestInfo = () => {
     if (!amount || Number(amount) <= 0) return null
-    const amountCents = Number(amount) * CENTS_PER_UNIT
+    const amountUGX = Number(amount)
     const matchingRate = interestRates.find(
-      (rate) => amountCents >= rate.minAmount && amountCents <= rate.maxAmount
+      (rate) => amountUGX >= rate.minAmount && amountUGX <= rate.maxAmount
     )
     if (!matchingRate) return null
     return {
       rate:      Number(matchingRate.rate),
       rateType:  matchingRate.rateType,
-      minAmount: matchingRate.minAmount / CENTS_PER_UNIT,
-      maxAmount: matchingRate.maxAmount / CENTS_PER_UNIT,
+      minAmount: matchingRate.minAmount,
+      maxAmount: matchingRate.maxAmount,
     }
   }
 
@@ -411,7 +413,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
               isAmountValid && interestInfo
                 ? `Rate: ${interestInfo.rate}% ${interestInfo.rateType}`
                 : interestRates.length > 0
-                  ? `Min: ${formatUGX(interestRates[0].min_amount / CENTS_PER_UNIT)}`
+                  ? `Min: ${formatUGX(interestRates[0].minAmount * 100)}`
                   : undefined
             }
           >
@@ -566,7 +568,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
           <SectionHeader
             step={4}
             title="Calculation Summary"
-            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${formatUGX(interestInfo.minAmount)} – ${formatUGX(interestInfo.maxAmount)}.`}
+            description={`Based on a ${interestInfo.rate}% ${interestInfo.rateType} interest rate for amounts between ${formatUGX(interestInfo.minAmount * 100)} – ${formatUGX(interestInfo.maxAmount * 100)}.`}
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatCard label="Principal"      value={formatUGX(calculation.principal)} />
