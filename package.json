@@ -36,6 +36,7 @@
     "asar": true,
     "npmRebuild": false,
     "files": [
+      "electron/package.json",
       "electron/dist/**",
       "!electron/dist/**/*.ts",
       "!electron/dist/**/*.map",
