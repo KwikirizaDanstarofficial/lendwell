@@ -41,8 +41,9 @@ export function ElectronStartupCheck() {
         }
 
         // Restore SSR cookies from vault tokens
+        let restored = false
         try {
-          await fetch("/api/auth/restore-session", {
+          const res = await fetch("/api/auth/restore-session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -50,8 +51,15 @@ export function ElectronStartupCheck() {
               refreshToken: config.refreshToken ?? config.accessToken,
             }),
           })
+          restored = res.ok
         } catch {
-          // Session restoration failed — user may need to re-login
+          // Network error — session restoration failed
+        }
+
+        if (!restored) {
+          await window.electron.clearVault()
+          router.push("/auth/login")
+          return
         }
 
         if (pathname === "/auth/login" || pathname === "/") {
