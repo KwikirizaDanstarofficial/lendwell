@@ -1,4 +1,5 @@
 // db/queries/interest-rates.ts
+import { isOfflineError } from "@/lib/offline-safe"
 import { supabaseAdmin } from "@/lib/supabase/server"
 
 export interface InterestRateData {
@@ -43,6 +44,7 @@ export async function getActiveInterestRates(saccoId: string) {
       .order('min_amount', { ascending: true })
 
     if (error) {
+      if (isOfflineError(error)) return []
       throw new Error(`Failed to fetch active interest rates: ${error.message}`)
     }
 
@@ -58,6 +60,7 @@ export async function getActiveInterestRates(saccoId: string) {
       updatedAt: new Date(rate.updated_at),
     }))
   } catch (error) {
+    if (isOfflineError(error)) return []
     console.error("Error fetching active interest rates:", error)
     throw new Error("Failed to fetch active interest rates")
   }

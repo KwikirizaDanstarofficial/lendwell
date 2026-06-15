@@ -171,6 +171,50 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
     INITIAL_FORM_STATE
   )
 
+  // Local PowerSync fallback data
+  const [localMembers, setLocalMembers] = useState<MemberOption[]>(members)
+  const [localInterestRates, setLocalInterestRates] = useState<any[]>(interestRates)
+
+  // When server-provided data is empty (offline load), fetch from local PowerSync DB
+  useEffect(() => {
+    if ((members.length === 0 || interestRates.length === 0) && isOffline()) {
+      const loadLocal = async () => {
+        try {
+          if (members.length === 0) {
+            const result = await db.getAll<MemberOption[]>(
+              "SELECT id, full_name, member_code, phone FROM members WHERE sacco_id = ? ORDER BY full_name ASC",
+              [saccoId]
+            )
+            setLocalMembers(result as unknown as MemberOption[])
+          }
+          if (interestRates.length === 0) {
+            const result = await db.getAll<any[]>(
+              `SELECT id, sacco_id, min_amount, max_amount, rate, rate_type, is_active
+               FROM interest_rates WHERE sacco_id = ? AND is_active = 1 ORDER BY min_amount ASC`,
+              [saccoId]
+            )
+            setLocalInterestRates(
+              result.map((r: any) => ({
+                id: r.id,
+                saccoId: r.sacco_id,
+                minAmount: r.min_amount,
+                maxAmount: r.max_amount,
+                rate: r.rate,
+                rateType: r.rate_type,
+                isActive: r.is_active === 1,
+                createdAt: null,
+                updatedAt: null,
+              }))
+            )
+          }
+        } catch (e) {
+          console.warn("[NewLoanForm] Failed to load data from local DB:", e)
+        }
+      }
+      loadLocal()
+    }
+  }, [db, saccoId, members, interestRates])
+
   // Form field state
   const [amount,           setAmount]           = useState("")
   const [durationMonths,   setDurationMonths]   = useState(DEFAULT_DURATION_MONTHS)
@@ -234,7 +278,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
   }, [state, router, offlineSuccess])
 
   // Filter members for the primary member dropdown
-  const filteredMembers = members.filter((member) => {
+  const filteredMembers = localMembers.filter((member) => {
     const query = memberSearchQuery.toLowerCase()
     return (
       member.full_name.toLowerCase().includes(query)   ||
@@ -245,7 +289,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
 
   // Filter guarantor candidates — exclude the borrower and already-added guarantors
   const guarantorMemberIds    = new Set(guarantors.map((g) => g.id))
-  const guarantorCandidates   = members.filter(
+  const guarantorCandidates   = localMembers.filter(
     (m) => m.id !== selectedMemberId && !guarantorMemberIds.has(m.id)
   )
   const filteredGuarantorCandidates = guarantorCandidates.filter((member) => {
@@ -263,7 +307,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
   const getInterestInfo = () => {
     if (!amount || Number(amount) <= 0) return null
     const amountUGX = Number(amount)
-    const matchingRate = interestRates.find(
+    const matchingRate = localInterestRates.find(
       (rate) => amountUGX >= rate.minAmount && amountUGX <= rate.maxAmount
     )
     if (!matchingRate) return null
@@ -290,7 +334,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
 
   const fieldError    = (field: string) => state.fieldErrors?.[field]?.[0]
   const isFormValid   = selectedMemberId && isAmountValid && dueDate && confirmed
-  const selectedMember = members.find((m) => m.id === selectedMemberId)
+  const selectedMember = localMembers.find((m) => m.id === selectedMemberId)
 
   return (
     <form
@@ -412,8 +456,8 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
             hint={
               isAmountValid && interestInfo
                 ? `Rate: ${interestInfo.rate}% ${interestInfo.rateType}`
-                : interestRates.length > 0
-                  ? `Min: ${formatUGX(interestRates[0].minAmount * 100)}`
+                : localInterestRates.length > 0
+                  ? `Min: ${formatUGX(localInterestRates[0].minAmount * 100)}`
                   : undefined
             }
           >
@@ -517,7 +561,7 @@ export function NewLoanForm({ saccoId, members, interestRates }: NewLoanFormProp
             className="h-10 w-10 shrink-0 rounded-lg"
             disabled={!pendingGuarantorId}
             onClick={() => {
-              const member = members.find((m) => m.id === pendingGuarantorId)
+              const member = localMembers.find((m) => m.id === pendingGuarantorId)
               if (member && !guarantors.some((g) => g.id === member.id)) {
                 setGuarantors((prev) => [...prev, member])
               }

@@ -11,8 +11,11 @@ export default async function NewLoanPage() {
     redirect("/auth/login")
   }
   const saccoId = user!.saccoId
-  const members = await getMembersForSelect(saccoId)
-  const interestRates = await getActiveInterestRates(saccoId)
+
+  let members: Awaited<ReturnType<typeof getMembersForSelect>> = []
+  let interestRates: Awaited<ReturnType<typeof getActiveInterestRates>> = []
+  try { members = await getMembersForSelect(saccoId) } catch { members = [] }
+  try { interestRates = await getActiveInterestRates(saccoId) } catch { interestRates = [] }
 
   return (
     <div className="mx-auto max-w-2xl py-6">
