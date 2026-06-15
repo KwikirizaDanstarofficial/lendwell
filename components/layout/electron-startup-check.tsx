@@ -57,8 +57,10 @@ export function ElectronStartupCheck() {
         }
 
         if (!restored) {
-          await window.electron.clearVault()
-          router.push("/auth/login")
+          if (!PUBLIC_PATHS.includes(pathname)) {
+            router.push("/auth/login")
+          }
+          setChecking(false)
           return
         }
 

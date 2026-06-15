@@ -1,5 +1,7 @@
 "use client"
 import { useQuery } from "@powersync/react"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 import { Loader2 } from "lucide-react"
 import { EditLoanForm } from "./edit-loan-form"
 
@@ -28,6 +30,7 @@ function toLoan(r: any) {
 }
 
 export function EditPageClient({ id, initialLoan, interestRates = [] }: { id: string; initialLoan?: any; interestRates?: any[] }) {
+  const router = useRouter()
   const { data: rows = [], isLoading: loading } = useQuery(
     `SELECT l.*, m.full_name AS member_name, m.member_code
      FROM loans l LEFT JOIN members m ON m.id = l.member_id
@@ -35,6 +38,13 @@ export function EditPageClient({ id, initialLoan, interestRates = [] }: { id: st
     [id]
   )
   const raw = (rows[0] as any) ?? initialLoan
+
+  useEffect(() => {
+    if (raw && ["declined", "settled", "defaulted"].includes(raw.status)) {
+      router.push(`/loans/${id}`)
+    }
+  }, [raw, id, router])
+
   if (loading && !raw) return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading loan…</div>
   if (!raw) return <div className="p-6 text-sm text-muted-foreground">Loan not found.</div>
   const loan = toLoan(raw)
@@ -43,7 +53,7 @@ export function EditPageClient({ id, initialLoan, interestRates = [] }: { id: st
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Edit Loan</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Update details for {loan.loanRef} — {loan.memberName}
+          Update details for {loan.loanRef} &mdash; {loan.memberName}
         </p>
       </div>
       <EditLoanForm loan={loan} interestRates={interestRates} />

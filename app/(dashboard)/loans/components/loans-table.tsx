@@ -94,6 +94,47 @@ const DateCell = (p: ICellRendererParams) => (
   </div>
 )
 
+const PaidCell = (p: ICellRendererParams) => {
+  const paid = (p.data?.expectedReceived || 0) - (p.data?.balance || 0)
+  return (
+    <div className="flex items-center h-full text-sm font-medium text-green-600">
+      {formatUGX(Math.max(0, paid))}
+    </div>
+  )
+}
+
+const MissedCell = (p: ICellRendererParams) => {
+  const { isOverdue, hasMissedPayment, missedDays } = p.data || {}
+  if (isOverdue) {
+    return (
+      <div className="flex items-center h-full">
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          Overdue
+        </span>
+      </div>
+    )
+  }
+  if (hasMissedPayment) {
+    return (
+      <div className="flex items-center h-full">
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+          {missedDays > 0 ? `${missedDays}d behind` : "Missed"}
+        </span>
+      </div>
+    )
+  }
+  if ((p.data?.status === "active" || p.data?.status === "disbursed") && p.data?.dailyPayment > 0) {
+    return (
+      <div className="flex items-center h-full">
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+          On Track
+        </span>
+      </div>
+    )
+  }
+  return <div className="flex items-center h-full text-sm text-muted-foreground">&mdash;</div>
+}
+
 const LoanActionsCell = (p: ICellRendererParams) => {
   const { router, setRepayLoan, setDeclineLoan, setTopUpLoan, setDeleteLoan, db, syncNow } = p.context
   const loan = p.data
@@ -113,6 +154,11 @@ const LoanActionsCell = (p: ICellRendererParams) => {
           <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/contract`)}>
             <FileText className="mr-2 h-4 w-4" /> View Contract
           </DropdownMenuItem>
+          {["pending", "approved", "disbursed", "active"].includes(loan.status) && (
+            <DropdownMenuItem onClick={() => router.push(`/loans/${loan.id}/edit`)}>
+              <FileText className="mr-2 h-4 w-4" /> Edit Loan
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           {loan.status === "pending" && (
             <>
@@ -237,9 +283,11 @@ const columnDefs: ColDef[] = [
   { headerName: "Member", field: "memberName", cellRenderer: MemberCell, minWidth: 180, flex: 2 },
   { headerName: "Amount", field: "amount", cellRenderer: AmountCell, minWidth: 130, flex: 1 },
   { headerName: "Expected", field: "expectedReceived", cellRenderer: AmountCell, minWidth: 130, flex: 1 },
+  { headerName: "Paid", field: "paidAmount", cellRenderer: PaidCell, minWidth: 120, flex: 1 },
   { headerName: "Balance", field: "balance", cellRenderer: AmountCell, minWidth: 130, flex: 1 },
   { headerName: "Monthly", field: "monthlyPayment", cellRenderer: AmountCell, minWidth: 120, flex: 1 },
   { headerName: "Status", field: "status", cellRenderer: StatusCell, minWidth: 110, flex: 1 },
+  { headerName: "Missed", field: "hasMissedPayment", cellRenderer: MissedCell, minWidth: 110, flex: 1 },
   { headerName: "Due Date", field: "dueDate", cellRenderer: DateCell, minWidth: 110, flex: 1 },
   { headerName: "Applied", field: "createdAt", cellRenderer: DateCell, minWidth: 110, flex: 1 },
   {

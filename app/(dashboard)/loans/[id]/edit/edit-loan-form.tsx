@@ -22,6 +22,7 @@ const INITIAL_FORM_STATE: LoanFormState = {}
 
 interface LoanData {
   id: string
+  saccoId: string
   loanRef: string
   amount: number
   balance: number
@@ -112,6 +113,7 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
   const [durationMonths, setDurationMonths] = useState(String(loan.durationMonths))
   const [dueDate, setDueDate] = useState(loan.dueDate ? loan.dueDate.slice(0, 10) : "")
   const [notes, setNotes] = useState(loan.notes ?? "")
+  const [localInterestRates, setLocalInterestRates] = useState<any[]>([])
 
   useEffect(() => {
     if (!state.success && !state.error) return
@@ -127,10 +129,39 @@ export function EditLoanForm({ loan, interestRates = [] }: EditLoanFormProps) {
     if (state.error) toast.error(state.error)
   }, [state, router, loan.id])
 
+  // Offline fallback: fetch interest rates from local PowerSync DB
+  useEffect(() => {
+    if (interestRates.length === 0 && isOffline()) {
+      const loadLocal = async () => {
+        try {
+          const result = await db.getAll<any[]>(
+            `SELECT id, min_amount, max_amount, rate, rate_type
+             FROM interest_rates WHERE sacco_id = ? AND is_active = 1 ORDER BY min_amount ASC`,
+            [loan.saccoId]
+          )
+          setLocalInterestRates(
+            result.map((r: any) => ({
+              id: r.id,
+              minAmount: r.min_amount,
+              maxAmount: r.max_amount,
+              rate: r.rate,
+              rateType: r.rate_type,
+            }))
+          )
+        } catch (e) {
+          console.warn("[EditLoanForm] Failed to load interest rates from local DB:", e)
+        }
+      }
+      loadLocal()
+    }
+  }, [db, interestRates])
+
+  const allInterestRates = interestRates.length > 0 ? interestRates : localInterestRates
+
   const getInterestInfo = () => {
     if (!amount || Number(amount) <= 0) return null
     const amountUGX = Number(amount)
-    const matchingRate = interestRates.find(
+    const matchingRate = allInterestRates.find(
       (rate) => amountUGX >= rate.minAmount && amountUGX <= rate.maxAmount
     )
     if (!matchingRate) return null
