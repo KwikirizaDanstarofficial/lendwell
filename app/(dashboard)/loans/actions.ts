@@ -533,6 +533,7 @@ export async function repayLoanAction(
     const amountStr = (formData.get("amount") as string)?.replace(/,/g, "")
     const amount = Math.round(parseFloat(amountStr || "0") * 100)
     const payment_method = (formData.get("payment_method") as string) || "cash"
+    const payment_date = (formData.get("payment_date") as string) || undefined
 
     if (!amountStr || isNaN(amount) || amount <= 0)
       return { error: "Valid amount required." }
@@ -609,18 +610,25 @@ export async function repayLoanAction(
     }
 
     // Create a transaction record for the repayment
+    const transactionPayload: Record<string, any> = {
+      sacco_id: user.saccoId,
+      member_id: loan.member_id,
+      type: "loan_repayment",
+      amount,
+      balance_after: newBalance,
+      reference_id: id,
+      narration: `Loan repayment - ${loan.loan_ref}`,
+      payment_method:
+        payment_method === "mobile_money" ? "flutterwave" : payment_method,
+    }
+
+    if (payment_date) {
+      transactionPayload.created_at = new Date(payment_date).toISOString()
+    }
+
     const { error: transactionError } = await supabaseAdmin
       .from('transactions')
-      .insert({
-        sacco_id: user.saccoId,
-        member_id: loan.member_id,
-        type: "loan_repayment",
-        amount,
-        balance_after: newBalance,
-        narration: `Loan repayment - ${loan.loan_ref}`,
-        payment_method:
-          payment_method === "mobile_money" ? "flutterwave" : payment_method,
-      })
+      .insert(transactionPayload)
 
     if (transactionError) {
       console.error('Transaction creation error:', transactionError)

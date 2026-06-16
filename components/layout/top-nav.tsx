@@ -13,7 +13,7 @@ import {
   Settings, FileText, Bell, MessageSquare, UserCog, HelpCircle,
   ChevronDown, Menu, X, Sun, Moon, Monitor, LogOut,
   BookOpen, Activity, Trash2, WifiOff, Wifi,
-  Lock,
+  Lock, Receipt,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -50,6 +50,7 @@ const NAV_GROUPS = [
     label: "Finance",
     items: [
       { title: "Loans",              href: "/loans",         icon: Banknote  },
+      { title: "Transactions",       href: "/transactions",  icon: Receipt   },
       { title: "Savings",            href: "/savings",       icon: PiggyBank },
       { title: "Fines",              href: "/fines",         icon: AlertCircle },
     ],
@@ -85,20 +86,20 @@ const NAV_GROUPS = [
 /** Nav item titles visible to each role. field_agent is the most restricted fallback. */
 const ROLE_ALLOWED_ITEMS: Record<string, string[]> = {
   admin: [
-    "Dashboard", "Members", "Loans", "Savings", "Fines",
+    "Dashboard", "Members", "Loans", "Transactions", "Savings", "Fines",
     "Complaints", "Documents", "Notifications", "Reports",
     "Users", "Support", "Settings", "Activity Logs", "Recycle Bin",
   ],
   cashier: [
-    "Dashboard", "Members", "Loans", "Savings", "Fines",
+    "Dashboard", "Members", "Loans", "Transactions", "Savings", "Fines",
     "Complaints", "Documents", "Notifications", "Users", "Support", "Activity Logs",
   ],
   branch_admin: [
-    "Dashboard", "Members", "Loans", "Savings", "Fines",
+    "Dashboard", "Members", "Loans", "Transactions", "Savings", "Fines",
     "Complaints", "Notifications", "Support", "Activity Logs",
   ],
   field_agent: [
-    "Dashboard", "Members", "Loans", "Savings", "Fines",
+    "Dashboard", "Members", "Loans", "Transactions", "Savings", "Fines",
     "Complaints", "Support",
   ],
 }

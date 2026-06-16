@@ -17,6 +17,7 @@ import {
   UserCog,
   HelpCircle,
   Layers,
+  Receipt,
 } from "lucide-react"
 import {
   Sidebar,
@@ -58,8 +59,9 @@ const navGroups = [
   {
     label: "Finance",
     items: [
-      { title: "Loans", href: "/loans", icon: Banknote },
+      {       title: "Loans", href: "/loans", icon: Banknote },
       { title: "Savings", href: "/savings", icon: PiggyBank },
+      { title: "Transactions", href: "/transactions", icon: Receipt },
       { title: "Fines", href: "/fines", icon: AlertCircle },
     ],
   },
@@ -96,6 +98,7 @@ const ROLE_NAV: Record<string, string[]> = {
     "Members",
     "Loans",
     "Savings",
+    "Transactions",
     "Fines",
     "Complaints",
     "Documents",
@@ -111,6 +114,7 @@ const ROLE_NAV: Record<string, string[]> = {
     "Members",
     "Loans",
     "Savings",
+    "Transactions",
     "Fines",
     "Complaints",
     "Documents",
@@ -123,6 +127,7 @@ const ROLE_NAV: Record<string, string[]> = {
     "Members",
     "Loans",
     "Savings",
+    "Transactions",
     "Fines",
     "Complaints",
     "Support",

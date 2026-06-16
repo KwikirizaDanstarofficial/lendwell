@@ -170,14 +170,15 @@ export async function offlineRepayLoan(
   saccoId: string,
   loanId: string,
   memberId: string,
-  amount: number
+  amount: number,
+  paymentDate?: string
 ): Promise<void> {
   const txId = uuid()
-  const ts = now()
+  const ts = paymentDate ? new Date(paymentDate).toISOString() : now()
 
   await db.execute(
     "UPDATE loans SET balance = MAX(0, balance - ?), updated_at = ? WHERE id = ?",
-    [amount, ts, loanId]
+    [amount, now(), loanId]
   )
 
   const loanResult = await db.execute(

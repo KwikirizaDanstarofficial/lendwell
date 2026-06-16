@@ -29,6 +29,9 @@ import {
   Phone,
   Mail,
   Loader2,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Minus,
 } from "lucide-react"
 
 export function LoanDetailClient({ id }: { id: string }) {
@@ -243,6 +246,41 @@ function LoanDetailContent({ id }: { id: string }) {
       ? formatLoanSchedule(loan.expectedReceived, loan.durationMonths, new Date(loan.createdAt))
       : []
 
+  const { data: paymentRows = [] } = useQuery(
+    `SELECT id, amount, balance_after, payment_method, reference_id, narration, created_at
+     FROM transactions
+     WHERE type = 'loan_repayment' AND member_id = ?
+       AND (reference_id = ? OR narration LIKE ?)
+     ORDER BY created_at ASC`,
+    [loan.memberId, id, `%${loan.loanRef}%`]
+  )
+
+  const payments = (paymentRows as any[]).map((p) => ({
+    id: p.id,
+    amount: Number(p.amount ?? 0),
+    balanceAfter: p.balance_after != null ? Number(p.balance_after) : null,
+    paymentMethod: p.payment_method ?? null,
+    narration: p.narration ?? null,
+    createdAt: p.created_at ?? null,
+  }))
+
+  const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; sign: "+" | "-" | "" }> = {
+    loan_repayment: {
+      label: "Loan Repayment",
+      icon: ArrowDownLeft,
+      color: "text-indigo-600 dark:text-indigo-400",
+      bg: "bg-indigo-500/10",
+      sign: "+",
+    },
+    savings_deposit: {
+      label: "Savings Deposit",
+      icon: ArrowDownLeft,
+      color: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-500/10",
+      sign: "+",
+    },
+  }
+
   const repaidAmount = loan.expectedReceived - loan.balance
   const progress = loan.expectedReceived > 0
     ? Math.min(100, Math.round((repaidAmount / loan.expectedReceived) * 100))
@@ -383,6 +421,58 @@ function LoanDetailContent({ id }: { id: string }) {
           </InfoGrid>
         </Section>
       </div>
+
+      {/* ── Payment History ── */}
+      {payments.length > 0 && (
+        <Section icon={TrendingUp} title="Payment History">
+          <div className="overflow-hidden rounded-xl border border-border">
+            <div className="max-h-72 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="text-xs tracking-widest text-muted-foreground uppercase">Date</TableHead>
+                    <TableHead className="text-xs tracking-widest text-muted-foreground uppercase">Amount</TableHead>
+                    <TableHead className="text-xs tracking-widest text-muted-foreground uppercase">Balance After</TableHead>
+                    <TableHead className="text-xs tracking-widest text-muted-foreground uppercase">Payment Method</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payments.map((p) => {
+                    const meta = TYPE_META.loan_repayment
+                    return (
+                      <TableRow key={p.id} className="text-sm">
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {new Date(p.createdAt).toLocaleDateString("en-UG", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-1.5 font-semibold tabular-nums">
+                            <span className={`inline-flex items-center rounded-full p-0.5 ${meta.bg} ${meta.color}`}>
+                              <ArrowDownLeft className="h-3 w-3" />
+                            </span>
+                            {meta.sign}{formatUGX(p.amount)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">
+                          {p.balanceAfter != null ? formatUGX(p.balanceAfter) : "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground capitalize">
+                          {p.paymentMethod ? p.paymentMethod.replace(/_/g, " ") : "—"}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </Section>
+      )}
 
       {/* ── Payment Schedule ── */}
       <Section icon={Calendar} title="Payment Schedule">

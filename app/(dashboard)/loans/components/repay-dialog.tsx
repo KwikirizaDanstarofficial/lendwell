@@ -60,8 +60,17 @@ export function RepayDialog({
     INITIAL_FORM_STATE
   )
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  const [paymentDate, setPaymentDate] = useState(() =>
+    new Date().toISOString().split("T")[0]
+  )
 
   const [offlineSuccess, setOfflineSuccess] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setPaymentDate(new Date().toISOString().split("T")[0])
+    }
+  }, [open])
 
   // On success show receipt; on error show toast
   useEffect(() => {
@@ -96,8 +105,9 @@ export function RepayDialog({
                 const fd = new FormData(e.currentTarget)
                 const amountStr = (fd.get("amount") as string)?.replace(/,/g, "")
                 const amount = Math.round(parseFloat(amountStr || "0") * 100)
+                const paymentDateValue = fd.get("payment_date") as string | null
                 if (!amountStr || isNaN(amount) || amount <= 0) { toast.error("Valid amount required."); return }
-                offlineRepayLoan(db, loan.saccoId, loan.id, loan.memberId, amount)
+                offlineRepayLoan(db, loan.saccoId, loan.id, loan.memberId, amount, paymentDateValue ?? undefined)
                   .then(() => { toast.success("Repayment recorded offline — will sync"); setOfflineSuccess(true) })
                   .catch(() => toast.error("Failed to save offline."))
               }
@@ -105,6 +115,17 @@ export function RepayDialog({
             className="space-y-4"
           >
             <input type="hidden" name="loan_id" value={loan.id} />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="payment_date">Payment Date</Label>
+              <Input
+                id="payment_date"
+                name="payment_date"
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+              />
+            </div>
 
             {/* Quick-reference payment amounts */}
             <div className="grid grid-cols-3 gap-3 text-center text-sm">

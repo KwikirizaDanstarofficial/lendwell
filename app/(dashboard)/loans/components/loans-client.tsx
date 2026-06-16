@@ -5,6 +5,7 @@ import { useQuery } from "@powersync/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Search, Plus, Download, Percent, Filter } from "lucide-react"
 import { LoansTable } from "./loans-table"
 import { LoanPdfReport } from "./loan-pdf-report"
@@ -46,6 +47,7 @@ interface LoansClientProps {
 }
 
 export function LoansClient({ saccoId }: LoansClientProps) {
+  const [activeTab, setActiveTab] = useState("all")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -76,19 +78,22 @@ export function LoansClient({ saccoId }: LoansClientProps) {
     [saccoId]
   )
 
+  const repaymentLoanRefs = useMemo(() => {
+    const refs = new Set<string>()
+    for (const tx of todayRepayments as any[]) {
+      if (tx.reference_id) {
+        const matched = (rows as any[]).find((r) => r.id === tx.reference_id)
+        if (matched) refs.add(matched.loan_ref)
+      } else if (tx.narration) {
+        const match = tx.narration.match(/Loan repayment - (.+)$/)
+        if (match) refs.add(match[1])
+      }
+    }
+    return refs
+  }, [rows, todayRepayments])
+
   const loans = useMemo(
     () => {
-      const repaymentLoanRefs = new Set<string>()
-      for (const tx of todayRepayments as any[]) {
-        if (tx.reference_id) {
-          const matched = (rows as any[]).find((r) => r.id === tx.reference_id)
-          if (matched) repaymentLoanRefs.add(matched.loan_ref)
-        } else if (tx.narration) {
-          const match = tx.narration.match(/Loan repayment - (.+)$/)
-          if (match) repaymentLoanRefs.add(match[1])
-        }
-      }
-
       const now = new Date()
       return (rows as any[]).map((r) => {
         const dueDate = r.due_date ? new Date(r.due_date) : null
@@ -137,8 +142,24 @@ export function LoansClient({ saccoId }: LoansClientProps) {
         }
       })
     },
-    [rows, todayRepayments]
+    [rows, repaymentLoanRefs]
   )
+
+  const paidTodayLoans = useMemo(
+    () => loans.filter((l) => repaymentLoanRefs.has(l.loanRef)),
+    [loans, repaymentLoanRefs]
+  )
+
+  const missedPaymentLoans = useMemo(
+    () => loans.filter((l) => l.hasMissedPayment),
+    [loans]
+  )
+
+  const activeTabLoans = useMemo(() => {
+    if (activeTab === "paid_today") return paidTodayLoans
+    if (activeTab === "missed") return missedPaymentLoans
+    return loans
+  }, [activeTab, loans, paidTodayLoans, missedPaymentLoans])
 
   const stats = useMemo(() => {
     let totalDisbursed = 0
@@ -171,7 +192,7 @@ export function LoansClient({ saccoId }: LoansClientProps) {
 
   const filteredLoans = useMemo(
     () =>
-      loans.filter((l) => {
+      activeTabLoans.filter((l) => {
         if (search) {
           const q = search.toLowerCase()
           if (
@@ -199,7 +220,7 @@ export function LoansClient({ saccoId }: LoansClientProps) {
 
         return true
       }),
-    [loans, search, dateFrom, dateTo, filterOverdue, filterMissed]
+    [activeTabLoans, search, dateFrom, dateTo, filterOverdue, filterMissed]
   )
 
   const handleExport = async () => {
@@ -288,31 +309,41 @@ export function LoansClient({ saccoId }: LoansClientProps) {
         </div>
       </div>
 
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <p className="shrink-0 text-sm text-muted-foreground">
-          {filteredLoans.length} of {loans.length} loans
-        </p>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:w-72">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search ref, member..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)}>
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <TabsList>
+            <TabsTrigger value="all">
+              All Loans ({loans.length})
+            </TabsTrigger>
+            <TabsTrigger value="paid_today" className="text-green-600 data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/30">
+              Paid Today ({paidTodayLoans.length})
+            </TabsTrigger>
+            <TabsTrigger value="missed" className="text-orange-600 data-[state=active]:bg-orange-50 dark:data-[state=active]:bg-orange-950/30">
+              Missed Payment ({missedPaymentLoans.length})
+            </TabsTrigger>
+          </TabsList>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative flex-1 sm:w-72">
+              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search ref, member..."
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(showFilters && "bg-accent")}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className={cn(showFilters && "bg-accent")}
-          >
-            <Filter className="mr-2 h-4 w-4" />
-            Filters
-          </Button>
         </div>
-      </div>
+      </Tabs>
 
       {showFilters && (
         <div className="flex flex-wrap items-end gap-4 rounded-lg border p-4">
