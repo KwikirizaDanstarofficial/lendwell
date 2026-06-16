@@ -155,11 +155,17 @@ export function LoansClient({ saccoId }: LoansClientProps) {
     [loans]
   )
 
+  const defaultedLoans = useMemo(
+    () => loans.filter((l) => l.status === "defaulted"),
+    [loans]
+  )
+
   const activeTabLoans = useMemo(() => {
     if (activeTab === "paid_today") return paidTodayLoans
     if (activeTab === "missed") return missedPaymentLoans
+    if (activeTab === "defaulted") return defaultedLoans
     return loans
-  }, [activeTab, loans, paidTodayLoans, missedPaymentLoans])
+  }, [activeTab, loans, paidTodayLoans, missedPaymentLoans, defaultedLoans])
 
   const stats = useMemo(() => {
     let totalDisbursed = 0
@@ -320,6 +326,9 @@ export function LoansClient({ saccoId }: LoansClientProps) {
             </TabsTrigger>
             <TabsTrigger value="missed" className="text-orange-600 data-[state=active]:bg-orange-50 dark:data-[state=active]:bg-orange-950/30">
               Missed Payment ({missedPaymentLoans.length})
+            </TabsTrigger>
+            <TabsTrigger value="defaulted" className="text-red-600 data-[state=active]:bg-red-50 dark:data-[state=active]:bg-red-950/30">
+              Defaulted ({defaultedLoans.length})
             </TabsTrigger>
           </TabsList>
           <div className="flex w-full items-center gap-2 sm:w-auto">

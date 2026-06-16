@@ -74,4 +74,16 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     "id","sacco_id","name","code","address","phone","email","manager_id",
     "is_active","created_at","updated_at",
   ],
+  expenses: [
+    "id","sacco_id","category","amount","description","payment_method",
+    "reference","paid_by","paid_at","notes","created_at","updated_at",
+  ],
+  sacco_bank_accounts: [
+    "id","sacco_id","bank_name","account_name","account_number","branch",
+    "is_active","created_at","updated_at",
+  ],
+  sacco_banking: [
+    "id","sacco_id","account_id","type","amount","description","reference",
+    "receipt_url","transacted_by","transacted_at","notes","created_at",
+  ],
 }

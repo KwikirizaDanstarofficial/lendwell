@@ -246,6 +246,45 @@ const branches = new Table({
   updated_at: column.text,
 })
 
+const expenses = new Table({
+  sacco_id: column.text,
+  category: column.text,
+  amount: column.integer,
+  description: column.text,
+  payment_method: column.text,
+  reference: column.text,
+  paid_by: column.text,
+  paid_at: column.text,
+  notes: column.text,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
+const sacco_bank_accounts = new Table({
+  sacco_id: column.text,
+  bank_name: column.text,
+  account_name: column.text,
+  account_number: column.text,
+  branch: column.text,
+  is_active: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+})
+
+const sacco_banking = new Table({
+  sacco_id: column.text,
+  account_id: column.text,
+  type: column.text,
+  amount: column.integer,
+  description: column.text,
+  reference: column.text,
+  receipt_url: column.text,
+  transacted_by: column.text,
+  transacted_at: column.text,
+  notes: column.text,
+  created_at: column.text,
+})
+
 export const AppSchema = new Schema({
   members,
   loans,
@@ -263,6 +302,9 @@ export const AppSchema = new Schema({
   saccos,
   branches,
   next_of_kin,
+  expenses,
+  sacco_bank_accounts,
+  sacco_banking,
 })
 
 export type Database = (typeof AppSchema)["types"]

@@ -82,6 +82,14 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
             accessToken: session.access_token,
             refreshToken: session.refresh_token,
           })
+          // Also persist to localStorage
+          try {
+            localStorage.setItem("lendwell-session", JSON.stringify({
+              accessToken: session.access_token,
+              refreshToken: session.refresh_token,
+              savedAt: Date.now(),
+            }))
+          } catch {}
           console.log("[Auth] Token refreshed and saved to vault")
         }
       }

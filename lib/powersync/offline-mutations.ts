@@ -1062,3 +1062,160 @@ export async function offlineUpdateSacco(
     [...values, now(), id]
   )
 }
+
+// ─── Expenses ────────────────────────────────────────────────────────────────
+
+export async function offlineAddExpense(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    category: string
+    amount: number
+    description: string
+    payment_method?: string
+    reference?: string | null
+    paid_by?: string | null
+    paid_at?: string | null
+    notes?: string | null
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO expenses
+       (id, sacco_id, category, amount, description, payment_method,
+        reference, paid_by, paid_at, notes, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.category, data.amount, data.description,
+     data.payment_method ?? "cash", data.reference ?? null,
+     data.paid_by ?? null, data.paid_at ?? null, data.notes ?? null, ts, ts]
+  )
+  return id
+}
+
+export async function offlineUpdateExpense(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    category?: string
+    amount?: number
+    description?: string
+    payment_method?: string
+    reference?: string | null
+    paid_by?: string | null
+    paid_at?: string | null
+    notes?: string | null
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE expenses SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
+export async function offlineDeleteExpense(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM expenses WHERE id = ?", [id])
+}
+
+// ─── Bank Accounts ───────────────────────────────────────────────────────────
+
+export async function offlineAddBankAccount(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    bank_name: string
+    account_name: string
+    account_number: string
+    branch?: string | null
+    is_active?: number
+  }
+): Promise<string> {
+  const id = uuid()
+  const ts = now()
+  await db.execute(
+    `INSERT INTO sacco_bank_accounts
+       (id, sacco_id, bank_name, account_name, account_number, branch,
+        is_active, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.bank_name, data.account_name, data.account_number,
+     data.branch ?? null, data.is_active ?? 1, ts, ts]
+  )
+  return id
+}
+
+export async function offlineUpdateBankAccount(
+  db: AbstractPowerSyncDatabase,
+  id: string,
+  data: {
+    bank_name?: string
+    account_name?: string
+    account_number?: string
+    branch?: string | null
+    is_active?: number
+  }
+): Promise<void> {
+  const fields = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => `${k} = ?`)
+    .join(", ")
+  const values = Object.values(data).filter((v) => v !== undefined)
+  if (fields.length === 0) return
+  await db.execute(
+    `UPDATE sacco_bank_accounts SET ${fields}, updated_at = ? WHERE id = ?`,
+    [...values, now(), id]
+  )
+}
+
+export async function offlineDeleteBankAccount(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM sacco_bank_accounts WHERE id = ?", [id])
+}
+
+// ─── Banking Transactions ────────────────────────────────────────────────────
+
+export async function offlineRecordBankingTransaction(
+  db: AbstractPowerSyncDatabase,
+  saccoId: string,
+  data: {
+    account_id: string
+    type: string
+    amount: number
+    description: string
+    reference?: string | null
+    receipt_url?: string | null
+    transacted_by?: string | null
+    transacted_at?: string | null
+    notes?: string | null
+  }
+): Promise<string> {
+  const id = uuid()
+  await db.execute(
+    `INSERT INTO sacco_banking
+       (id, sacco_id, account_id, type, amount, description, reference,
+        receipt_url, transacted_by, transacted_at, notes, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, saccoId, data.account_id, data.type, data.amount, data.description,
+     data.reference ?? null, data.receipt_url ?? null,
+     data.transacted_by ?? null, data.transacted_at ?? null,
+     data.notes ?? null, now()]
+  )
+  return id
+}
+
+export async function offlineDeleteBankingTransaction(
+  db: AbstractPowerSyncDatabase,
+  id: string
+): Promise<void> {
+  await db.execute("DELETE FROM sacco_banking WHERE id = ?", [id])
+}

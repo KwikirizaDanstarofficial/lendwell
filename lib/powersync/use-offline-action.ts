@@ -19,6 +19,9 @@ import {
   offlineSendNotification, offlineMarkNotificationRead, offlineDeleteNotification,
   offlineAddNextOfKin, offlineUpdateNextOfKin, offlineDeleteNextOfKin,
   offlineUpdateSacco,
+  offlineAddExpense, offlineUpdateExpense, offlineDeleteExpense,
+  offlineAddBankAccount, offlineUpdateBankAccount, offlineDeleteBankAccount,
+  offlineRecordBankingTransaction, offlineDeleteBankingTransaction,
 } from "./offline-mutations"
 
 export {
@@ -38,6 +41,9 @@ export {
   offlineSendNotification, offlineMarkNotificationRead, offlineDeleteNotification,
   offlineAddNextOfKin, offlineUpdateNextOfKin, offlineDeleteNextOfKin,
   offlineUpdateSacco,
+  offlineAddExpense, offlineUpdateExpense, offlineDeleteExpense,
+  offlineAddBankAccount, offlineUpdateBankAccount, offlineDeleteBankAccount,
+  offlineRecordBankingTransaction, offlineDeleteBankingTransaction,
 }
 
 export function useOfflineMutations(saccoId: string) {
@@ -131,5 +137,21 @@ export function useOfflineMutations(saccoId: string) {
     // Saccos
     updateSacco: (id: string, data: Parameters<typeof offlineUpdateSacco>[2]) =>
                    offlineUpdateSacco(db, id, data),
+    // Expenses
+    addExpense:    (data: Parameters<typeof offlineAddExpense>[2]) =>
+                    offlineAddExpense(db, saccoId, data),
+    updateExpense: (id: string, data: Parameters<typeof offlineUpdateExpense>[2]) =>
+                    offlineUpdateExpense(db, id, data),
+    deleteExpense: (id: string) => offlineDeleteExpense(db, id),
+    // Bank Accounts
+    addBankAccount:    (data: Parameters<typeof offlineAddBankAccount>[2]) =>
+                        offlineAddBankAccount(db, saccoId, data),
+    updateBankAccount: (id: string, data: Parameters<typeof offlineUpdateBankAccount>[2]) =>
+                        offlineUpdateBankAccount(db, id, data),
+    deleteBankAccount: (id: string) => offlineDeleteBankAccount(db, id),
+    // Banking Transactions
+    recordBankingTransaction: (data: Parameters<typeof offlineRecordBankingTransaction>[2]) =>
+                               offlineRecordBankingTransaction(db, saccoId, data),
+    deleteBankingTransaction: (id: string) => offlineDeleteBankingTransaction(db, id),
   }
 }

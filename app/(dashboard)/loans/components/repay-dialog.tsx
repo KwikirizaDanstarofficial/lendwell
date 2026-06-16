@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ReceiptDialog } from "@/components/receipts/receipt-dialog"
+import { downloadReceiptPdf } from "@/lib/pdf/repayment-receipt"
 import type { ReceiptData } from "@/types/receipt"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -72,11 +73,12 @@ export function RepayDialog({
     }
   }, [open])
 
-  // On success show receipt; on error show toast
+  // On success show receipt + auto-download PDF; on error show toast
   useEffect(() => {
     if (offlineSuccess) { onClose(); return }
     if (state.success && state.receipt) {
       setReceipt(state.receipt)
+      downloadReceiptPdf(state.receipt)
       onClose()
       syncNow()
     }

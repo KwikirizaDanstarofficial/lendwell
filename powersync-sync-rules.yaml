@@ -70,3 +70,15 @@ streams:
   loan_guarantors:
     auto_subscribe: true
     query: SELECT * FROM loan_guarantors WHERE loan_guarantors.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  expenses:
+    auto_subscribe: true
+    query: SELECT * FROM expenses WHERE expenses.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  sacco_bank_accounts:
+    auto_subscribe: true
+    query: SELECT * FROM sacco_bank_accounts WHERE sacco_bank_accounts.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')
+
+  sacco_banking:
+    auto_subscribe: true
+    query: SELECT * FROM sacco_banking WHERE sacco_banking.sacco_id = (auth.jwt() -> 'user_metadata' ->> 'sacco_id')

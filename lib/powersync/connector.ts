@@ -51,25 +51,24 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
       }
     }
 
-    if (!session) throw new Error("Not authenticated")
+    // If still no session but we have vault tokens, use them as-is.
+    // This lets PowerSync operate fully offline with local SQLite data.
+    const vault = !session ? await electronSession() : null
+    const token = session?.access_token ?? vault?.accessToken
 
-    const payload = decodeJwtPayload(session.access_token)
-    if (!payload.sacco_id) {
-      console.error(
-        "[PowerSync] JWT is missing root-level sacco_id claim.\n" +
-        "Set up the Supabase custom_access_token_hook (see POWERSYNC_JWT_SETUP.md)\n" +
-        "then sign out and back in to get a valid JWT."
-      )
-      throw new Error(
-        "JWT missing sacco_id — sync blocked to protect local data. See POWERSYNC_JWT_SETUP.md."
-      )
+    if (!token) throw new Error("Not authenticated — no session or vault token found")
+
+    // When we have a token (even if potentially expired), try to get sacco_id
+    const payload = decodeJwtPayload(token)
+    if (!payload.sacco_id && !session) {
+      // Offline with vault token — we can still read from local DB.
+      // PowerSync Cloud sync won't work, but local SQLite queries will.
+      console.warn("[PowerSync] No sacco_id in cached token — local-only mode")
     }
-
-    console.log("[PowerSync] JWT:", session.access_token)
 
     return {
       endpoint: getClientConfig().powersyncUrl,
-      token:    session.access_token,
+      token,
     }
   }
 

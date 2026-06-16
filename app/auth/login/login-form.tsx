@@ -10,6 +10,8 @@ import { Eye, EyeOff, Loader2, Building2, GitBranch, MapPin, Phone } from "lucid
 import { supabase } from "@/lib/supabase/client"
 import { isOffline } from "@/lib/utils/is-offline"
 
+const LS_SESSION_KEY = "lendwell-session"
+
 type BranchItem = { id: string; name: string; code: string; address: string | null; phone: string | null }
 
 interface LoginFormProps {
@@ -99,6 +101,17 @@ function LoginCredentialsForm({
           }
           // Authenticate and store session in vault
           await window.electron.login(email.trim().toLowerCase(), password)
+          // Also save to localStorage for offline startup resilience
+          try {
+            const conf = await window.electron.getConfig()
+            if (conf.accessToken) {
+              localStorage.setItem(LS_SESSION_KEY, JSON.stringify({
+                accessToken: conf.accessToken,
+                refreshToken: conf.refreshToken ?? conf.accessToken,
+                savedAt: Date.now(),
+              }))
+            }
+          } catch {}
           // Set session cookies for server-side auth
           const res = await fetch("/api/auth/login", {
             method: "POST",
@@ -139,6 +152,18 @@ function LoginCredentialsForm({
         })
         const data = await res.json()
         if (!res.ok) { setError(data.error ?? "Invalid email or password."); return }
+
+        // Save session to localStorage for offline resilience
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.access_token && session?.refresh_token) {
+            localStorage.setItem(LS_SESSION_KEY, JSON.stringify({
+              accessToken: session.access_token,
+              refreshToken: session.refresh_token,
+              savedAt: Date.now(),
+            }))
+          }
+        } catch {}
 
         if (data.role === "member") {
           window.location.href = "/portal"

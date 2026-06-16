@@ -126,3 +126,23 @@ bucket_definitions:
                created_at, updated_at
           FROM loan_guarantors
           WHERE sacco_id = bucket.sacco_id
+
+      # Expenses
+      - SELECT id, sacco_id, category, amount, description,
+               payment_method, reference, paid_by, paid_at,
+               notes, created_at, updated_at
+          FROM expenses
+          WHERE sacco_id = bucket.sacco_id
+
+      # Bank accounts
+      - SELECT id, sacco_id, bank_name, account_name, account_number,
+               branch, is_active, created_at, updated_at
+          FROM sacco_bank_accounts
+          WHERE sacco_id = bucket.sacco_id
+
+      # Banking transactions
+      - SELECT id, sacco_id, account_id, type, amount, description,
+               reference, receipt_url, transacted_by, transacted_at,
+               notes, created_at
+          FROM sacco_banking
+          WHERE sacco_id = bucket.sacco_id
